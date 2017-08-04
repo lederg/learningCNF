@@ -1,7 +1,7 @@
 import subprocess
 
 # def randomCNF():
-fuzz = subprocess.Popen("./fuzzsat-0.1/fuzzsat -p 10 -P 20", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+fuzz = subprocess.Popen("./fuzzsat-0.1/fuzzsat -i 3 -I 500 -p 10 -P 20", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 output = fuzz.stdout.readlines()
 
 occs = {}
@@ -34,6 +34,7 @@ sign = lambda x: x and (1, -1)[x < 0]
 
 # Split variables when they occur in more than 8 clauses
 itervars = set(occs.keys())
+added_vars = 0
 while True:
     if len(itervars) == 0:
         break
@@ -41,6 +42,7 @@ while True:
     if len(occs[v]) > 8:
         # print('Found var '+str(v)+ ' with '+ str(len(occs[v]))+ ' occurrences.')
         maxvar += 1
+        added_vars += 1
         glueclauses = [[v,-maxvar],[-v,maxvar]]
         ## prepend glueclauses to shift all clauses back, don't want to remove the glueclauses with what follows
         occs[v] = glueclauses + occs[v] 
@@ -65,6 +67,7 @@ while True:
         
 
 print ('maxvar: ' + str(maxvar))
+print ('added vars: ' + str(added_vars))
 print ('Max: ' + str( max( [len(occs[v]) for v in occs.keys()] )))
 print ('Over 8 occs: ' + str(len( filter(lambda x: x, [len(occs[v]) > 8 for v in occs.keys()] ))))
 

@@ -1,37 +1,42 @@
 import torch
-import torch.autograd as autograd
+from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
+import utils
 import numpy as np
 
-torch.manual_seed(1)
 
 
 class ResidualCombine(nn.Module):
     def __init__(self, input_size, embedding_dim):
-    	self.layer1 = nn.linear(input_size*embedding_dim,embedding)
-    	self.layer2 = nn.linear(input_size*embedding_dim,embedding)
+    	super(ResidualCombine, self).__init__()        
+    	self.layer1 = nn.Linear(input_size*embedding_dim,embedding_dim)
+    	self.layer2 = nn.Linear(input_size*embedding_dim,embedding_dim)
 
     def forward(self, input):
-    	out = F.normalize(F.sigmoid(self.layer1(input)) + self.layer2(input))
+    	out = utils.normalize(F.sigmoid(self.layer1(input)) + self.layer2(input))
     	return out
 
 
+# class VariableIteration(nn.Module):
+# 	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, max_iters):
+
+
+
 class Encoder(nn.Module):
-    def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, num_variables, max_iters):
-        super(EncoderRNN, self).__init__()        
+    def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, max_iters):
+        super(Encoder, self).__init__()        
         self.embedding_dim = embedding_dim
         self.max_variables = max_variables
         self.max_clauses = max_clauses
         self.max_iters = max_iters
         self.num_ground_variables = num_ground_variables
-        self.negation = nn.linear(embedding_dim, embedding_dim)
-        self.embedding = nn.Embedding(num_ground_variables, embedding_dim)
-        self.extra_embedding = nn.Embedding(2, embedding_dim)    # one for the ground tseitin variables, one for False.
-        self.false = self.extra_embedding(0)
-        self.tseitin = self.extra_embedding(1)
+        self.negation = nn.Linear(embedding_dim, embedding_dim)   # add non-linearity?
+        self.embedding = nn.Embedding(num_ground_variables, embedding_dim, max_norm=1.)        
+        self.false = nn.Parameter(torch.Tensor(embedding_dim), requires_grad=True).view(1,-1)
+        self.tseitin = nn.Parameter(torch.Tensor(embedding_dim), requires_grad=True).view(1,-1)
+        self.true = self.negation(self.false)
         self.clause_combiner = ResidualCombine(max_clauses,embedding_dim)
         self.variable_combiner = ResidualCombine(max_variables,embedding_dim)
 
@@ -44,8 +49,8 @@ class Encoder(nn.Module):
     		if not split:
     			return rc
     		else:
-    			org = torch.cat(clauses,1)
-    			return torch.cat(org,rc)
+    			org = torch.cat(clauses,1)			# split
+    			return torch.cat(org,rc)	
     	else:
     		return torch.cat(clauses,dim=1)
 
@@ -58,7 +63,7 @@ class Encoder(nn.Module):
 	    	if not split:
 	    		return perm
 	    	else:
-	    		org = torch.cat([tmp] + variables,1)
+	    		org = torch.cat([tmp] + variables,1)		# splitting batch
 	    		return torch.cat([org,perm])
     	else:
     		rc = [tmp] + variables
@@ -66,7 +71,7 @@ class Encoder(nn.Module):
 
 
 
-    def _forward_clause(variables, clause, i):
+    def _forward_clause(self, variables, clause, i):
     	c_vars = []    	
     	for j in range(self.max_variables):
     		if j<len(clause):
@@ -83,11 +88,11 @@ class Encoder(nn.Module):
     	return self.variable_combiner(self.prepare_variables(c_vars,ind_in_clause))
 
 
-    def _forward_iteration(variables, formula):
+    def _forward_iteration(self, variables, formula):
     	out_embeddings = []
     	for i,clauses in enumerate(formula):
     		if clauses:
-    			clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
+    			clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses] + [self.true]*(self.max_clauses-len(clauses))
     			out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings)))
     		else:
     			out_embeddings.append(variables[i])
@@ -100,9 +105,9 @@ class Encoder(nn.Module):
     	variables = []
     	for i in range(len(input)):
     		if i<self.num_ground_variables:
-    			variables.append(F.normalize(self.embedding(autograd.Variable(torch.LongTensor([[i]])))))
+    			variables.append(self.embedding(Variable(torch.LongTensor([i]))))
     		else:
-    			variables.append(F.normalize(self.tseitin))
+    			variables.append(utils.normalize(self.tseitin))
 
-    	for _ in range(max_iters):
+    	for _ in range(self.max_iters):
     		variables = self._forward_iteration(variables, input)

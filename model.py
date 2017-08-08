@@ -8,6 +8,14 @@ import numpy as np
 
 
 
+class TestAdd(nn.Module):
+    def __init__(self, param1):
+    	super(TestAdd, self).__init__()
+    	self.coefficient = nn.Parameter(torch.Tensor([param1]))
+
+    def forward(self, input):
+    	return self.coefficient * input[0] + input[1]
+
 class ResidualCombine(nn.Module):
     def __init__(self, input_size, embedding_dim):
     	super(ResidualCombine, self).__init__()        
@@ -45,21 +53,24 @@ class Encoder(nn.Module):
 
     def prepare_clauses(self, clauses, permute=True, split=True):  
     	if permute:  	
-    		rc = torch.cat(np.random.permutation(clauses),dim=1)
+    		rc = torch.cat(utils.permute_seq(clauses),dim=1)
     		if not split:
     			return rc
     		else:
     			org = torch.cat(clauses,1)			# split
-    			return torch.cat(org,rc)	
+    			return torch.cat([org,rc])	
     	else:
     		return torch.cat(clauses,dim=1)
 
  # i is the index of the special variable (the current one)
     def prepare_variables(self, variables, curr_variable, permute=True, split=True):    	
     	tmp = variables.pop(curr_variable)
-    	if permute:
-	    	rc = [tmp] + np.random.permutation(variables)
-	    	perm = torch.cat(rc,1)
+    	if permute:    		
+	    	rc = [tmp] + utils.permute_seq(variables)	    		    	
+	    	try:
+	    		perm = torch.cat(rc,1)
+	    	except RuntimeError:
+	    		import ipdb; ipdb.set_trace()    		
 	    	if not split:
 	    		return perm
 	    	else:
@@ -83,7 +94,7 @@ class Encoder(nn.Module):
 	    		if l < 0:
 	    			v = self.negation(v)
 	    	else:
-	    		v = self.false
+	    		v = self.false.expand_as(variables[0])
     		c_vars.append(v)
     	return self.variable_combiner(self.prepare_variables(c_vars,ind_in_clause))
 
@@ -92,8 +103,9 @@ class Encoder(nn.Module):
     	out_embeddings = []
     	for i,clauses in enumerate(formula):
     		if clauses:
-    			clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses] + [self.true]*(self.max_clauses-len(clauses))
-    			out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings)))
+    			clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
+    			true_embeddings = [self.true.expand_as(clause_embeddings[0])]*(self.max_clauses-len(clauses))
+    			out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings+true_embeddings)))
     		else:
     			out_embeddings.append(variables[i])
 
@@ -111,3 +123,5 @@ class Encoder(nn.Module):
 
     	for _ in range(self.max_iters):
     		variables = self._forward_iteration(variables, input)
+
+    	return variables

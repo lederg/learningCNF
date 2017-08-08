@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from model import *
+import utils
 import numpy as np
 
 torch.manual_seed(1)
@@ -15,7 +16,8 @@ torch.manual_seed(1)
 
 train_formula = [[[1,-3],[-1,-2,3]],
 				 [[2,-3],[-1,-2,3]], 
-				 [[1,-3],[2,-3],[-1,-2,3]]
+				 [[1,-3],[2,-3],[-1,-2,3]]]
+
 
 
 hyperparams = {
@@ -25,3 +27,6 @@ hyperparams = {
 	'num_ground_variables': 3, 
 	'max_iters': 2
 }
+
+input = utils.formula_to_input(train_formula)
+a = Encoder(**hyperparams)

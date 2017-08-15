@@ -3,7 +3,8 @@ from pprint import pprint
 
 eq_classes = []
 
-with open('expressions-synthetic/largeSimpleBoolean5.json') as json_file:
+# with open('expressions-synthetic/largeSimpleBoolean5.json') as json_file:
+with open('expressions-synthetic/boolean5.json') as json_file:
     
     json = json.load(json_file)
     

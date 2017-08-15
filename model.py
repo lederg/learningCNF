@@ -124,4 +124,6 @@ class Encoder(nn.Module):
     	for _ in range(self.max_iters):
     		variables = self._forward_iteration(variables, input)
 
-    	return variables
+    	# We add loss on each variable embedding to encourage different elements in the batch to stay close. 
+    	aux_losses = [(v - v.mean(dim=0).expand_as(v)).norm(dim=1).sum() for v in variables]    		
+    	return variables, aux_losses

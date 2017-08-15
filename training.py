@@ -30,3 +30,4 @@ hyperparams = {
 
 input = utils.formula_to_input(train_formula)
 a = Encoder(**hyperparams)
+out, aux_losses = a.forward(input)

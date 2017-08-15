@@ -1,10 +1,15 @@
 import json
 from pprint import pprint
 
-eq_classes = []
+eq_classes_data = []
+
+max_fixed_var = 10
+fixed_variables = {}
+for i in range(max_fixed_var):
+    fixed_variables[chr(ord('a') + i)] = i + 1
 
 # with open('expressions-synthetic/largeSimpleBoolean5.json') as json_file:
-with open('expressions-synthetic/boolean5.json') as json_file:
+with open('expressions-synthetic/Boolean5.json') as json_file:
     
     json = json.load(json_file)
     
@@ -19,7 +24,7 @@ with open('expressions-synthetic/boolean5.json') as json_file:
             eq_class.append(json[k]['Noise'][j]['Tree']['Children']['child'])
             num_formulas += 1
         print('  ' + str(num_formulas) + ' variants')
-        eq_classes.append(eq_class)
+        eq_classes_data.append(eq_class)
     del eq_class_keys
     del json
 
@@ -46,9 +51,14 @@ def add_clauses(CNF, clauses):
 def translate_expression(CNF, node):
     name = node['Name']
     if len(name) == 1 and name.islower(): # Variable
+        assert(name in fixed_variables)
         if name not in CNF['origvars']:
-            CNF['maxvar'] += 1
-            CNF['origvars'][name] = CNF['maxvar']
+            CNF['origvars'][name] = fixed_variables[name]
+            
+            # Use this code in case we don't want to use fixed_variables
+            # CNF['maxvar'] += 1
+            # CNF['origvars'][name] = CNF['maxvar']
+            
         CNF['topvar'] = CNF['origvars'][name]
         
     elif name == 'Not':
@@ -116,22 +126,28 @@ def translate_expression(CNF, node):
     return CNF['topvar']
 
 # Translate all formulas to CNF
-eq_classes_CNF = {}
-for eq_class in eq_classes:
-    eq_class_CNF = []
-    for formula_node in eq_class:
-        print('Processing: ')
+eq_classes = {}
+for eq_class_data in eq_classes_data:
+    eq_class = []
+    for formula_node in eq_class_data:
+        # print('Processing: ')
         pprint(formula_node)
-        CNF = {'topvar' : None, 'maxvar' : 0, 'origvars': {}, 'auxvars': [], 'clauses': [], 'clauses_per_variable' : {}}
-        eq_class_CNF += [CNF]        
+        CNF = {'topvar' : None, \
+               'maxvar' : 10,   \
+               'origvars': {},  \
+               'auxvars': [],   \
+               'clauses': [],   \
+               'clauses_per_variable' : {}}
+        eq_class += [CNF]        
         translate_expression(CNF, formula_node)
-        print(CNF)
+        # print(CNF)
         
         for v in CNF['clauses_per_variable'].keys():
             if len(CNF['clauses_per_variable'][v]) > 8:
                 print('Error: too many clauses for variable ' + str(v))
                 quit()
         
-    eq_classes_CNF[formula_node['Symbol']] = eq_class_CNF 
+    eq_classes[formula_node['Symbol']] = eq_class 
     
-
+# print(eq_classes.keys())
+# print(eq_classes[u'Or(And(Not(a), Not(b)), c)'][0])

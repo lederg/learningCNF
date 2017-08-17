@@ -3,11 +3,15 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torch.utils.data
 from model import *
+from datautils import *
 import utils
 import numpy as np
 
 torch.manual_seed(1)
+
+TRAIN_FILE = fname = 'expressions-synthetic/boolean5.json'
 
 # a^b -> c
 # 1 -3
@@ -28,6 +32,9 @@ hyperparams = {
 	'max_iters': 2
 }
 
+ds = CnfDataset(fname)
+sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
+trainloader = torch.utils.data.DataLoader(ds, batch_size=len(ds), sampler = sampler)
 input = utils.formula_to_input(train_formula)
 a = Encoder(**hyperparams)
 out, aux_losses = a.forward(input)

@@ -24,6 +24,21 @@ class CnfDataset(Dataset):
 
         return {'sample': sample, 'label': i}
 
+    @property
+    def weights_vector(self):
+        try:
+            return self.__weights_vector
+        except:
+            pass
+
+        rc = []
+        a =[[1/x]*x for x in self.class_size]
+        a = np.concatenate(a) / len(self.class_size)     # a now holds the relative size of classes
+        self.__weights_vector = a
+        return a
+
+
+
     def transform_sample(self,sample):
         clauses = sample['clauses_per_variable']
         auxvars = sample['auxvars']        
@@ -44,7 +59,10 @@ class CnfDataset(Dataset):
         # First append ground vars or empty clauses. 
         for i in range(1,self.ground_vars+1):     # we are appending anyway, so who cares about index        
             if i in origvars:            
-                rc.append([list(map(convert_var,x)) for x in clauses[i]])
+                try:
+                    rc.append([list(map(convert_var,x)) for x in clauses[i]])
+                except:
+                    import ipdb; ipdb.set_trace()
             else:
                 rc.append([])
 
@@ -57,7 +75,17 @@ class CnfDataset(Dataset):
 
 
     def filter_classes(self,classes):
-        return {k: v for k,v in classes.items() if len(v) > self.CLASS_THRESHOLD}
+        a = {k: v for k,v in classes.items() if len(v) > self.CLASS_THRESHOLD}
+        m = np.mean([len(x) for x in a.values()])
+        rc = {k: v for k,v in a.items() if len(v) < 3*m}
+        rc1 = {}
+        for k,v in rc.items():
+            v1 = [x for x in v if x['clauses_per_variable']]
+            if len(v1) < len(v):
+                print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
+            rc[k] = v1
+        return rc
+
     @property
     def ground_vars(self):
         try:

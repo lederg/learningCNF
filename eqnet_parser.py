@@ -29,6 +29,7 @@ def load_bool_data(fname):
         del eq_class_keys
         del json_data
     return rc
+    
 def simplify_clause(c):
     s = set(c)
     for x in s:
@@ -133,7 +134,7 @@ def to_cnf(classes):
         eq_class = []
         for formula_node in eq_class_data:
             # print('Processing: ')
-            pprint(formula_node)
+            # pprint(formula_node)
             CNF = {'topvar' : None, \
                    'maxvar' : 10,   \
                    'origvars': {},  \
@@ -142,6 +143,8 @@ def to_cnf(classes):
                    'clauses_per_variable' : {}}
             eq_class += [CNF]        
             translate_expression(CNF, formula_node)
+            # add final clause asserting the topvar (the expression has to be true)
+            add_clauses(CNF, [[CNF['topvar']]])
             # print(CNF)
             
             for v in CNF['clauses_per_variable'].keys():
@@ -150,6 +153,7 @@ def to_cnf(classes):
                     quit()
             
         eq_classes[formula_node['Symbol']] = eq_class
+        
 
     return eq_classes
 

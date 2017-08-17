@@ -29,12 +29,15 @@ hyperparams = {
 	'max_clauses': 3, 
 	'max_variables': 3, 
 	'num_ground_variables': 3, 
-	'max_iters': 2
+	'max_iters': 2,
+	'split': False
 }
 
 ds = CnfDataset(fname)
-sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
+hyperparams['num_classes'] = ds.num_classes
+sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, 1)
+a = EqClassifier(**hyperparams)
+# sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
 trainloader = torch.utils.data.DataLoader(ds, batch_size=len(ds), sampler = sampler)
 input = utils.formula_to_input(train_formula)
-a = Encoder(**hyperparams)
 out, aux_losses = a.forward(input)

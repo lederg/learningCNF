@@ -20,9 +20,9 @@ class CnfDataset(Dataset):
         i = np.where(self.class_cumsize > idx)[0][0]            # This is the equivalence class
         j = idx if i==0 else idx-self.class_cumsize[i-1]        # index inside equivalence class
         sample = self.samples[i][j]        
-        sample = self.transform_sample(sample)
+        sample, topvar = self.transform_sample(sample)
 
-        return {'sample': sample, 'label': i}
+        return {'sample': sample, 'label': i, 'topvar': topvar}
 
     @property
     def weights_vector(self):
@@ -70,7 +70,7 @@ class CnfDataset(Dataset):
         for i in auxvars:
             rc.append([list(map(convert_var,x)) for x in clauses[i]])
 
-        return rc
+        return rc, convert_var(sample['topvar'])
 
 
 
@@ -98,3 +98,6 @@ class CnfDataset(Dataset):
                 rc = max(rc,max(sample['origvars'].values()))
         self.num_ground_vars = rc
         return rc
+    @property
+    def num_classes(self):
+        return len(self.labels)

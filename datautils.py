@@ -99,5 +99,18 @@ class CnfDataset(Dataset):
         self.num_ground_vars = rc
         return rc
     @property
+    def max_clauses(self):
+        try:
+            return self.num_max_clauses
+        except:
+            pass
+        rc = 0
+        for x in self.samples:
+            for sample in x:
+                rc = max(rc,max([len(x) for x in sample['clauses_per_variable'].values()]))
+        self.num_max_clauses = rc
+        return rc
+        
+    @property
     def num_classes(self):
         return len(self.labels)

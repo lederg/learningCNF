@@ -23,7 +23,11 @@ class ResidualCombine(nn.Module):
 		self.layer2 = nn.Linear(input_size*embedding_dim,embedding_dim)
 
 	def forward(self, input):
-		out = utils.normalize(F.sigmoid(self.layer1(input)) + self.layer2(input))
+		try:
+			out = utils.normalize(F.sigmoid(self.layer1(input)) + self.layer2(input))
+		except Exception as e:
+			print(e)
+			ipdb.set_trace()
 		return out
 
 
@@ -85,15 +89,16 @@ class Encoder(nn.Module):
 
 
 	def _forward_clause(self, variables, clause, i):
-		c_vars = []     
+		c_vars = []
 		for j in range(self.max_variables):
-			if j<len(clause):
-				l=clause[j]
-				ind = np.abs(l)-1       # variables in clauses are 1-based and negative if negated
-				v = variables[ind]
-				if ind==i:
+			if j<len(clause):								# clause is a list of tensors
+				l=clause[j]									# l is a tensored floaty integer
+				ind = torch.abs(l)-1       					# variables in clauses are 1-based and negative if negated
+				v = torch.stack(variables)[ind.data][0] 	# tensored variables (to be indexed by tensor which is inside a torch variable..gah)
+				# ipdb.set_trace()
+				if (ind==i).data.all():
 					ind_in_clause = j
-				if l < 0:
+				if (l < 0).data.all():
 					v = self.negation(v)
 			else:
 				v = self.false.expand_as(variables[0])
@@ -123,9 +128,10 @@ class Encoder(nn.Module):
 			else:
 				variables.append(utils.normalize(self.tseitin))
 
-		ipdb.set_trace()
+		# ipdb.set_trace()
 
-		for _ in range(self.max_iters):
+		for i in range(self.max_iters):
+			print('Starting iteration %d' % i)
 			variables = self._forward_iteration(variables, input)
 
 		# We add loss on each variable embedding to encourage different elements in the batch to stay close. 
@@ -145,6 +151,10 @@ class EqClassifier(nn.Module):
 		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
 
 	def forward(self, input, output_ind):
-		embeddings = self.encoder(input)
-		return F.relu(self.softmax_layer(embeddings[output_ind[0]]))
+		embeddings, aux_losses = self.encoder(input)
+		try:
+			return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
+		except Exception as e:
+			print(e)
+			ipdb.set_trace()
 

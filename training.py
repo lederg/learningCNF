@@ -54,16 +54,16 @@ def train(fname):
         for i, data in enumerate(trainloader, 0):
             # get the inputs, no batching unfortunately...          
             ds_idx = data['idx_in_dataset'][0]
-            if ds_idx==541:
-                ipdb.set_trace()
+            # if ds_idx==541:
+            #     ipdb.set_trace()
             inputs = utils.formula_to_input(data['sample'])
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
             print('Processing sample from dataset with index %d' % ds_idx)
             print(ds[ds_idx]['orig_sample']['clauses'])
-            if ds_idx in [194]:
-                print('Skipping index %d' % ds_idx)
-                continue
+            # if ds_idx in [194]:
+            #     print('Skipping index %d' % ds_idx)
+            #     continue
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -75,6 +75,7 @@ def train(fname):
             try:
                 loss.backward()
             except RuntimeError as e:
+                print('Woah, something is going on')
                 print(e)
                 ipdb.set_trace()            
             optimizer.step()

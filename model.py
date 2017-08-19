@@ -8,6 +8,20 @@ import numpy as np
 import ipdb
 
 
+class TestDup(nn.Module):
+	def __init__(self, param1):
+		super(TestDup, self).__init__()
+		self.extra_embedding = nn.Embedding(1, param1, max_norm=1.)				
+		self.layer1 = nn.Linear(param1*3,param1)
+
+	@property
+	def false(self):
+		return self.extra_embedding(Variable(torch.LongTensor([0]), requires_grad=False))
+
+	def forward(self, inputs):
+		return self.layer1(torch.cat([self.false,self.false,inputs],dim=1))
+		
+
 class TestAdd(nn.Module):
 	def __init__(self, param1):
 		super(TestAdd, self).__init__()
@@ -35,39 +49,27 @@ class ResidualCombine(nn.Module):
 # 	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, max_iters):
 
 
-
-class Encoder(nn.Module):
-	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, max_iters, split=True, permute=True):
-		super(Encoder, self).__init__()        
+class InnerIteration(nn.Module):
+	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, split=True, permute=True):
+		super(InnerIteration, self).__init__()        
 		self.embedding_dim = embedding_dim
 		self.max_variables = max_variables
 		self.max_clauses = max_clauses
-		self.max_iters = max_iters
 		self.split = split
 		self.permute = permute
 		self.num_ground_variables = num_ground_variables
-		self.negation = nn.Linear(embedding_dim, embedding_dim)   # add non-linearity?
-		self.embedding = nn.Embedding(num_ground_variables, embedding_dim, max_norm=1.)		
-		self.extra_embedding = nn.Embedding(2, embedding_dim, max_norm=1.)		
-		# self.false = nn.Parameter(torch.Tensor(embedding_dim), requires_grad=True).view(1,-1)
-		# self.tseitin = nn.Parameter(torch.Tensor(embedding_dim), requires_grad=True).view(1,-1)
-		self.true = self.negation(self.false)
+		self.negation = nn.Linear(embedding_dim, embedding_dim)   # add non-linearity?		
+		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
 		self.clause_combiner = ResidualCombine(max_clauses,embedding_dim)
 		self.variable_combiner = ResidualCombine(max_variables,embedding_dim)
 
-
-
-
 	@property
 	def false(self):
-		return self.extra_embedding(Variable(torch.LongTensor([0])))
+		return self.extra_embedding(Variable(torch.LongTensor([0]), requires_grad=False))
 
 	@property
-	def tseitin(self):
-		return self.extra_embedding(Variable(torch.LongTensor([1])))
-
-
- # We permute the clauses and concatenate them
+	def true(self):
+		return self.negation(self.false)
 
 	def prepare_clauses(self, clauses):
 		if self.permute:  	
@@ -117,23 +119,40 @@ class Encoder(nn.Module):
 			c_vars.append(v)
 		return self.variable_combiner(self.prepare_variables(c_vars,ind_in_clause))
 
-
-	def _forward_iteration(self, variables, formula):
+	def forward(self, variables, formula):
 		out_embeddings = []		
 		for i,clauses in enumerate(formula):
 			print('Clauses for variable %d: %d' % (i+1, len(clauses)))
-			if clauses and i<2:
-				# clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
-				# true_embeddings = [self.true.expand_as(clause_embeddings[0])]*(self.max_clauses-len(clauses))
-				# out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings+true_embeddings)))
-				true_embeddings = [self.true]*(self.max_clauses)
-				out_embeddings.append(self.true)
+			if clauses:
+				clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
+				true_embeddings = [self.true.expand_as(clause_embeddings[0])]*(self.max_clauses-len(clauses))
+				out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings+true_embeddings)))
+
+				# true_embeddings = [self.true]*(self.max_clauses)
+				# out_embeddings.append(self.true)
+
+				# out_embeddings.append(self.negation(variables[i]))
 			else:
 				out_embeddings.append(variables[i])
 
 		return out_embeddings
 
+
+class Encoder(nn.Module):
+	def __init__(self, embedding_dim, num_ground_variables, max_iters, **kwargs):
+		super(Encoder, self).__init__()        
+		self.embedding_dim = embedding_dim		
+		self.max_iters = max_iters		
+		self.num_ground_variables = num_ground_variables		
+		self.embedding = nn.Embedding(num_ground_variables, embedding_dim, max_norm=1.)				
+		self.tseitin_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)		
+		self.inner_iteration = InnerIteration(embedding_dim, num_ground_variables=num_ground_variables, **kwargs)		
+	
 # input is one training sample (a formula), we'll permute it a bit at every iteration and possibly split to create a batch
+
+	@property
+	def tseitin(self):
+		return self.tseitin_embedding(Variable(torch.LongTensor([0])))
 
 	def forward(self, input):
 		variables = []        
@@ -147,11 +166,11 @@ class Encoder(nn.Module):
 
 		for i in range(self.max_iters):
 			print('Starting iteration %d' % i)
-			variables = self._forward_iteration(variables, input)
+			variables = self.inner_iteration(variables, input)
 
 		# We add loss on each variable embedding to encourage different elements in the batch to stay close. 
 
-		if self.split:
+		if self.inner_iteration.split:
 			aux_losses = [(v - v.mean(dim=0).expand_as(v)).norm(dim=1).sum() for v in variables]            
 		else:
 			aux_losses = Variable(torch.zeros(len(variables)))

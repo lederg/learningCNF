@@ -47,12 +47,24 @@ class Encoder(nn.Module):
 		self.permute = permute
 		self.num_ground_variables = num_ground_variables
 		self.negation = nn.Linear(embedding_dim, embedding_dim)   # add non-linearity?
-		self.embedding = nn.Embedding(num_ground_variables, embedding_dim, max_norm=1.)        
-		self.false = nn.Parameter(torch.Tensor(embedding_dim), requires_grad=True).view(1,-1)
-		self.tseitin = nn.Parameter(torch.Tensor(embedding_dim), requires_grad=True).view(1,-1)
+		self.embedding = nn.Embedding(num_ground_variables, embedding_dim, max_norm=1.)		
+		self.extra_embedding = nn.Embedding(2, embedding_dim, max_norm=1.)		
+		# self.false = nn.Parameter(torch.Tensor(embedding_dim), requires_grad=True).view(1,-1)
+		# self.tseitin = nn.Parameter(torch.Tensor(embedding_dim), requires_grad=True).view(1,-1)
 		self.true = self.negation(self.false)
 		self.clause_combiner = ResidualCombine(max_clauses,embedding_dim)
 		self.variable_combiner = ResidualCombine(max_variables,embedding_dim)
+
+
+
+
+	@property
+	def false(self):
+		return self.extra_embedding(Variable(torch.LongTensor([0])))
+
+	@property
+	def tseitin(self):
+		return self.extra_embedding(Variable(torch.LongTensor([1])))
 
 
  # We permute the clauses and concatenate them
@@ -107,12 +119,15 @@ class Encoder(nn.Module):
 
 
 	def _forward_iteration(self, variables, formula):
-		out_embeddings = []
+		out_embeddings = []		
 		for i,clauses in enumerate(formula):
-			if clauses:
-				clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
-				true_embeddings = [self.true.expand_as(clause_embeddings[0])]*(self.max_clauses-len(clauses))
-				out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings+true_embeddings)))
+			print('Clauses for variable %d: %d' % (i+1, len(clauses)))
+			if clauses and i<2:
+				# clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
+				# true_embeddings = [self.true.expand_as(clause_embeddings[0])]*(self.max_clauses-len(clauses))
+				# out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings+true_embeddings)))
+				true_embeddings = [self.true]*(self.max_clauses)
+				out_embeddings.append(self.true)
 			else:
 				out_embeddings.append(variables[i])
 
@@ -152,9 +167,5 @@ class EqClassifier(nn.Module):
 
 	def forward(self, input, output_ind):
 		embeddings, aux_losses = self.encoder(input)
-		try:
-			return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
-		except Exception as e:
-			print(e)
-			ipdb.set_trace()
-
+		return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
+		

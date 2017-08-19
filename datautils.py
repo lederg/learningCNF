@@ -19,10 +19,10 @@ class CnfDataset(Dataset):
     def __getitem__(self, idx):        
         i = np.where(self.class_cumsize > idx)[0][0]            # This is the equivalence class
         j = idx if i==0 else idx-self.class_cumsize[i-1]        # index inside equivalence class
-        sample = self.samples[i][j]        
-        sample, topvar = self.transform_sample(sample)
+        orig_sample = self.samples[i][j]        
+        sample, topvar = self.transform_sample(orig_sample)
 
-        return {'sample': sample, 'label': i, 'topvar': topvar}
+        return {'sample': sample, 'label': i, 'topvar': topvar, 'orig_sample': orig_sample, 'idx_in_dataset': idx}
 
     @property
     def weights_vector(self):

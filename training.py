@@ -32,7 +32,7 @@ hyperparams = {
     'max_clauses': 3, 
     'max_variables': 3, 
     'num_ground_variables': 3, 
-    'max_iters': 1,
+    'max_iters': 4,
     'split': False
 }
 
@@ -59,8 +59,8 @@ def train(fname):
             inputs = utils.formula_to_input(data['sample'])
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
-            print('Processing sample from dataset with index %d' % ds_idx)
-            print(ds[ds_idx]['orig_sample']['clauses'])
+            # print('Processing sample from dataset with index %d' % ds_idx)
+            # print(ds[ds_idx]['orig_sample']['clauses'])
             # if ds_idx in [194]:
             #     print('Skipping index %d' % ds_idx)
             #     continue

@@ -122,16 +122,11 @@ class InnerIteration(nn.Module):
 	def forward(self, variables, formula):
 		out_embeddings = []		
 		for i,clauses in enumerate(formula):
-			print('Clauses for variable %d: %d' % (i+1, len(clauses)))
+			# print('Clauses for variable %d: %d' % (i+1, len(clauses)))
 			if clauses:
 				clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
 				true_embeddings = [self.true.expand_as(clause_embeddings[0])]*(self.max_clauses-len(clauses))
-				out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings+true_embeddings)))
-
-				# true_embeddings = [self.true]*(self.max_clauses)
-				# out_embeddings.append(self.true)
-
-				# out_embeddings.append(self.negation(variables[i]))
+				out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings+true_embeddings)))		
 			else:
 				out_embeddings.append(variables[i])
 
@@ -165,7 +160,7 @@ class Encoder(nn.Module):
 		# ipdb.set_trace()
 
 		for i in range(self.max_iters):
-			print('Starting iteration %d' % i)
+			# print('Starting iteration %d' % i)
 			variables = self.inner_iteration(variables, input)
 
 		# We add loss on each variable embedding to encourage different elements in the batch to stay close. 

@@ -8,7 +8,8 @@ class CnfDataset(Dataset):
     def __init__(self, json_file, threshold=10):
         self.CLASS_THRESHOLD = threshold
 
-        self.eq_classes = self.filter_classes(to_cnf(load_bool_data(json_file)))
+        # self.eq_classes = self.filter_classes(to_cnf(load_bool_data(json_file)))
+        self.eq_classes = self.dummy_filter(to_cnf(load_bool_data(json_file)))
         self.labels = list(self.eq_classes.keys())
         self.samples = list(self.eq_classes.values())        
         self.class_size = [len(x) for x in self.samples]
@@ -73,11 +74,14 @@ class CnfDataset(Dataset):
         return rc, convert_var(sample['topvar'])
 
 
+    def dummy_filter(self, classes):
+        return {'b': classes['b'], 'a': classes['a']}
 
     def filter_classes(self,classes):
         a = {k: v for k,v in classes.items() if len(v) > self.CLASS_THRESHOLD}
         m = np.mean([len(x) for x in a.values()])
-        rc = {k: v for k,v in a.items() if len(v) < 3*m}
+        rc = a
+        # rc = {k: v for k,v in a.items() if len(v) < 3*m}
         rc1 = {}
         for k,v in rc.items():
             v1 = [x for x in v if x['clauses_per_variable']]

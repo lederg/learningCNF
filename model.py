@@ -50,7 +50,7 @@ class ResidualCombine(nn.Module):
 
 
 class InnerIteration(nn.Module):
-	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, split=True, permute=True):
+	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, split=True, permute=True, **kwargs):
 		super(InnerIteration, self).__init__()        
 		self.embedding_dim = embedding_dim
 		self.max_variables = max_variables
@@ -181,5 +181,6 @@ class EqClassifier(nn.Module):
 
 	def forward(self, input, output_ind):
 		embeddings, aux_losses = self.encoder(input)
-		return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
+		return self.softmax_layer(embeddings[output_ind.data[0]-1]), aux_losses     # variables are 1-based
+		# return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
 		

@@ -28,7 +28,7 @@ train_formula = [[[1,-3],[-1,-2,3]],
 
 
 hyperparams = {
-    'embedding_dim': 16,
+    'embedding_dim': 32,
     'max_clauses': 3, 
     'max_variables': 3, 
     'num_ground_variables': 3, 
@@ -37,10 +37,11 @@ hyperparams = {
 }
 
 def train(fname):
-    ds = CnfDataset(fname)
+    ds = CnfDataset(fname,70)
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
     trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
     # dataiter = iter(trainloader)
+    print('%d classes, %d samples'% (ds.num_classes,len(ds)))
     hyperparams['num_classes'] = ds.num_classes
     hyperparams['max_clauses'] = ds.max_clauses
 
@@ -70,7 +71,6 @@ def train(fname):
 
             # forward + backward + optimize
             outputs, aux_losses = net(inputs, topvar)
-            # ipdb.set_trace()
             loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
             try:
                 loss.backward()
@@ -86,5 +86,11 @@ def train(fname):
                 print('[%d, %5d] loss: %.3f' %
                       (epoch + 1, i + 1, running_loss / PRINT_LOSS_EVERY))
                 running_loss = 0.0
+                print('Outputs are:')
+                print(outputs)
+                print('And labels:')
+                print(labels)
+                # ipdb.set_trace()            
+
 
     print('Finished Training')

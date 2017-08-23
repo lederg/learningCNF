@@ -8,8 +8,8 @@ class CnfDataset(Dataset):
     def __init__(self, json_file, threshold=10):
         self.CLASS_THRESHOLD = threshold
 
-        # self.eq_classes = self.filter_classes(to_cnf(load_bool_data(json_file)))
-        self.eq_classes = self.dummy_filter(to_cnf(load_bool_data(json_file)))
+        self.eq_classes = self.filter_classes(to_cnf(load_bool_data(json_file)))
+        # self.eq_classes = self.dummy_filter(to_cnf(load_bool_data(json_file)))
         self.labels = list(self.eq_classes.keys())
         self.samples = list(self.eq_classes.values())        
         self.class_size = [len(x) for x in self.samples]

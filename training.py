@@ -14,7 +14,7 @@ torch.manual_seed(1)
 
 TRAIN_FILE = 'expressions-synthetic/boolean5.json'
 PRINT_LOSS_EVERY = 100
-NUM_EPOCHS = 20
+NUM_EPOCHS = 400
 
 # a^b -> c
 # 1 -3
@@ -32,8 +32,9 @@ hyperparams = {
     'max_clauses': 3, 
     'max_variables': 3, 
     'num_ground_variables': 3, 
-    'max_iters': 4,
-    'split': False
+    'max_iters': 3,
+    'split': False,
+    'cuda': False
 }
 
 def train(fname):
@@ -46,6 +47,8 @@ def train(fname):
     hyperparams['max_clauses'] = ds.max_clauses
 
     net = EqClassifier(**hyperparams)
+    if hyperparams['cuda']:
+        net.cuda()
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
@@ -60,6 +63,8 @@ def train(fname):
             inputs = utils.formula_to_input(data['sample'])
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
+            if hyperparams['cuda']:
+                inputs, topvar, labels = Variable(inputs.cuda()), Variable(topvar.cuda()), Variable(labels.cuda())
             # print('Processing sample from dataset with index %d' % ds_idx)
             # print(ds[ds_idx]['orig_sample']['clauses'])
             # if ds_idx in [194]:

@@ -44,6 +44,16 @@ class ResidualCombine(nn.Module):
 			ipdb.set_trace()
 		return out
 
+class SymmetricSumCombine(nn.Module):
+	def __init__(self, embedding_dim):
+		super(SymmetricSumCombine, self).__init__()        
+		self.layer1 = nn.Linear(embedding_dim,embedding_dim)
+		self.layer2 = nn.Linear(embedding_dim,embedding_dim)
+
+	def forward(self, inputs):		
+		out = [utils.normalize(F.sigmoid(self.layer1(x)) + self.layer2(x)) for x in inputs]
+		return torch.stack(out,dim=2).sum(dim=2).view(out[0].size())
+
 
 # class VariableIteration(nn.Module):
 # 	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, max_iters):
@@ -60,8 +70,8 @@ class InnerIteration(nn.Module):
 		self.num_ground_variables = num_ground_variables
 		self.negation = nn.Linear(embedding_dim, embedding_dim)   # add non-linearity?		
 		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
-		self.clause_combiner = ResidualCombine(max_clauses,embedding_dim)
-		self.variable_combiner = ResidualCombine(max_variables,embedding_dim)
+		self.clause_combiner = SymmetricSumCombine(embedding_dim)
+		self.variable_combiner = SymmetricSumCombine(embedding_dim)
 
 	@property
 	def false(self):
@@ -72,7 +82,7 @@ class InnerIteration(nn.Module):
 		return self.negation(self.false)
 
 	def prepare_clauses(self, clauses):
-		if self.permute:  	
+		if self.permute and False:  	
 			rc = torch.cat(utils.permute_seq(clauses),dim=1)
 			if not self.split:
 				return rc
@@ -80,12 +90,13 @@ class InnerIteration(nn.Module):
 				org = torch.cat(clauses,1)			# split
 				return torch.cat([org,rc])	
 		else:
-			return torch.cat(clauses,dim=1)
+			# return torch.cat(clauses,dim=1)
+			return clauses
 
  # i is the index of the special variable (the current one)
 	def prepare_variables(self, variables, curr_variable):
 		tmp = variables.pop(curr_variable)
-		if self.permute:    		
+		if self.permute and False:    		
 			rc = [tmp] + utils.permute_seq(variables)	    		    	
 			try:
 				perm = torch.cat(rc,1)
@@ -98,7 +109,8 @@ class InnerIteration(nn.Module):
 				return torch.cat([org,perm])
 		else:
 			rc = [tmp] + variables
-			return torch.cat(rc,1)
+			# return torch.cat(rc,1)
+			return rc
 
 
 
@@ -115,7 +127,7 @@ class InnerIteration(nn.Module):
 				if (l < 0).data.all():
 					v = self.negation(v)
 			else:
-				v = self.false.expand_as(variables[0])
+				continue
 			c_vars.append(v)
 		return self.variable_combiner(self.prepare_variables(c_vars,ind_in_clause))
 
@@ -125,8 +137,7 @@ class InnerIteration(nn.Module):
 			# print('Clauses for variable %d: %d' % (i+1, len(clauses)))
 			if clauses:
 				clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
-				true_embeddings = [self.true.expand_as(clause_embeddings[0])]*(self.max_clauses-len(clauses))
-				out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings+true_embeddings)))		
+				out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings)))
 			else:
 				out_embeddings.append(variables[i])
 

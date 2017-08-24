@@ -15,7 +15,7 @@ torch.manual_seed(1)
 TRAIN_FILE = 'expressions-synthetic/boolean5.json'
 PRINT_LOSS_EVERY = 100
 NUM_EPOCHS = 400
-
+INITIAL_LR = 0.002
 # a^b -> c
 # 1 -3
 # 2 -3
@@ -32,13 +32,13 @@ hyperparams = {
     'max_clauses': 3, 
     'max_variables': 3, 
     'num_ground_variables': 3, 
-    'max_iters': 3,
+    'max_iters': 4,
     'split': False,
     'cuda': False
 }
 
 def train(fname):
-    ds = CnfDataset(fname,70)
+    ds = CnfDataset(fname,50)
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
     trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
     # dataiter = iter(trainloader)
@@ -51,7 +51,7 @@ def train(fname):
         net.cuda()
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    optimizer = optim.SGD(net.parameters(), lr=INITIAL_LR, momentum=0.9)
 
     for epoch in range(NUM_EPOCHS):
         running_loss = 0.0
@@ -96,6 +96,7 @@ def train(fname):
                 print('And labels:')
                 print(labels)
                 # ipdb.set_trace()            
+                optimizer = utils.exp_lr_scheduler(optimizer,epoch,INITIAL_LR)
 
 
     print('Finished Training')

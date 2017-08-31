@@ -3,6 +3,15 @@ import itertools
 import numpy as np
 from torch.autograd import Variable
 
+class Singleton(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+    
+
+
 def normalize(input, p=2, dim=1, eps=1e-12):
     return input / input.norm(p, dim).clamp(min=eps).expand_as(input)
 
@@ -23,7 +32,7 @@ def permute_seq(inp):
 
 def exp_lr_scheduler(optimizer, epoch, init_lr=0.001, lr_decay_epoch=7):
     """Decay learning rate by a factor of 0.1 every lr_decay_epoch epochs."""
-    lr = init_lr * (0.1**(epoch // lr_decay_epoch))
+    lr = init_lr * (0.9**(epoch // lr_decay_epoch))
 
     if epoch % lr_decay_epoch == 0 and epoch > 0:
         print('LR is set to {}'.format(lr))

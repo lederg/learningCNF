@@ -6,13 +6,19 @@ import torch.optim as optim
 import torch.utils.data
 from model import *
 from datautils import *
+from settings import *
 import utils
 import numpy as np
 import ipdb
 
 torch.manual_seed(1)
 
-TRAIN_FILE = 'expressions-synthetic/boolean5.json'
+# TRAIN_FILE = 'expressions-synthetic/boolean5.json'
+
+TRAIN_FILE = 'expressions-synthetic/split/boolean5-trainset.json'
+VALIDATION_FILE = 'expressions-synthetic/split/boolean5-validationset.json'
+TEST_FILE = 'expressions-synthetic/split/boolean5-testset.json'
+
 PRINT_LOSS_EVERY = 100
 NUM_EPOCHS = 400
 INITIAL_LR = 0.002
@@ -34,20 +40,35 @@ hyperparams = {
     'num_ground_variables': 3, 
     'max_iters': 4,
     'split': False,
-    'cuda': False
+    'cuda': True
 }
 
-def train(fname):
-    ds = CnfDataset(fname,50)
+# ds = CnfDataset(fname,50)
+
+def_settings = CnfSettings(hyperparams)
+
+def test(model, ds):
+    sampler = torch.utils.data.sampler.SequentialSampler(ds.weights_vector, len(ds))
+    trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
+    for data in trainloader:
+        inputs = utils.formula_to_input(data['sample'])
+        topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
+        labels = Variable(data['label'], requires_grad=False)
+        outputs, aux_losses = net(inputs, topvar)
+        ipdb.set_trace()
+
+
+def train(ds):
+    settings = CnfSettings()
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
     trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
     # dataiter = iter(trainloader)
     print('%d classes, %d samples'% (ds.num_classes,len(ds)))
-    hyperparams['num_classes'] = ds.num_classes
-    hyperparams['max_clauses'] = ds.max_clauses
+    settings.hyperparameters['num_classes'] = ds.num_classes
+    settings.hyperparameters['max_clauses'] = ds.max_clauses
 
     net = EqClassifier(**hyperparams)
-    if hyperparams['cuda']:
+    if settings.hyperparameters['cuda']:
         net.cuda()
 
     criterion = nn.CrossEntropyLoss()
@@ -63,8 +84,9 @@ def train(fname):
             inputs = utils.formula_to_input(data['sample'])
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
-            if hyperparams['cuda']:
-                inputs, topvar, labels = Variable(inputs.cuda()), Variable(topvar.cuda()), Variable(labels.cuda())
+            if settings.hyperparameters['cuda']:
+                topvar, labels = topvar.cuda(), labels.cuda()
+                inputs = [[[x.cuda() for x in y] for y in t] for t in inputs]
             # print('Processing sample from dataset with index %d' % ds_idx)
             # print(ds[ds_idx]['orig_sample']['clauses'])
             # if ds_idx in [194]:

@@ -9,12 +9,15 @@ from datautils import *
 import utils
 import numpy as np
 import ipdb
+from tensorboard_logger import configure, log_value
 
 torch.manual_seed(1)
 
 TRAIN_FILE = 'expressions-synthetic/boolean5.json'
 PRINT_LOSS_EVERY = 100
 NUM_EPOCHS = 400
+LOG_EVERY = 10
+
 
 # a^b -> c
 # 1 -3
@@ -52,7 +55,12 @@ def train(fname):
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    batch_size = 4
+    get_step = lambda x,y: x*len(ds)+y
 
+    configure("runs/run-1234", flush_secs=5)
+
+    do_step = True
     for epoch in range(NUM_EPOCHS):
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
@@ -72,8 +80,10 @@ def train(fname):
             #     continue
 
             # zero the parameter gradients
-            optimizer.zero_grad()
+            if do_step:
+                optimizer.zero_grad()
 
+            do_step = i>0 and i % batch_size == 0
             # forward + backward + optimize
             outputs, aux_losses = net(inputs, topvar)
             loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
@@ -83,10 +93,13 @@ def train(fname):
                 print('Woah, something is going on')
                 print(e)
                 ipdb.set_trace()            
-            optimizer.step()
+            if do_step:
+                optimizer.step()
 
             # print statistics
             running_loss += loss.data[0]
+            if get_step(epoch,i) % LOG_EVERY == 0:
+                log_value('loss',loss.data[0],get_step(epoch,i))
             if i % PRINT_LOSS_EVERY == PRINT_LOSS_EVERY-1:
                 print('[%d, %5d] loss: %.3f' %
                       (epoch + 1, i + 1, running_loss / PRINT_LOSS_EVERY))

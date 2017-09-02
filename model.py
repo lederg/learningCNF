@@ -77,6 +77,14 @@ class InnerIteration(nn.Module):
 		self.variable_combiner = SymmetricSumCombine(embedding_dim)
 		self.cuda = kwargs['cuda']		
 
+		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.W_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.W = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+
+
 	@property
 	def false(self):
 		return self.extra_embedding(Variable(self.settings.LongTensor([0]), requires_grad=False))
@@ -135,6 +143,15 @@ class InnerIteration(nn.Module):
 			c_vars.append(v)
 		return self.variable_combiner(self.prepare_variables(c_vars,ind_in_clause))
 
+	def gru(self, a, h_t1):
+		ipdb.set_trace()
+		z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
+		r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
+		h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
+		h = (1-z) * prev_emb + z*h_tilda
+		return h
+
+
 	def forward(self, variables, formula):
 		out_embeddings = []		
 		for i,clauses in enumerate(formula):
@@ -145,7 +162,7 @@ class InnerIteration(nn.Module):
 			else:
 				out_embeddings.append(variables[i])
 
-		return out_embeddings
+		return self.gru(torch.cat(out_embeddings,dim=0), torch.cat(variables,dim=0))
 
 
 class Encoder(nn.Module):

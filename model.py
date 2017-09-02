@@ -7,6 +7,8 @@ import utils
 import numpy as np
 import ipdb
 
+from settings import *
+
 
 class TestDup(nn.Module):
 	def __init__(self, param1):
@@ -62,6 +64,7 @@ class SymmetricSumCombine(nn.Module):
 class InnerIteration(nn.Module):
 	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, split=True, permute=True, **kwargs):
 		super(InnerIteration, self).__init__()        
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.embedding_dim = embedding_dim
 		self.max_variables = max_variables
 		self.max_clauses = max_clauses
@@ -72,10 +75,11 @@ class InnerIteration(nn.Module):
 		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
 		self.clause_combiner = SymmetricSumCombine(embedding_dim)
 		self.variable_combiner = SymmetricSumCombine(embedding_dim)
+		self.cuda = kwargs['cuda']		
 
 	@property
 	def false(self):
-		return self.extra_embedding(Variable(torch.LongTensor([0]), requires_grad=False))
+		return self.extra_embedding(Variable(self.settings.LongTensor([0]), requires_grad=False))
 
 	@property
 	def true(self):
@@ -146,7 +150,8 @@ class InnerIteration(nn.Module):
 
 class Encoder(nn.Module):
 	def __init__(self, embedding_dim, num_ground_variables, max_iters, **kwargs):
-		super(Encoder, self).__init__()        
+		super(Encoder, self).__init__() 
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.embedding_dim = embedding_dim		
 		self.max_iters = max_iters		
 		self.num_ground_variables = num_ground_variables		
@@ -158,13 +163,13 @@ class Encoder(nn.Module):
 
 	@property
 	def tseitin(self):
-		return self.tseitin_embedding(Variable(torch.LongTensor([0])))
+		return self.tseitin_embedding(Variable(self.settings.LongTensor([0])))
 
 	def forward(self, input):
 		variables = []        
 		for i in range(len(input)):
 			if i<self.num_ground_variables:
-				variables.append(self.embedding(Variable(torch.LongTensor([i]))))
+				variables.append(self.embedding(Variable(self.settings.LongTensor([i]))))
 			else:
 				variables.append(utils.normalize(self.tseitin))
 
@@ -187,6 +192,7 @@ class EqClassifier(nn.Module):
 	def __init__(self, num_classes, **kwargs):
 		super(EqClassifier, self).__init__()        
 		self.num_classes = num_classes
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.encoder = Encoder(**kwargs)
 		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
 

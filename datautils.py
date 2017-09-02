@@ -5,10 +5,13 @@ from torch.utils.data import Dataset
 import os
 
 class CnfDataset(Dataset):    
-    def __init__(self, json_file, threshold=10):
+    def __init__(self, json_file, threshold=10, ref_dataset=None):
         self.CLASS_THRESHOLD = threshold
 
-        self.eq_classes = self.filter_classes(to_cnf(load_bool_data(json_file)))
+        if not ref_dataset:
+            self.eq_classes = self.filter_classes(to_cnf(load_bool_data(json_file)))
+        else:
+            self.eq_classes = self.filter_classes_by_ref(to_cnf(load_bool_data(json_file)),ref_dataset)
         # self.eq_classes = self.dummy_filter(to_cnf(load_bool_data(json_file)))
         self.labels = list(self.eq_classes.keys())
         self.samples = list(self.eq_classes.values())        
@@ -76,6 +79,9 @@ class CnfDataset(Dataset):
 
     def dummy_filter(self, classes):
         return {'b': classes['b'], 'a': classes['a']}
+
+    def filter_classes_by_ref(self,classes, ref_dataset):
+        return {k: v for k,v in classes.items() if k in ref_dataset.labels}
 
     def filter_classes(self,classes):
         a = {k: v for k,v in classes.items() if len(v) > self.CLASS_THRESHOLD}

@@ -7,6 +7,7 @@ import torch.utils.data
 from model import *
 from datautils import *
 import utils
+import time
 import numpy as np
 import ipdb
 from tensorboard_logger import configure, log_value
@@ -40,7 +41,8 @@ hyperparams = {
     'max_clauses': 3, 
     'max_variables': 3, 
     'num_ground_variables': 3, 
-    'max_iters': 3,
+    'max_iters': 4,
+    'batch_size': 8,
     'split': False,
     'cuda': False
 }
@@ -49,18 +51,31 @@ hyperparams = {
 
 def_settings = CnfSettings(hyperparams)
 
+
+def log_name(settings):
+    name = 'run_bs%d_ed%d_iters%d__%s' % (settings['batch_size'], settings['embedding_dim'], settings['max_iters'], int(time.time()))
+    return name
+
 def test(model, ds):
-    sampler = torch.utils.data.sampler.SequentialSampler(ds.weights_vector, len(ds))
+    criterion = nn.CrossEntropyLoss()
+    sampler = torch.utils.data.sampler.SequentialSampler(ds)
     trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
+    total_loss = 0
+    total_correct = 0
     for data in trainloader:
         inputs = utils.formula_to_input(data['sample'])
         topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
         labels = Variable(data['label'], requires_grad=False)
-        outputs, aux_losses = net(inputs, topvar)
-        ipdb.set_trace()
+        outputs, aux_losses = model(inputs, topvar)
+        loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
+        correct = (outputs.max() == outputs[:,labels.data[0]]).data.all()   # Did we get it?
+        total_correct += 1 if correct else 0
+        total_loss += loss
+
+    return total_loss, total_correct / len(ds)
 
 
-def train(ds):
+def train(ds, ds_validate=None):
     settings = CnfSettings()
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
     trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
@@ -75,10 +90,10 @@ def train(ds):
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    batch_size = 4
+    batch_size = settings['batch_size']
     get_step = lambda x,y: x*len(ds)+y
 
-    configure("runs/run-1234", flush_secs=5)
+    configure("runs/%s" % log_name(settings), flush_secs=5)
 
     do_step = True
     for epoch in range(NUM_EPOCHS):
@@ -125,11 +140,15 @@ def train(ds):
                 print('[%d, %5d] loss: %.3f' %
                       (epoch + 1, i + 1, running_loss / PRINT_LOSS_EVERY))
                 running_loss = 0.0
-                print('Outputs are:')
-                print(outputs)
-                print('And labels:')
-                print(labels)
-                # ipdb.set_trace()            
+                # print('Outputs are:')
+                # print(outputs)
+                # print('And labels:')
+                # print(labels)
+                if ds_validate:
+                    v_loss, v_acc = test(net,ds_validate)
+                    print('Validation loss %f, accuracy %f' % (v_loss.data.numpy(),v_acc))
+                    log_value('validation_loss',v_loss.data.numpy(),get_step(epoch,i))
+                    log_value('validation_accuracy',v_acc,get_step(epoch,i))
 
 
     print('Finished Training')

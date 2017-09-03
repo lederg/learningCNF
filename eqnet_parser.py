@@ -148,7 +148,7 @@ def to_cnf(classes):
             # print(CNF)
             
             for v in CNF['clauses_per_variable'].keys():
-                if len(CNF['clauses_per_variable'][v]) > 8:
+                if len(CNF['clauses_per_variable'][v]) > 20:
                     print('Error: too many clauses for variable ' + str(v))
                     quit()
             

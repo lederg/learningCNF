@@ -143,8 +143,7 @@ class InnerIteration(nn.Module):
 			c_vars.append(v)
 		return self.variable_combiner(self.prepare_variables(c_vars,ind_in_clause))
 
-	def gru(self, a, h_t1):
-		ipdb.set_trace()
+	def gru(self, av, prev_emb):
 		z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
 		r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
 		h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
@@ -153,7 +152,7 @@ class InnerIteration(nn.Module):
 
 
 	def forward(self, variables, formula):
-		out_embeddings = []		
+		out_embeddings = []
 		for i,clauses in enumerate(formula):
 			# print('Clauses for variable %d: %d' % (i+1, len(clauses)))
 			if clauses:
@@ -162,7 +161,8 @@ class InnerIteration(nn.Module):
 			else:
 				out_embeddings.append(variables[i])
 
-		return self.gru(torch.cat(out_embeddings,dim=0), torch.cat(variables,dim=0))
+		new_vars = self.gru(torch.cat(out_embeddings,dim=0), torch.cat(variables,dim=0))
+		return torch.chunk(new_vars,len(new_vars))
 
 
 class Encoder(nn.Module):
@@ -197,11 +197,8 @@ class Encoder(nn.Module):
 			variables = self.inner_iteration(variables, input)
 
 		# We add loss on each variable embedding to encourage different elements in the batch to stay close. 
-
-		if self.inner_iteration.split:
-			aux_losses = [(v - v.mean(dim=0).expand_as(v)).norm(dim=1).sum() for v in variables]            
-		else:
-			aux_losses = Variable(torch.zeros(len(variables)))
+	
+		aux_losses = Variable(torch.zeros(len(variables)))
 		return variables, aux_losses
 
 

@@ -11,6 +11,26 @@ class Singleton(type):
         return cls._instances[cls]
     
 
+class CosineLoss(torch.nn.Module):
+    """
+    Cosine loss function.
+
+    """
+
+    def __init__(self, margin=1.0):
+        super(CosineLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, x1, x2, dim=1, eps=1e-8):
+        w12 = torch.sum(x1 * x2, dim)
+        w1 = torch.norm(x1, 2, dim)
+        w2 = torch.norm(x2, 2, dim)
+        return (w12 / (w1 * w2).clamp(min=eps)).squeeze()
+            return loss
+
+
+
+
 
 def normalize(input, p=2, dim=1, eps=1e-12):
     return input / input.norm(p, dim).clamp(min=eps).expand_as(input)

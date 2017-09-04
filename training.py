@@ -20,8 +20,13 @@ TRAIN_FILE = 'expressions-synthetic/split/boolean5-trainset.json'
 VALIDATION_FILE = 'expressions-synthetic/split/boolean5-validationset.json'
 TEST_FILE = 'expressions-synthetic/split/boolean5-testset.json'
 
+DS_TRAIN_TEMPLATE = 'expressions-synthetic/split/%s-trainset.json'
+DS_VALIDATION_TEMPLATE = 'expressions-synthetic/split/%s-validationset.json'
+DS_TEST_TEMPLATE = 'expressions-synthetic/split/%s-testset.json'
+
 PRINT_LOSS_EVERY = 100
-NUM_EPOCHS = 400
+# NUM_EPOCHS = 400
+NUM_EPOCHS = 4
 LOG_EVERY = 10
 
 
@@ -41,8 +46,10 @@ hyperparams = {
     'max_clauses': 3, 
     'max_variables': 3, 
     'num_ground_variables': 3, 
+    'dataset': 'boolean8',
     'max_iters': 4,
-    'batch_size': 8,
+    'batch_size': 4,
+    'val_size': 100, 
     'split': False,
     'cuda': False
 }
@@ -53,32 +60,36 @@ def_settings = CnfSettings(hyperparams)
 
 
 def log_name(settings):
-    name = 'run_bs%d_ed%d_iters%d__%s' % (settings['batch_size'], settings['embedding_dim'], settings['max_iters'], int(time.time()))
+    name = 'run_%s_bs%d_ed%d_iters%d__%s' % (settings['dataset'], settings['batch_size'], settings['embedding_dim'], settings['max_iters'], int(time.time()))
     return name
 
-def test(model, ds):
+def test(model, ds, **kwargs):
+    settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
     criterion = nn.CrossEntropyLoss()
-    sampler = torch.utils.data.sampler.SequentialSampler(ds)
-    trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
+    sampler = torch.utils.data.sampler.RandomSampler(ds)
+    vloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
     total_loss = 0
     total_correct = 0
-    for data in trainloader:
+    for _,data in zip(range(settings['val_size']),vloader):
         inputs = utils.formula_to_input(data['sample'])
         topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
         labels = Variable(data['label'], requires_grad=False)
+        if settings.hyperparameters['cuda']:
+                topvar, labels = topvar.cuda(), labels.cuda()
+                inputs = [[[x.cuda() for x in y] for y in t] for t in inputs]
         outputs, aux_losses = model(inputs, topvar)
         loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
         correct = (outputs.max() == outputs[:,labels.data[0]]).data.all()   # Did we get it?
         total_correct += 1 if correct else 0
         total_loss += loss
 
-    return total_loss, total_correct / len(ds)
+    return total_loss, total_correct / settings['val_size']
 
 
 def train(ds, ds_validate=None):
     settings = CnfSettings()
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
-    trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
+    trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler, pin_memory=settings['cuda'])
     # dataiter = iter(trainloader)
     print('%d classes, %d samples'% (ds.num_classes,len(ds)))
     settings.hyperparameters['num_classes'] = ds.num_classes
@@ -146,8 +157,9 @@ def train(ds, ds_validate=None):
                 # print(labels)
                 if ds_validate:
                     v_loss, v_acc = test(net,ds_validate)
-                    print('Validation loss %f, accuracy %f' % (v_loss.data.numpy(),v_acc))
-                    log_value('validation_loss',v_loss.data.numpy(),get_step(epoch,i))
+                    v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
+                    print('Validation loss %f, accuracy %f' % (v_loss,v_acc))
+                    log_value('validation_loss',v_loss,get_step(epoch,i))
                     log_value('validation_accuracy',v_acc,get_step(epoch,i))
 
 

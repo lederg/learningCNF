@@ -133,7 +133,6 @@ class InnerIteration(nn.Module):
 				l=clause[j]									# l is a tensored floaty integer
 				ind = torch.abs(l)-1       					# variables in clauses are 1-based and negative if negated
 				v = torch.stack(variables)[ind.data][0] 	# tensored variables (to be indexed by tensor which is inside a torch variable..gah)
-				# ipdb.set_trace()
 				if (ind==i).data.all():
 					ind_in_clause = j
 				if (l < 0).data.all():
@@ -154,7 +153,7 @@ class InnerIteration(nn.Module):
 	def forward(self, variables, formula):
 		out_embeddings = []
 		for i,clauses in enumerate(formula):
-			# print('Clauses for variable %d: %d' % (i+1, len(clauses)))
+			# print('Clauses for variable %d: %d' % (i+1, len(clauses)))			
 			if clauses:
 				clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
 				out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings)))
@@ -188,9 +187,7 @@ class Encoder(nn.Module):
 			if i<self.num_ground_variables:
 				variables.append(self.embedding(Variable(self.settings.LongTensor([i]))))
 			else:
-				variables.append(utils.normalize(self.tseitin))
-
-		# ipdb.set_trace()
+				variables.append(self.tseitin)
 
 		for i in range(self.max_iters):
 			# print('Starting iteration %d' % i)
@@ -215,3 +212,20 @@ class EqClassifier(nn.Module):
 		return self.softmax_layer(embeddings[output_ind.data[0]-1]), aux_losses     # variables are 1-based
 		# return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
 		
+
+class SiameseClassifier(nn.Module):
+	def __init__(self, **kwargs):
+		super(EqClassifier, self).__init__()        
+		self.num_classes = num_classes
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.encoder = Encoder(**kwargs)
+		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
+
+	def forward(self, inputs, output_ind):
+		left, right = inputs
+		left_idx, right_idx = output_ind
+		l_embeddings, _ = self.encoder(left)
+		r_embeddings, _ = self.encoder(right)
+
+		return l_embeddings[left_idx.data[0]-1], r_embeddings[right_idx.data[0]-1]     # variables are 1-based
+

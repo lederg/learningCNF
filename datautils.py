@@ -3,6 +3,7 @@ import numpy as np
 from functools import partial
 from torch.utils.data import Dataset
 import os
+import random
 
 class CnfDataset(Dataset):    
     def __init__(self, json_file, threshold=10, ref_dataset=None):
@@ -16,17 +17,22 @@ class CnfDataset(Dataset):
         self.labels = list(self.eq_classes.keys())
         self.samples = list(self.eq_classes.values())        
         self.class_size = [len(x) for x in self.samples]
-        self.class_cumsize = np.cumsum(self.class_size)        
+        self.class_cumsize = np.cumsum(self.class_size) 
+        self.cache = np.empty(sum(self.class_size),dtype=object)
     def __len__(self):
         return sum(self.class_size)
 
-    def __getitem__(self, idx):        
+    def __getitem__(self, idx):
+        if self.cache[idx]:
+            return self.cache[idx]
         i = np.where(self.class_cumsize > idx)[0][0]            # This is the equivalence class
         j = idx if i==0 else idx-self.class_cumsize[i-1]        # index inside equivalence class
         orig_sample = self.samples[i][j]        
         sample, topvar = self.transform_sample(orig_sample)
 
-        return {'sample': sample, 'label': i, 'topvar': topvar, 'orig_sample': orig_sample, 'idx_in_dataset': idx}
+        self.cache[idx] = {'sample': sample, 'label': i, 'topvar': topvar, 'orig_sample': orig_sample, 'idx_in_dataset': idx}
+        return self.cache[idx]
+        
 
     @property
     def weights_vector(self):
@@ -41,6 +47,12 @@ class CnfDataset(Dataset):
         self.__weights_vector = a
         return a
 
+
+    def get_class_indices(self,c):
+        if c==0:
+            return range(self.class_cumsize[0])
+        else:
+            return range(self.class_cumsize[c-1],self.class_cumsize[c])
 
 
     def transform_sample(self,sample):
@@ -124,3 +136,47 @@ class CnfDataset(Dataset):
     @property
     def num_classes(self):
         return len(self.labels)
+
+
+
+class SiameseDataset(Dataset):    
+    def __init__(self, json_file, pairwise_epochs=1, **kwargs):
+        self.cnf_ds = CnfDataset(json_file, **kwargs)        
+        self.pairs = []
+        self.build_pairs(epochs=pairwise_epochs)
+
+    ''' 
+        For each epoch we sample N positive and N negative pairs from the internal CnfDataset
+    '''
+
+    def build_pairs(self, epochs):
+        while epochs > 0:
+            epochs -= 1
+            for i in range(self.cnf_ds.num_classes):
+                x = 0
+                y = 0
+
+                # sample two indices of same class
+                while x == y:
+                    x = random.choice(self.cnf_ds.get_class_indices(i))
+                    y = random.choice(self.cnf_ds.get_class_indices(i))
+                self.pairs.append({'left': self.cnf_ds[x], 'right': self.cnf_ds[y], 'label': 1})
+
+                # sample two indices of different class
+                x = random.choice(self.cnf_ds.get_class_indices(i))
+                other_class = i
+                while i == other_class:
+                    other_class = random.choice(range(self.cnf_ds.num_classes))
+                y = random.choice(self.cnf_ds.get_class_indices(other_class))
+                self.pairs.append({'left': self.cnf_ds[x], 'right': self.cnf_ds[y], 'label': -1})
+
+    def __len__(self):
+        return len(self.pairs)
+
+    def __getitem__(self, idx):
+        return self.pairs[idx]
+
+
+
+
+

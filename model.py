@@ -62,12 +62,11 @@ class SymmetricSumCombine(nn.Module):
 
 
 class InnerIteration(nn.Module):
-	def __init__(self, embedding_dim, max_clauses, max_variables, num_ground_variables, split=True, permute=True, **kwargs):
+	def __init__(self, embedding_dim, max_variables, num_ground_variables, split=True, permute=True, **kwargs):
 		super(InnerIteration, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.embedding_dim = embedding_dim
 		self.max_variables = max_variables
-		self.max_clauses = max_clauses
 		self.split = split
 		self.permute = permute
 		self.num_ground_variables = num_ground_variables
@@ -215,11 +214,9 @@ class EqClassifier(nn.Module):
 
 class SiameseClassifier(nn.Module):
 	def __init__(self, **kwargs):
-		super(EqClassifier, self).__init__()        
-		self.num_classes = num_classes
+		super(SiameseClassifier, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.encoder = Encoder(**kwargs)
-		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
 
 	def forward(self, inputs, output_ind):
 		left, right = inputs

@@ -11,6 +11,7 @@ import time
 import numpy as np
 import ipdb
 from tensorboard_logger import configure, log_value
+from sacred import Experiment
 
 torch.manual_seed(1)
 
@@ -28,7 +29,7 @@ PRINT_LOSS_EVERY = 100
 # NUM_EPOCHS = 400
 NUM_EPOCHS = 4
 LOG_EVERY = 10
-
+SAVE_EVERY = 1000
 
 # a^b -> c
 # 1 -3
@@ -42,14 +43,19 @@ train_formula = [[[1,-3],[-1,-2,3]],
 
 
 hyperparams = {
-    'embedding_dim': 32,
+    'embedding_dim': 4,
     'max_clauses': 3, 
     'max_variables': 3, 
     'num_ground_variables': 3, 
     'dataset': 'boolean8',
-    'max_iters': 4,
+    'model_dir': 'saved_models',
+    'max_iters': 6,
     'batch_size': 4,
     'val_size': 100, 
+    # 'classifier_type': 'GraphLevelClassifier',
+    'classifier_type': 'EqClassifier',
+    'combinator_type': 'SimpleCombinator',
+    'use_ground': False,
     'split': False,
     'cuda': False
 }
@@ -59,15 +65,27 @@ hyperparams = {
 def_settings = CnfSettings(hyperparams)
 
 
+
+def do_experiment():
+    ds1 = CnfDataset(DS_TRAIN_TEMPLATE % def_settings['dataset'],7000,mode=DataMode.TF)
+    ds2 = CnfDataset(DS_TRAIN_TEMPLATE % def_settings['dataset'],7000,mode=DataMode.TF)
+
+
 def log_name(settings):
-    name = 'run_%s_bs%d_ed%d_iters%d__%s' % (settings['dataset'], settings['batch_size'], settings['embedding_dim'], settings['max_iters'], int(time.time()))
-    return name
+    return 'run_%s_%s_nc%d_bs%d_ed%d_iters%d__%s' % (settings['classifier_type'], settings['dataset'], settings['num_classes'], 
+        settings['batch_size'], settings['embedding_dim'], 
+        settings['max_iters'], int(time.time()))
+    
 
 def test(model, ds, **kwargs):
     settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
     criterion = nn.CrossEntropyLoss()
-    sampler = torch.utils.data.sampler.RandomSampler(ds)
-    vloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
+    if 'weighted_test' in kwargs and kwargs['weighted_test']:
+        sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
+        vloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler, pin_memory=settings['cuda'])
+    else:
+        sampler = torch.utils.data.sampler.RandomSampler(ds)
+        vloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler)
     total_loss = 0
     total_correct = 0
     for _,data in zip(range(settings['val_size']),vloader):
@@ -95,7 +113,8 @@ def train(ds, ds_validate=None):
     settings.hyperparameters['num_classes'] = ds.num_classes
     settings.hyperparameters['max_clauses'] = ds.max_clauses
 
-    net = EqClassifier(**hyperparams)
+    cl_type = eval(settings['classifier_type'])
+    net = cl_type(**hyperparams)
     if settings.hyperparameters['cuda']:
         net.cuda()
 
@@ -115,7 +134,7 @@ def train(ds, ds_validate=None):
             # if ds_idx==541:
             #     ipdb.set_trace()
             inputs = utils.formula_to_input(data['sample'])
-            topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
+            topvar = Variable(data['topvar'], requires_grad=False)
             labels = Variable(data['label'], requires_grad=False)
             if settings.hyperparameters['cuda']:
                 topvar, labels = topvar.cuda(), labels.cuda()
@@ -156,11 +175,14 @@ def train(ds, ds_validate=None):
                 # print('And labels:')
                 # print(labels)
                 if ds_validate:
-                    v_loss, v_acc = test(net,ds_validate)
+                    v_loss, v_acc = test(net, ds_validate, weighted_test=True)
                     v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
                     print('Validation loss %f, accuracy %f' % (v_loss,v_acc))
                     log_value('validation_loss',v_loss,get_step(epoch,i))
                     log_value('validation_accuracy',v_acc,get_step(epoch,i))
+
+            if i>0 and i % SAVE_EVERY == 0:
+                torch.save(net.state_dict(),'%s/%s.model' % (settings['model_dir'],log_name(settings)))
 
 
     print('Finished Training')

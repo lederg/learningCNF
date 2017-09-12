@@ -46,6 +46,16 @@ class ResidualCombine(nn.Module):
 			ipdb.set_trace()
 		return out
 
+class SimpleCombinator(nn.Module):
+	def __init__(self, embedding_dim, hidden_dim=12):
+		super(SimpleCombinator, self).__init__()        
+		self.layer1 = nn.Linear(embedding_dim,hidden_dim)
+		self.layer2 = nn.Linear(hidden_dim,embedding_dim)
+
+	def forward(self, inputs):
+		out = [self.layer2(F.sigmoid(self.layer1(x))) for x in inputs]
+		return torch.stack(out,dim=2).sum(dim=2).view(out[0].size())
+
 class SymmetricSumCombine(nn.Module):
 	def __init__(self, embedding_dim):
 		super(SymmetricSumCombine, self).__init__()        
@@ -65,6 +75,7 @@ class InnerIteration(nn.Module):
 	def __init__(self, embedding_dim, max_variables, num_ground_variables, split=True, permute=True, **kwargs):
 		super(InnerIteration, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.comb_type = eval(self.settings['combinator_type'])
 		self.embedding_dim = embedding_dim
 		self.max_variables = max_variables
 		self.split = split
@@ -72,8 +83,8 @@ class InnerIteration(nn.Module):
 		self.num_ground_variables = num_ground_variables
 		self.negation = nn.Linear(embedding_dim, embedding_dim)   # add non-linearity?		
 		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
-		self.clause_combiner = SymmetricSumCombine(embedding_dim)
-		self.variable_combiner = SymmetricSumCombine(embedding_dim)
+		self.clause_combiner = self.comb_type(embedding_dim)
+		self.variable_combiner = self.comb_type(embedding_dim)
 		self.cuda = kwargs['cuda']		
 
 		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
@@ -172,7 +183,8 @@ class Encoder(nn.Module):
 		self.num_ground_variables = num_ground_variables		
 		self.embedding = nn.Embedding(num_ground_variables, embedding_dim, max_norm=1.)				
 		self.tseitin_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)		
-		self.inner_iteration = InnerIteration(embedding_dim, num_ground_variables=num_ground_variables, **kwargs)		
+		self.inner_iteration = InnerIteration(embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
+		self.use_ground = self.settings['use_ground']
 	
 # input is one training sample (a formula), we'll permute it a bit at every iteration and possibly split to create a batch
 
@@ -183,7 +195,7 @@ class Encoder(nn.Module):
 	def forward(self, input):
 		variables = []        
 		for i in range(len(input)):
-			if i<self.num_ground_variables:
+			if i<self.num_ground_variables and self.use_ground:
 				variables.append(self.embedding(Variable(self.settings.LongTensor([i]))))
 			else:
 				variables.append(self.tseitin)
@@ -208,7 +220,32 @@ class EqClassifier(nn.Module):
 
 	def forward(self, input, output_ind):
 		embeddings, aux_losses = self.encoder(input)
-		return self.softmax_layer(embeddings[output_ind.data[0]-1]), aux_losses     # variables are 1-based
+
+		neg = (output_ind.data<0).all()
+		idx = torch.abs(output_ind).data[0]-1
+		out = embeddings[idx]
+		if neg:
+			out = self.encoder.inner_iteration.negation(out)
+		return self.softmax_layer(out), aux_losses     # variables are 1-based
+		# return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
+		
+
+class GraphLevelClassifier(nn.Module):
+	def __init__(self, num_classes, **kwargs):
+		super(GraphLevelClassifier, self).__init__()
+		self.encoder = Encoder(**kwargs)
+		self.i_mat = nn.Linear(self.encoder.embedding_dim,self.encoder.embedding_dim)
+		self.j_mat = nn.Linear(self.encoder.embedding_dim,self.encoder.embedding_dim)
+		self.num_classes = num_classes
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
+
+	def forward(self, input, output_ind):
+		embeddings, aux_losses = self.encoder(input)
+
+		out = F.tanh(sum([F.sigmoid(self.i_mat(x)) * F.tanh(self.j_mat(x)) for x in embeddings]))
+
+		return self.softmax_layer(out), aux_losses     # variables are 1-based
 		# return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
 		
 
@@ -223,6 +260,15 @@ class SiameseClassifier(nn.Module):
 		left_idx, right_idx = output_ind
 		l_embeddings, _ = self.encoder(left)
 		r_embeddings, _ = self.encoder(right)
+		embeddings = [l_embeddings, r_embeddings]
 
-		return l_embeddings[left_idx.data[0]-1], r_embeddings[right_idx.data[0]-1]     # variables are 1-based
+		for i,x in zip([0,1],output_ind):
+			neg = (x.data<0).all()
+			idx = torch.abs(x).data[0]-1
+			out = embeddings[i][idx]
+			if neg:
+				out = self.encoder.inner_iteration.negation(out)
+			embs.append(out)
+
+		return tuple(embs)     
 

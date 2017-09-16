@@ -88,11 +88,11 @@ class InnerIteration(nn.Module):
 		self.cuda = kwargs['cuda']		
 
 		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
-		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 		self.W_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
-		self.U_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 		self.W = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
-		self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 
 
 	@property

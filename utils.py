@@ -2,6 +2,12 @@ import torch
 import itertools
 import numpy as np
 from torch.autograd import Variable
+from pymongo import MongoClient
+import getopt
+import sys
+from pprint import pprint
+
+
 
 class Singleton(type):
     _instances = {}
@@ -39,3 +45,11 @@ def exp_lr_scheduler(optimizer, epoch, init_lr=0.001, lr_decay_epoch=7):
             param_group['lr'] = lr
 
     return optimizer
+
+
+def load_hyperparams(name, time):
+    with MongoClient() as client:
+        db = client['graph_exp']
+        runs = db['runs']
+        k = re.compile(name)
+        rc = runs.find_one({'experiment.name': name, 'experiment.config.time': time})        

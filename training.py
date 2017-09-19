@@ -13,6 +13,10 @@ import ipdb
 from tensorboard_logger import configure, log_value
 from sacred import Experiment
 
+EX_NAME = 'trenery_4'
+
+ex = Experiment(EX_NAME)
+
 torch.manual_seed(1)
 
 # TRAIN_FILE = 'expressions-synthetic/boolean5.json'
@@ -60,8 +64,10 @@ SAVE_EVERY = 1000
 #     'cuda': False
 # }
 
+@ex.capture
 def log_name(settings):
-    return 'run_%s_nc%d_bs%d_ed%d_iters%d__%s' % (settings['exp_name'], settings['num_classes'], 
+    name = ex.current_run.experiment_info['name']
+    return 'run_%s_nc%d_bs%d_ed%d_iters%d__%s' % (name, settings['num_classes'], 
         settings['batch_size'], settings['embedding_dim'], 
         settings['max_iters'], settings['time'])
     
@@ -92,7 +98,7 @@ def test(model, ds, **kwargs):
 
     return total_loss, total_correct / settings['val_size']
 
-
+@ex.capture
 def train(ds, ds_validate=None):
     settings = CnfSettings()
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))

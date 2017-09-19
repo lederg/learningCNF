@@ -6,7 +6,7 @@ import torch.optim as optim
 import utils
 import numpy as np
 import ipdb
-
+import pdb
 from settings import *
 
 
@@ -56,6 +56,23 @@ class SimpleCombinator(nn.Module):
 		out = [self.layer2(F.sigmoid(self.layer1(x))) for x in inputs]
 		return torch.stack(out,dim=2).sum(dim=2).view(out[0].size())
 
+class GroundCombinator(nn.Module):
+	def __init__(self, ground_dim, embedding_dim, hidden_dim=12):
+		super(GroundCombinator, self).__init__()        
+		self.layer1 = nn.Linear(embedding_dim+ground_dim,hidden_dim)
+		self.layer2 = nn.Linear(hidden_dim,embedding_dim)
+
+	def forward(self, ground,state):
+		return self.layer2(F.sigmoid(self.layer1(torch.cat([ground,state],dim=1))))
+		
+class DummyGroundCombinator(nn.Module):
+	def __init__(self, *args, **kwargs):
+		super(DummyGroundCombinator, self).__init__()        		
+
+	def forward(self, ground,state):
+		return state
+		
+
 class SymmetricSumCombine(nn.Module):
 	def __init__(self, embedding_dim):
 		super(SymmetricSumCombine, self).__init__()        
@@ -72,10 +89,12 @@ class SymmetricSumCombine(nn.Module):
 
 
 class InnerIteration(nn.Module):
-	def __init__(self, embedding_dim, max_variables, num_ground_variables, split=True, permute=True, **kwargs):
+	def __init__(self, get_ground_embeddings, embedding_dim, max_variables, num_ground_variables, split=True, permute=True, **kwargs):
 		super(InnerIteration, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.comb_type = eval(self.settings['combinator_type'])
+		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
+		self.get_ground_embeddings = get_ground_embeddings
 		self.embedding_dim = embedding_dim
 		self.max_variables = max_variables
 		self.split = split
@@ -85,6 +104,7 @@ class InnerIteration(nn.Module):
 		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
 		self.clause_combiner = self.comb_type(embedding_dim)
 		self.variable_combiner = self.comb_type(embedding_dim)
+		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],embedding_dim)
 		self.cuda = kwargs['cuda']		
 
 		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
@@ -150,6 +170,7 @@ class InnerIteration(nn.Module):
 			else:
 				continue
 			c_vars.append(v)
+
 		return self.variable_combiner(self.prepare_variables(c_vars,ind_in_clause))
 
 	def gru(self, av, prev_emb):
@@ -166,7 +187,8 @@ class InnerIteration(nn.Module):
 			# print('Clauses for variable %d: %d' % (i+1, len(clauses)))			
 			if clauses:
 				clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
-				out_embeddings.append(self.clause_combiner(self.prepare_clauses(clause_embeddings)))
+				new_var_embedding = self.ground_combiner(self.get_ground_embeddings(i),self.clause_combiner(self.prepare_clauses(clause_embeddings)))
+				out_embeddings.append(new_var_embedding)
 			else:
 				out_embeddings.append(variables[i])
 
@@ -178,28 +200,37 @@ class Encoder(nn.Module):
 	def __init__(self, embedding_dim, num_ground_variables, max_iters, **kwargs):
 		super(Encoder, self).__init__() 
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.ground_dim = self.settings['ground_dim']
 		self.embedding_dim = embedding_dim		
+		self.expand_dim_const = Variable(torch.zeros(1,self.embedding_dim - self.ground_dim))
 		self.max_iters = max_iters		
 		self.num_ground_variables = num_ground_variables		
-		self.embedding = nn.Embedding(num_ground_variables, embedding_dim, max_norm=1.)				
-		self.tseitin_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)		
-		self.inner_iteration = InnerIteration(embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
+		self.embedding = nn.Embedding(num_ground_variables, self.ground_dim, max_norm=1.)				
+		self.tseitin_embedding = nn.Embedding(1, self.ground_dim, max_norm=1.)		
+		self.inner_iteration = InnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
 		self.use_ground = self.settings['use_ground']
 	
 # input is one training sample (a formula), we'll permute it a bit at every iteration and possibly split to create a batch
+
+	def expand_ground_to_state(self,v):
+		return torch.cat([v,self.expand_dim_const],dim=1)
 
 	@property
 	def tseitin(self):
 		return self.tseitin_embedding(Variable(self.settings.LongTensor([0])))
 
+	def get_ground_embeddings(self,i):
+		if i<self.num_ground_variables and self.use_ground:
+			return self.embedding(Variable(self.settings.LongTensor([i])))
+		else:
+			return self.tseitin
+		
+
 	def forward(self, input):
 		variables = []        
 		for i in range(len(input)):
-			if i<self.num_ground_variables and self.use_ground:
-				variables.append(self.embedding(Variable(self.settings.LongTensor([i]))))
-			else:
-				variables.append(self.tseitin)
-
+			v = self.expand_ground_to_state(self.get_ground_embeddings(i))
+			variables.append(v)
 		for i in range(self.max_iters):
 			# print('Starting iteration %d' % i)
 			variables = self.inner_iteration(variables, input)

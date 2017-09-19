@@ -12,12 +12,12 @@ import numpy as np
 import ipdb
 import pdb
 from tensorboard_logger import configure, log_value
-from training import *
 from sacred import Experiment
+from training import *
 
-EX_NAME = 'trenery_4'
+# EX_NAME = 'trenery_4'
 
-ex = Experiment(EX_NAME)
+# ex = Experiment(EX_NAME)
 
 @ex.config
 def cfg():
@@ -25,17 +25,20 @@ def cfg():
 		'exp_name': EX_NAME,
 		'time': int(time.time()),
 	    'embedding_dim': 6,
+	    'ground_dim': 3,
 	    'max_clauses': 3, 
 	    'max_variables': 3, 
 	    'num_ground_variables': 3, 
+	    'data_mode': DataMode.SAT,
 	    'dataset': 'boolean8',
 	    'model_dir': 'saved_models',
-	    'max_iters': 6,
+	    'max_iters': 5,
 	    'batch_size': 4,
 	    'val_size': 100, 
-	    'classifier_type': 'GraphLevelClassifier',
-	    # 'classifier_type': 'EqClassifier',
+	    # 'classifier_type': 'GraphLevelClassifier',
+	    'classifier_type': 'EqClassifier',
 	    'combinator_type': 'SymmetricSumCombine',	    
+	    'ground_combinator_type': 'DummyGroundCombinator',	    
 	    'gru_bias': False,
 	    'use_ground': False,
 	    'split': False,
@@ -43,7 +46,7 @@ def cfg():
 	}
 
 	def_settings = CnfSettings(hyperparams)
-	data_mode = DataMode.TRENERY
+	data_mode = hyperparams['data_mode']
 
 
 	DS_TRAIN_FILE = 'expressions-synthetic/split/%s-trainset.json' % hyperparams['dataset']

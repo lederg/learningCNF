@@ -45,7 +45,8 @@ class CnfDataset(Dataset):
         j = idx if i==0 else idx-self.class_cumsize[i-1]        # index inside equivalence class
         orig_sample = self.samples[i][j]        
         variables, clauses, topvar = self.transform_sample(orig_sample)
-        self.cache[idx] = {'variables': variables, 'clauses': clauses, 'label': i, 'topvar': topvar, 'orig_sample': orig_sample, 'idx_in_dataset': idx}
+        self.cache[idx] = {'variables': variables, 'clauses': clauses, 'label': i, 'topvar': topvar, 'idx_in_dataset': idx}
+        # self.cache[idx] = {'topvar': topvar}
         return self.cache[idx]
         
 
@@ -111,7 +112,40 @@ class CnfDataset(Dataset):
                     idx = -idx
                 cl.append(idx)
             rc1.append(cl)
-        return rc1, all_clauses, convert_var(sample['topvar'])
+
+        new_all_clauses = []
+        new_all_variables = []
+        for i in range(self.max_clauses):
+            new_clause = np.zeros(self.max_variables)
+            if i<len(all_clauses):
+                x = all_clauses[i]
+                for j in range(self.max_variables):
+                    t = j+1
+                    if t in x:
+                        new_clause[j]=1
+                    elif -t in x:
+                        new_clause[j]=-1                
+                new_all_clauses.append(new_clause)
+            else:                
+                new_all_clauses.append(new_clause)
+        if len(new_all_clauses) != self.max_clauses:
+            import ipdb; ipdb.set_trace()
+
+        for i in range(self.max_variables):
+            new_var = np.zeros(self.max_clauses)
+            if i<len(rc1):
+                x = rc1[i]
+                for j in range(self.max_clauses):
+                    t = j+1
+                    if t in x:
+                        new_var[j]=1
+                    elif -t in x:
+                        new_var[j]=-1
+                new_all_variables.append(new_var)
+            else:
+                new_all_variables.append(new_var)
+
+        return np.concatenate(new_all_variables), np.concatenate(new_all_clauses), convert_var(sample['topvar'])
 
 
     def dummy_filter(self, classes):
@@ -197,6 +231,19 @@ class CnfDataset(Dataset):
                 rc = max(rc,max([len(x) for x in sample['clauses_per_variable'].values()]))
         self.num_max_clauses = rc
         return rc
+
+    @property
+    def max_variables(self):
+        try:
+            return self.num_max_variables
+        except:
+            pass
+        rc = 0
+        for x in self.samples:
+            for sample in x:
+                rc = max(rc,len(sample['auxvars']))                
+        self.num_max_variables = rc + self.ground_vars
+        return self.num_max_variables
         
     @property
     def num_classes(self):

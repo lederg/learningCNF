@@ -149,9 +149,9 @@ class BatchInnerIteration(nn.Module):
 		return torch.chunk(new_vars,len(new_vars))
 
 
-class Encoder(nn.Module):
+class BatchEncoder(nn.Module):
 	def __init__(self, embedding_dim, num_ground_variables, max_iters, **kwargs):
-		super(Encoder, self).__init__() 
+		super(BatchEncoder, self).__init__() 
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.ground_dim = self.settings['ground_dim']
 		self.embedding_dim = embedding_dim		
@@ -180,7 +180,9 @@ class Encoder(nn.Module):
 		
 
 	def forward(self, input):
-		variables = []        
+		variables = []
+		clauses = []
+		f_vars, f_clauses = input
 		for i in range(len(input)):
 			v = self.expand_ground_to_state(self.get_ground_embeddings(i))
 			variables.append(v)

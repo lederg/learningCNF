@@ -128,8 +128,8 @@ def train(ds, ds_validate=None):
             ds_idx = data['idx_in_dataset'][0]
             # if ds_idx==541:
             #     ipdb.set_trace()
-            inputs = utils.formula_to_input(data['sample'])
-            topvar = Variable(data['topvar'], requires_grad=False)
+            inputs = (utils.formula_to_input(data['variables']), utils.formula_to_input(data['clauses']))
+            topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
             if settings.hyperparameters['cuda']:
                 topvar, labels = topvar.cuda(), labels.cuda()

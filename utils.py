@@ -21,9 +21,9 @@ def normalize(input, p=2, dim=1, eps=1e-12):
 
 def formula_to_input(formula):
     try:
-        return [[[Variable(x, requires_grad=False) for x in y] for y in t] for t in formula]    
+        return [[Variable(x, requires_grad=False) for x in y] for y in formula]    
     except:
-        return [[[Variable(torch.LongTensor([x]), requires_grad=False) for x in y] for y in t] for t in formula]    
+        return [[Variable(torch.LongTensor([x]), requires_grad=False) for x in y] for y in formula]    
 
 
 def permute_seq(inp):

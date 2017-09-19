@@ -44,9 +44,8 @@ class CnfDataset(Dataset):
         i = np.where(self.class_cumsize > idx)[0][0]            # This is the equivalence class
         j = idx if i==0 else idx-self.class_cumsize[i-1]        # index inside equivalence class
         orig_sample = self.samples[i][j]        
-        sample, topvar = self.transform_sample(orig_sample)
-
-        self.cache[idx] = {'sample': sample, 'label': i, 'topvar': topvar, 'orig_sample': orig_sample, 'idx_in_dataset': idx}
+        variables, clauses, topvar = self.transform_sample(orig_sample)
+        self.cache[idx] = {'variables': variables, 'clauses': clauses, 'label': i, 'topvar': topvar, 'orig_sample': orig_sample, 'idx_in_dataset': idx}
         return self.cache[idx]
         
 
@@ -77,6 +76,7 @@ class CnfDataset(Dataset):
         origvars = list(sample['origvars'].values())
         num_total_vars = len(origvars) + len(auxvars)
         rc = []
+        rc1 = []
 
         def convert_var(v):
             j = abs(v)
@@ -102,7 +102,16 @@ class CnfDataset(Dataset):
         for i in auxvars:
             rc.append([list(map(convert_var,x)) for x in clauses[i]])
 
-        return rc, convert_var(sample['topvar'])
+        all_clauses = [list(map(convert_var,x)) for x in sample['clauses']]
+        for i,v in enumerate(rc):
+            cl = []         # new list of indices for clauses
+            for c in v:     # for each clause, add either its index or negative index
+                idx = all_clauses.index(c) + 1      # clauses (and variables) are 1 based
+                if not i+1 in c:
+                    idx = -idx
+                cl.append(idx)
+            rc1.append(cl)
+        return rc1, all_clauses, convert_var(sample['topvar'])
 
 
     def dummy_filter(self, classes):

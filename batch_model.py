@@ -59,7 +59,10 @@ class BatchInnerIteration(nn.Module):
 		self.variable_combiner = self.comb_type(embedding_dim)
 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],embedding_dim)
 		self.cuda = kwargs['cuda']		
-
+		self.var_bias = torch.stack([torch.cat([nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))]*self.settings['max_variables'])]*self.settings['batch_size'])
+		self.clause_bias = torch.stack([torch.cat([nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))]*self.settings['max_clauses'])]*self.settings['batch_size'])
+		
+		
 		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
 		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 		self.W_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
@@ -134,17 +137,13 @@ class BatchInnerIteration(nn.Module):
 		return h
 
 
-	def forward(self, variables, formula):
+	def forward(self, variables, v_mat, c_mat):
 		out_embeddings = []
-		for i,clauses in enumerate(formula):
-			# print('Clauses for variable %d: %d' % (i+1, len(clauses)))			
-			if clauses:
-				clause_embeddings = [self._forward_clause(variables,c, i) for c in clauses]
-				new_var_embedding = self.ground_combiner(self.get_ground_embeddings(i),self.clause_combiner(self.prepare_clauses(clause_embeddings)))
-				out_embeddings.append(new_var_embedding)
-			else:
-				out_embeddings.append(variables[i])
 
+		pdb.set_trace()
+		c_emb = torch.bmm(c_mat,variables) + self.clause_bias
+		v_emb = torch.bmm(v_mat,c_emb) + self.var_bias
+		
 		new_vars = self.gru(torch.cat(out_embeddings,dim=0), torch.cat(variables,dim=0))
 		return torch.chunk(new_vars,len(new_vars))
 
@@ -154,15 +153,23 @@ class BatchEncoder(nn.Module):
 		super(BatchEncoder, self).__init__() 
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.ground_dim = self.settings['ground_dim']
+		self.batch_size = self.settings['batch_size']
+		self.max_variables = self.settings['max_variables']
 		self.embedding_dim = embedding_dim		
 		self.expand_dim_const = Variable(torch.zeros(1,self.embedding_dim - self.ground_dim))
 		self.max_iters = max_iters		
 		self.num_ground_variables = num_ground_variables		
-		self.embedding = nn.Embedding(num_ground_variables, self.ground_dim, max_norm=1.)				
+		self.embedding = nn.Embedding(num_ground_variables, self.ground_dim, max_norm=1.)
 		self.tseitin_embedding = nn.Embedding(1, self.ground_dim, max_norm=1.)		
-		self.inner_iteration = InnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
+		self.inner_iteration = BatchInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
 		self.use_ground = self.settings['use_ground']
 	
+		self.zero_block = nn.Parameter(self.settings.zeros([1,self.embedding_dim,self.embedding_dim]))
+		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
+		self.forward_block = torch.cat([self.zero_block,self.forward_pos_neg],dim=0)
+		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
+		self.backwards_block = torch.cat([self.zero_block,self.backwards_pos_neg],dim=0)
+		
 # input is one training sample (a formula), we'll permute it a bit at every iteration and possibly split to create a batch
 
 	def expand_ground_to_state(self,v):
@@ -179,29 +186,40 @@ class BatchEncoder(nn.Module):
 			return self.tseitin
 		
 
+
+	def get_block_matrix(self, blocks, indices):		
+		rc = []
+		for a in indices:
+			rc.append(torch.cat([torch.cat([blocks[x] for x in i],dim=1) for i in a.long()]))
+
+		return torch.stack(rc)
+
 	def forward(self, input):
 		variables = []
 		clauses = []
 		f_vars, f_clauses = input
-		for i in range(len(input)):
+		v_mat = self.get_block_matrix(self.forward_block,f_vars)	# v_mat goes from clauses to variables
+		c_mat = self.get_block_matrix(self.backwards_block,f_clauses)	# c_mat goes from variables to clauses
+		
+		for i in range(self.max_variables):
 			v = self.expand_ground_to_state(self.get_ground_embeddings(i))
 			variables.append(v)
+		v = torch.cat(variables,dim=1).transpose(0,1)
+		variables = torch.stack([v]*self.batch_size)
 		for i in range(self.max_iters):
 			# print('Starting iteration %d' % i)
-			variables = self.inner_iteration(variables, input)
-
-		# We add loss on each variable embedding to encourage different elements in the batch to stay close. 
+			variables = self.inner_iteration(variables, v_mat, c_mat)
 	
 		aux_losses = Variable(torch.zeros(len(variables)))
 		return variables, aux_losses
 
 
-class EqClassifier(nn.Module):
+class BatchEqClassifier(nn.Module):
 	def __init__(self, num_classes, **kwargs):
-		super(EqClassifier, self).__init__()        
+		super(BatchEqClassifier, self).__init__()        
 		self.num_classes = num_classes
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
-		self.encoder = Encoder(**kwargs)
+		self.encoder = BatchEncoder(**kwargs)
 		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
 
 	def forward(self, input, output_ind):
@@ -216,10 +234,10 @@ class EqClassifier(nn.Module):
 		# return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
 		
 
-class GraphLevelClassifier(nn.Module):
+class BatchGraphLevelClassifier(nn.Module):
 	def __init__(self, num_classes, **kwargs):
-		super(GraphLevelClassifier, self).__init__()
-		self.encoder = Encoder(**kwargs)
+		super(BatchGraphLevelClassifier, self).__init__()
+		self.encoder = BatchEncoder(**kwargs)
 		self.i_mat = nn.Linear(self.encoder.embedding_dim,self.encoder.embedding_dim)
 		self.j_mat = nn.Linear(self.encoder.embedding_dim,self.encoder.embedding_dim)
 		self.num_classes = num_classes

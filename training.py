@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
-from model import *
+from batch_model import *
 from datautils import *
 import utils
 import time
@@ -102,11 +102,12 @@ def test(model, ds, **kwargs):
 def train(ds, ds_validate=None):
     settings = CnfSettings()
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
-    trainloader = torch.utils.data.DataLoader(ds, batch_size=1, sampler = sampler, pin_memory=settings['cuda'])
+    trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, pin_memory=settings['cuda'])
     # dataiter = iter(trainloader)
     print('%d classes, %d samples'% (ds.num_classes,len(ds)))
     settings.hyperparameters['num_classes'] = ds.num_classes
     settings.hyperparameters['max_clauses'] = ds.max_clauses
+    settings.hyperparameters['max_variables'] = ds.max_variables
 
     cl_type = eval(settings['classifier_type'])
     net = cl_type(**(settings.hyperparameters))
@@ -123,22 +124,14 @@ def train(ds, ds_validate=None):
     do_step = True
     for epoch in range(NUM_EPOCHS):
         running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            # get the inputs, no batching unfortunately...          
-            ds_idx = data['idx_in_dataset'][0]
-            # if ds_idx==541:
-            #     ipdb.set_trace()
-            inputs = (utils.formula_to_input(data['variables']), utils.formula_to_input(data['clauses']))
+        for i, data in enumerate(trainloader, 0):            
+            # inputs = (Variable(data['variables'], requires_grad=False), Variable(data['clauses'], requires_grad=False))
+            inputs = (data['variables'], data['clauses'])
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
             if settings.hyperparameters['cuda']:
                 topvar, labels = topvar.cuda(), labels.cuda()
                 inputs = [[[x.cuda() for x in y] for y in t] for t in inputs]
-            # print('Processing sample from dataset with index %d' % ds_idx)
-            # print(ds[ds_idx]['orig_sample']['clauses'])
-            # if ds_idx in [194]:
-            #     print('Skipping index %d' % ds_idx)
-            #     continue
 
             # zero the parameter gradients
             if do_step:

@@ -24,7 +24,7 @@ def cfg():
 	hyperparams = {
 		'exp_name': EX_NAME,
 		'time': int(time.time()),
-	    'embedding_dim': 6,
+	    'embedding_dim': 5,
 	    'ground_dim': 3,
 	    'max_clauses': 3, 
 	    'max_variables': 3, 
@@ -33,14 +33,14 @@ def cfg():
 	    'dataset': 'boolean8',
 	    'model_dir': 'saved_models',
 	    'max_iters': 5,
-	    'batch_size': 4,
+	    'batch_size': 2,
 	    'val_size': 100, 
 	    # 'classifier_type': 'GraphLevelClassifier',
-	    'classifier_type': 'EqClassifier',
+	    'classifier_type': 'BatchEqClassifier',
 	    'combinator_type': 'SymmetricSumCombine',	    
 	    'ground_combinator_type': 'DummyGroundCombinator',	    
 	    'gru_bias': False,
-	    'use_ground': False,
+	    'use_ground': True,
 	    'split': False,
 	    'cuda': False
 	}

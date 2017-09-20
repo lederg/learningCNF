@@ -124,7 +124,7 @@ class CnfDataset(Dataset):
                     if t in x:
                         new_clause[j]=1
                     elif -t in x:
-                        new_clause[j]=-1                
+                        new_clause[j]=2
                 new_all_clauses.append(new_clause)
             else:                
                 new_all_clauses.append(new_clause)
@@ -140,12 +140,12 @@ class CnfDataset(Dataset):
                     if t in x:
                         new_var[j]=1
                     elif -t in x:
-                        new_var[j]=-1
+                        new_var[j]=2
                 new_all_variables.append(new_var)
             else:
                 new_all_variables.append(new_var)
 
-        return np.concatenate(new_all_variables), np.concatenate(new_all_clauses), convert_var(sample['topvar'])
+        return np.stack(new_all_variables), np.stack(new_all_clauses), convert_var(sample['topvar'])
 
 
     def dummy_filter(self, classes):

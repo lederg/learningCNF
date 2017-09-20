@@ -9,3 +9,7 @@ class CnfSettings(metaclass=Singleton):
 
 	def __getitem__(self, key):
 		return self.hyperparameters[key]
+
+	def zeros(self,size):
+		rc = torch.zeros(size)
+		return rc.cuda() if self.hyperparameters['cuda'] else rc

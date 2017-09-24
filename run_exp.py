@@ -24,19 +24,23 @@ def cfg():
 	hyperparams = {
 		'exp_name': EX_NAME,
 		'time': int(time.time()),
-	    'embedding_dim': 5,
-	    'ground_dim': 3,
+	    'embedding_dim': 30,
+	    'ground_dim': 4,
 	    'max_clauses': 3, 
 	    'max_variables': 3, 
 	    'num_ground_variables': 3, 
-	    'data_mode': DataMode.SAT,
+	    'data_mode': DataMode.NORMAL,
 	    'dataset': 'boolean8',
 	    'model_dir': 'saved_models',
-	    'max_iters': 5,
-	    'batch_size': 2,
-	    'val_size': 100, 
-	    # 'classifier_type': 'GraphLevelClassifier',
-	    'classifier_type': 'BatchEqClassifier',
+	    'max_iters': 6,
+	    'batch_size': 48,
+	    'val_size': 200, 
+	    'threshold': 3000,
+	    'init_lr': 0.001,
+	    'decay_lr': 0.07,
+	    'decay_num_epochs': 2,
+	    'classifier_type': 'BatchGraphLevelClassifier',
+	    # 'classifier_type': 'BatchEqClassifier',
 	    'combinator_type': 'SymmetricSumCombine',	    
 	    'ground_combinator_type': 'DummyGroundCombinator',	    
 	    'gru_bias': False,
@@ -47,6 +51,7 @@ def cfg():
 
 	def_settings = CnfSettings(hyperparams)
 	data_mode = hyperparams['data_mode']
+	threshold = hyperparams['threshold']
 
 
 	DS_TRAIN_FILE = 'expressions-synthetic/split/%s-trainset.json' % hyperparams['dataset']
@@ -55,9 +60,9 @@ def cfg():
 
 
 @ex.automain
-def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, data_mode):
-	ds1 = CnfDataset(DS_TRAIN_FILE,4000,mode=data_mode)
-	ds2 = CnfDataset(DS_VALIDATION_FILE,1000,mode=data_mode)
+def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, data_mode, threshold):
+	ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode)
+	ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode)
 	print('Classes from validation set:')
 	print(ds2.labels)
 	train(ds1,ds2)

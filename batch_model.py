@@ -1,6 +1,7 @@
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
+from torch.nn import init as nn_init
 import torch.nn.functional as F
 import torch.optim as optim
 import utils
@@ -52,15 +53,16 @@ class BatchInnerIteration(nn.Module):
 		self.max_variables = max_variables
 		self.split = split
 		self.permute = permute
-		self.num_ground_variables = num_ground_variables
-		self.negation = nn.Linear(embedding_dim, embedding_dim)   # add non-linearity?		
+		self.num_ground_variables = num_ground_variables	
 		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
-		self.clause_combiner = self.comb_type(embedding_dim)
-		self.variable_combiner = self.comb_type(embedding_dim)
 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],embedding_dim)
 		self.cuda = kwargs['cuda']		
-		self.var_bias = torch.stack([torch.cat([nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))]*self.settings['max_variables'])]*self.settings['batch_size'])
-		self.clause_bias = torch.stack([torch.cat([nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))]*self.settings['max_clauses'])]*self.settings['batch_size'])
+		vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+		cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+		nn_init.normal(vb)
+		nn_init.normal(cb)
+		self.var_bias = torch.stack([torch.cat([vb]*self.settings['max_variables'])]*self.settings['batch_size'])
+		self.clause_bias = torch.stack([torch.cat([cb]*self.settings['max_clauses'])]*self.settings['batch_size'])
 		
 		
 		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
@@ -71,81 +73,39 @@ class BatchInnerIteration(nn.Module):
 		self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 
 
-	@property
-	def false(self):
-		return self.extra_embedding(Variable(self.settings.LongTensor([0]), requires_grad=False))
-
-	@property
-	def true(self):
-		return self.negation(self.false)
-
-	def prepare_clauses(self, clauses):
-		if self.permute and False:  	
-			rc = torch.cat(utils.permute_seq(clauses),dim=1)
-			if not self.split:
-				return rc
-			else:
-				org = torch.cat(clauses,1)			# split
-				return torch.cat([org,rc])	
-		else:
-			# return torch.cat(clauses,dim=1)
-			return clauses
-
- # i is the index of the special variable (the current one)
-	def prepare_variables(self, variables, curr_variable):
-		tmp = variables.pop(curr_variable)
-		if self.permute and False:    		
-			rc = [tmp] + utils.permute_seq(variables)	    		    	
-			try:
-				perm = torch.cat(rc,1)
-			except RuntimeError:
-				ipdb.set_trace()
-			if not self.split:
-				return perm
-			else:
-				org = torch.cat([tmp] + variables,1)        # splitting batch
-				return torch.cat([org,perm])
-		else:
-			rc = [tmp] + variables
-			# return torch.cat(rc,1)
-			return rc
-
-
-
-	def _forward_clause(self, variables, clause, i):
-		c_vars = []
-		for j in range(self.max_variables):
-			if j<len(clause):								# clause is a list of tensors
-				l=clause[j]									# l is a tensored floaty integer
-				ind = torch.abs(l)-1       					# variables in clauses are 1-based and negative if negated
-				v = torch.stack(variables)[ind.data][0] 	# tensored variables (to be indexed by tensor which is inside a torch variable..gah)
-				if (ind==i).data.all():
-					ind_in_clause = j
-				if (l < 0).data.all():
-					v = self.negation(v)
-			else:
-				continue
-			c_vars.append(v)
-
-		return self.variable_combiner(self.prepare_variables(c_vars,ind_in_clause))
 
 	def gru(self, av, prev_emb):
 		z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
 		r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
 		h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
 		h = (1-z) * prev_emb + z*h_tilda
+		g = h.view(2,-1,self.embedding_dim)
+		if (g[0]==g[1]).data.all():
+			print('Same embedding in gru. wtf?')
+			# pdb.set_trace()
 		return h
 
 
 	def forward(self, variables, v_mat, c_mat):
 		out_embeddings = []
-
-		pdb.set_trace()
-		c_emb = torch.bmm(c_mat,variables) + self.clause_bias
-		v_emb = torch.bmm(v_mat,c_emb) + self.var_bias
-		
-		new_vars = self.gru(torch.cat(out_embeddings,dim=0), torch.cat(variables,dim=0))
-		return torch.chunk(new_vars,len(new_vars))
+		try:
+			c_emb = F.tanh(torch.bmm(c_mat,variables) + self.clause_bias)
+			if (c_emb[0] == c_emb[1]).data.all():
+				print('c_emb identical!')
+			# c_emb = utils.normalize(c_emb.view(-1,self.embedding_dim)).view(self.settings['batch_size'],-1,1)
+		except:
+			pdb.set_trace()
+		v_emb = F.tanh(torch.bmm(v_mat,c_emb) + self.var_bias)
+		# v_emb = utils.normalize(v_emb.view(-1,self.embedding_dim)).view(self.settings['batch_size'],-1,1)
+		new_vars = self.gru(v_emb.view(-1,self.embedding_dim), variables.view(-1,self.embedding_dim))
+		rc = new_vars.view(self.settings['batch_size'],self.max_variables*self.embedding_dim,1)
+		if (rc != rc).data.any():			# We won't stand for NaN
+			print('NaN in our tensors!!')
+			pdb.set_trace()
+		if (rc[0] == rc[1]).data.all():
+			print('Same embedding. wtf?')
+			# pdb.set_trace()
+		return rc
 
 
 class BatchEncoder(nn.Module):
@@ -156,18 +116,20 @@ class BatchEncoder(nn.Module):
 		self.batch_size = self.settings['batch_size']
 		self.max_variables = self.settings['max_variables']
 		self.embedding_dim = embedding_dim		
-		self.expand_dim_const = Variable(torch.zeros(1,self.embedding_dim - self.ground_dim))
+		self.expand_dim_const = Variable(self.settings.zeros([1,self.embedding_dim - self.ground_dim]), requires_grad=False)
 		self.max_iters = max_iters		
 		self.num_ground_variables = num_ground_variables		
-		self.embedding = nn.Embedding(num_ground_variables, self.ground_dim, max_norm=1.)
-		self.tseitin_embedding = nn.Embedding(1, self.ground_dim, max_norm=1.)		
+		self.embedding = nn.Embedding(num_ground_variables, self.ground_dim, max_norm=1., norm_type=2)
+		self.tseitin_embedding = nn.Embedding(1, self.ground_dim, max_norm=1., norm_type=2)		
 		self.inner_iteration = BatchInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
 		self.use_ground = self.settings['use_ground']
 	
-		self.zero_block = nn.Parameter(self.settings.zeros([1,self.embedding_dim,self.embedding_dim]))
+		self.zero_block = Variable(self.settings.zeros([1,self.embedding_dim,self.embedding_dim]), requires_grad=False)
 		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
-		self.forward_block = torch.cat([self.zero_block,self.forward_pos_neg],dim=0)
+		nn_init.normal(self.forward_pos_neg)
+		self.forward_block = torch.cat([self.zero_block,self.forward_pos_neg],dim=0)		
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
+		nn_init.normal(self.backwards_pos_neg)
 		self.backwards_block = torch.cat([self.zero_block,self.backwards_pos_neg],dim=0)
 		
 # input is one training sample (a formula), we'll permute it a bit at every iteration and possibly split to create a batch
@@ -200,18 +162,32 @@ class BatchEncoder(nn.Module):
 		f_vars, f_clauses = input
 		v_mat = self.get_block_matrix(self.forward_block,f_vars)	# v_mat goes from clauses to variables
 		c_mat = self.get_block_matrix(self.backwards_block,f_clauses)	# c_mat goes from variables to clauses
+		if len(c_mat) != len(input[1]) or len(v_mat) != len(input[0]) or len(input[0]) != len(input[1]):
+			print('Wrong block matrix size??!')
+			pdb.set_trace()
+
+		if (c_mat != c_mat).data.any() or (v_mat != v_mat).data.any():
+			print('NaN in block matrices!')
+			pdb.set_trace()
 		
 		for i in range(self.max_variables):
 			v = self.expand_ground_to_state(self.get_ground_embeddings(i))
 			variables.append(v)
 		v = torch.cat(variables,dim=1).transpose(0,1)
 		variables = torch.stack([v]*self.batch_size)
+
+		# Start propagation
+
 		for i in range(self.max_iters):
 			# print('Starting iteration %d' % i)
+			if (variables != variables).data.any():
+				print('Variables have nan!')
+				pdb.set_trace()
 			variables = self.inner_iteration(variables, v_mat, c_mat)
-	
+			if (variables[0]==variables[1]).data.all():
+				print('Variables identical on (inner) iteration %d' % i)
 		aux_losses = Variable(torch.zeros(len(variables)))
-		return variables, aux_losses
+		return torch.squeeze(variables), aux_losses
 
 
 class BatchEqClassifier(nn.Module):
@@ -219,19 +195,20 @@ class BatchEqClassifier(nn.Module):
 		super(BatchEqClassifier, self).__init__()        
 		self.num_classes = num_classes
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.embedding_dim = self.settings['embedding_dim']
+		self.max_variables = self.settings['max_variables']
 		self.encoder = BatchEncoder(**kwargs)
 		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
 
 	def forward(self, input, output_ind):
 		embeddings, aux_losses = self.encoder(input)
-
-		neg = (output_ind.data<0).all()
-		idx = torch.abs(output_ind).data[0]-1
-		out = embeddings[idx]
-		if neg:
-			out = self.encoder.inner_iteration.negation(out)
+		b = ((torch.abs(output_ind)-1)*self.embedding_dim).view(-1,1)
+		ind = b.clone()
+		for i in range(self.embedding_dim-1):
+			ind = torch.cat([ind,b+1+i],dim=1)
+		out = torch.gather(embeddings,1,ind)
 		return self.softmax_layer(out), aux_losses     # variables are 1-based
-		# return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
+		
 		
 
 class BatchGraphLevelClassifier(nn.Module):
@@ -246,12 +223,10 @@ class BatchGraphLevelClassifier(nn.Module):
 
 	def forward(self, input, output_ind):
 		embeddings, aux_losses = self.encoder(input)
-
-		out = F.tanh(sum([F.sigmoid(self.i_mat(x)) * F.tanh(self.j_mat(x)) for x in embeddings]))
-
-		return self.softmax_layer(out), aux_losses     # variables are 1-based
-		# return F.relu(self.softmax_layer(embeddings[output_ind.data[0]-1])), aux_losses     # variables are 1-based
-		
+		embeddings = embeddings.view(-1,self.settings['embedding_dim'])
+		per_var = F.sigmoid(self.i_mat(embeddings)) * F.tanh(self.j_mat(embeddings))
+		out = F.tanh(torch.sum(per_var.view(self.settings['batch_size'],-1,self.settings['embedding_dim']),dim=1)).squeeze()
+		return self.softmax_layer(out), aux_losses
 
 class SiameseClassifier(nn.Module):
 	def __init__(self, **kwargs):

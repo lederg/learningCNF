@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 from enum import Enum
 import os
 import random
+import pdb
 
 class DataMode(Enum):
     NORMAL = 1
@@ -73,7 +74,9 @@ class CnfDataset(Dataset):
 
     def transform_sample(self,sample):
         clauses = sample['clauses_per_variable']
-        auxvars = sample['auxvars']        
+        auxvars = sample['auxvars']
+        topvar = sample['topvar']
+        
         origvars = list(sample['origvars'].values())
         num_total_vars = len(origvars) + len(auxvars)
         rc = []
@@ -81,10 +84,15 @@ class CnfDataset(Dataset):
 
         def convert_var(v):
             j = abs(v)
-            if j<=self.ground_vars: return v
+            if j<=self.ground_vars: return v            
             if j in auxvars:
                 newvar = self.ground_vars+auxvars.index(j)+1
-                return newvar if v>0 else -newvar 
+                rc = newvar if v>0 else -newvar 
+                if topvar < 0 and abs(v) == abs(topvar):                  # We invert the topvar variable if its nega
+                    return -rc
+                else:
+                    return rc
+                    
             else:
                 print('What the heck?')
                 import ipdb; ipdb.set_trace()

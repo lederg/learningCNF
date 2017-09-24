@@ -16,7 +16,7 @@ class Singleton(type):
         return cls._instances[cls]
     
 
-def normalize(input, p=2, dim=1, eps=1e-12):
+def normalize(input, p=2, dim=1, eps=1e-20):
     return input / input.norm(p, dim).clamp(min=eps).expand_as(input)
 
 def formula_to_input(formula):
@@ -34,9 +34,9 @@ def permute_seq(inp):
     return list(p[i])
 
 
-def exp_lr_scheduler(optimizer, epoch, init_lr=0.001, lr_decay_epoch=7):
+def exp_lr_scheduler(optimizer, epoch, init_lr=0.001, lr_decay_epoch=7, decay_rate=0.1):
     """Decay learning rate by a factor of 0.1 every lr_decay_epoch epochs."""
-    lr = init_lr * (0.9**(epoch // lr_decay_epoch))
+    lr = init_lr * ((1-decay_rate)**(epoch // lr_decay_epoch))
 
     if epoch % lr_decay_epoch == 0 and epoch > 0:
         print('LR is set to {}'.format(lr))

@@ -43,15 +43,14 @@ class SymmetricSumCombine(nn.Module):
 
 
 class BatchInnerIteration(nn.Module):
-	def __init__(self, get_ground_embeddings, embedding_dim, max_variables, num_ground_variables, split=True, permute=True, **kwargs):
+	def __init__(self, get_ground_embeddings, embedding_dim, max_variables, num_ground_variables, permute=True, **kwargs):
 		super(BatchInnerIteration, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.comb_type = eval(self.settings['combinator_type'])
 		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
 		self.get_ground_embeddings = get_ground_embeddings
 		self.embedding_dim = embedding_dim
-		self.max_variables = max_variables
-		self.split = split
+		self.max_variables = max_variables		
 		self.permute = permute
 		self.num_ground_variables = num_ground_variables	
 		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
@@ -61,10 +60,11 @@ class BatchInnerIteration(nn.Module):
 		cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		nn_init.normal(vb)
 		nn_init.normal(cb)
-		self.var_bias = torch.stack([torch.cat([vb]*self.settings['max_variables'])]*self.settings['batch_size'])
-		self.clause_bias = torch.stack([torch.cat([cb]*self.settings['max_clauses'])]*self.settings['batch_size'])
-		
-		
+		self.var_bias = torch.cat([vb]*self.settings['max_variables'])
+		self.clause_bias = torch.cat([cb]*self.settings['max_clauses'])
+		# self.var_bias = torch.stack([torch.cat([vb]*self.settings['max_variables'])]*self.settings['batch_size'])
+		# self.clause_bias = torch.stack([torch.cat([cb]*self.settings['max_clauses'])]*self.settings['batch_size'])
+				
 		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
 		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 		self.W_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
@@ -87,7 +87,6 @@ class BatchInnerIteration(nn.Module):
 
 
 	def forward(self, variables, v_mat, c_mat):
-		out_embeddings = []
 		try:
 			c_emb = F.tanh(torch.bmm(c_mat,variables) + self.clause_bias)
 			if (c_emb[0] == c_emb[1]).data.all():
@@ -98,7 +97,7 @@ class BatchInnerIteration(nn.Module):
 		v_emb = F.tanh(torch.bmm(v_mat,c_emb) + self.var_bias)
 		# v_emb = utils.normalize(v_emb.view(-1,self.embedding_dim)).view(self.settings['batch_size'],-1,1)
 		new_vars = self.gru(v_emb.view(-1,self.embedding_dim), variables.view(-1,self.embedding_dim))
-		rc = new_vars.view(self.settings['batch_size'],self.max_variables*self.embedding_dim,1)
+		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
 		if (rc != rc).data.any():			# We won't stand for NaN
 			print('NaN in our tensors!!')
 			pdb.set_trace()
@@ -196,7 +195,7 @@ class BatchEncoder(nn.Module):
 		# 	variables.append(v)
 		# v = torch.cat(variables,dim=1).transpose(0,1)
 		v = self.get_ground_embeddings()
-		variables = torch.stack([v]*self.batch_size)
+		variables = torch.stack([v]*len(input[0]))
 
 		# Start propagation
 
@@ -247,7 +246,7 @@ class BatchGraphLevelClassifier(nn.Module):
 		embeddings, aux_losses = self.encoder(input)
 		embeddings = embeddings.view(-1,self.settings['embedding_dim'])
 		per_var = F.sigmoid(self.i_mat(embeddings)) * F.tanh(self.j_mat(embeddings))
-		out = F.tanh(torch.sum(per_var.view(self.settings['batch_size'],-1,self.settings['embedding_dim']),dim=1)).squeeze()
+		out = F.tanh(torch.sum(per_var.view(len(input[0]),-1,self.settings['embedding_dim']),dim=1)).squeeze()
 		return self.softmax_layer(out), aux_losses
 
 class SiameseClassifier(nn.Module):

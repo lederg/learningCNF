@@ -109,8 +109,8 @@ def train(ds, ds_validate=None):
             # inputs = (Variable(data['variables'], requires_grad=False), Variable(data['clauses'], requires_grad=False))
             inputs = (data['variables'], data['clauses'])
             if  len(inputs[0]) != settings['batch_size']:
-                print('Trainer gave us no batch!!')
-                continue
+                print('Trainer gave us shorter batch!!')
+                # continue
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
             ind = data['idx_in_dataset']
@@ -171,7 +171,12 @@ def train(ds, ds_validate=None):
 
 
         if epoch>0 and epoch % SAVE_EVERY == 0:
-            torch.save(net.state_dict(),'%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
+            # torch.save(net.state_dict(),'%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
+            torch.save(net,'%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
+            if settings['reset_on_save']:
+                print('Recreating model!')
+                print(settings.hyperparameters)
+                net = torch.load('%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
 
 
     print('Finished Training')

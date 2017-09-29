@@ -25,8 +25,9 @@ def test_model_from_file(model_fname, test_fname=None):
     ds3 = CnfDataset(config['DS_VALIDATION_FILE'], settings['threshold'], ref_dataset=ds1, mode=settings['data_mode'])
     settings.hyperparameters['max_clauses'] = ds1.max_clauses
     settings.hyperparameters['max_variables'] = ds1.max_variables
-    net = load_model_from_file()
-    net.load_state_dict(torch.load(model_fname))
+    # net = load_model_from_file()
+    # net.load_state_dict(torch.load(model_fname))
+    net = torch.load(model_fname)
     ipdb.set_trace()
 
 def load_model_from_file(**kwargs):

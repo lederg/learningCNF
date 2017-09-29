@@ -30,6 +30,8 @@ class CnfDataset(Dataset):
                 self.eq_classes = self.filter_classes(to_cnf(load_bool_data(json_file)))
             else:
                 self.eq_classes = self.filter_classes_by_ref(to_cnf(load_bool_data(json_file)),ref_dataset)
+        else:
+            print('OK, thats not a known DataMode..')
         # self.eq_classes = self.dummy_filter(to_cnf(load_bool_data(json_file)))
         self.labels = list(self.eq_classes.keys())
         self.samples = list(self.eq_classes.values())        

@@ -24,7 +24,7 @@ def cfg():
 	hyperparams = {
 		'exp_name': EX_NAME,
 		'time': int(time.time()),
-	    'embedding_dim': 30,
+	    'embedding_dim': 42,
 	    'ground_dim': 4,
 	    'max_clauses': 3, 
 	    'max_variables': 3, 
@@ -35,7 +35,7 @@ def cfg():
 	    'max_iters': 6,
 	    'batch_size': 48,
 	    'val_size': 200, 
-	    'threshold': 3000,
+	    'threshold': 2500,
 	    'init_lr': 0.001,
 	    'decay_lr': 0.07,
 	    'decay_num_epochs': 2,
@@ -45,6 +45,7 @@ def cfg():
 	    'ground_combinator_type': 'DummyGroundCombinator',	    
 	    'gru_bias': False,
 	    'use_ground': True,
+	    'moving_ground': False, 
 	    'split': False,
 	    'cuda': False
 	}
@@ -60,9 +61,10 @@ def cfg():
 
 
 @ex.automain
-def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, data_mode, threshold):
+def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):
 	ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode)
-	ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode)
+	# ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode)
+	ds2 = CnfDataset(DS_TEST_FILE, threshold, ref_dataset=ds1, mode=data_mode)
 	print('Classes from validation set:')
 	print(ds2.labels)
 	train(ds1,ds2)

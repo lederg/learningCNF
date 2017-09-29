@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from batch_model import *
 from datautils import *
 import utils
@@ -12,12 +13,13 @@ import numpy as np
 import ipdb
 from tensorboard_logger import configure, log_value
 from sacred import Experiment
+from testing import test
 
 EX_NAME = 'trenery_4'
 
 ex = Experiment(EX_NAME)
 
-torch.manual_seed(1)
+# torch.manual_seed(1)
 
 # TRAIN_FILE = 'expressions-synthetic/boolean5.json'
 
@@ -34,7 +36,7 @@ VALIDATE_EVERY = 1000
 # NUM_EPOCHS = 400
 NUM_EPOCHS = 150
 LOG_EVERY = 10
-SAVE_EVERY = 1000
+SAVE_EVERY = 5
 
 
 ACC_LR_THRESHOLD = 0.02
@@ -75,35 +77,6 @@ def log_name(settings):
         settings['batch_size'], settings['embedding_dim'], 
         settings['max_iters'], settings['time'])
     
-
-def test(model, ds, **kwargs):
-    settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
-    criterion = nn.CrossEntropyLoss()
-    if 'weighted_test' in kwargs and kwargs['weighted_test']:
-        sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
-        vloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, pin_memory=settings['cuda'])
-    else:
-        sampler = torch.utils.data.sampler.RandomSampler(ds)
-        vloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler)
-    total_loss = 0
-    total_correct = 0
-    for _,data in zip(range(settings['val_size']),vloader):
-        inputs = (data['variables'], data['clauses'])
-        topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
-        labels = Variable(data['label'], requires_grad=False)
-        if settings.hyperparameters['cuda']:
-                topvar, labels = topvar.cuda(), labels.cuda()
-                inputs = [t.cuda() for t in inputs]        
-        outputs, aux_losses = model(inputs, topvar)
-        loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
-        correct = outputs.max(dim=1)[1]==labels
-        num_correct = torch.nonzero(correct.data).size()
-        if len(num_correct):
-            total_correct += num_correct[0]
-        total_loss += loss
-
-    return total_loss, total_correct / (settings['val_size']*settings['batch_size'])
-
 @ex.capture
 def train(ds, ds_validate=None):
     settings = CnfSettings()
@@ -122,6 +95,7 @@ def train(ds, ds_validate=None):
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=settings['init_lr'], momentum=0.9)
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=3, verbose=True)
     batch_size = settings['batch_size']
     get_step = lambda x,y: x*len(trainloader)+y
     configure("runs/%s" % log_name(settings), flush_secs=5)
@@ -159,7 +133,7 @@ def train(ds, ds_validate=None):
                 ipdb.set_trace()            
             
 
-            if (net.encoder.tseitin_embedding.weight.grad != net.encoder.tseitin_embedding.weight.grad).data.any():
+            if settings['moving_ground'] and (net.encoder.embedding.weight.grad != net.encoder.embedding.weight.grad).data.any():
                 print('NaN in embedding grad!!!')
                 pdb.set_trace()
 
@@ -183,22 +157,21 @@ def train(ds, ds_validate=None):
                 running_loss = 0.0
                 print('[%d, %5d] training accuracy: %.3f' %
                       (epoch + 1, i + 1, total_correct / (PRINT_LOSS_EVERY*settings['batch_size'])))
-                total_correct = 0.0
-                # print('Outputs are:')
-                # print(outputs)
-                # print('And labels:')
-                # print(labels)
-            if ds_validate and i>0 and i % VALIDATE_EVERY == 0:
-                v_loss, v_acc = test(net, ds_validate, weighted_test=True)
-                v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
-                print('Validation loss %f, accuracy %f' % (v_loss,v_acc))
-                log_value('validation_loss',v_loss,get_step(epoch,i))
-                log_value('validation_accuracy',v_acc,get_step(epoch,i))
-                acc_improvement = v_acc - last_v_acc
+                total_correct = 0.0                
+            # if ds_validate and i>0 and i % VALIDATE_EVERY == 0:
+
+        # Validate and recompute learning rate
+
+        v_loss, v_acc = test(net, ds_validate, weighted_test=True)
+        v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
+        print('Validation loss %f, accuracy %f' % (v_loss,v_acc))
+        log_value('validation_loss',v_loss,get_step(epoch,i))
+        log_value('validation_accuracy',v_acc,get_step(epoch,i))
+        # scheduler.step(v_loss)
 
 
-            if i>0 and i % SAVE_EVERY == 0:
-                torch.save(net.state_dict(),'%s/%s.model' % (settings['model_dir'],log_name(settings)))
+        if epoch>0 and epoch % SAVE_EVERY == 0:
+            torch.save(net.state_dict(),'%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
 
 
     print('Finished Training')

@@ -79,10 +79,10 @@ class BatchInnerIteration(nn.Module):
 		r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
 		h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
 		h = (1-z) * prev_emb + z*h_tilda
-		g = h.view(2,-1,self.embedding_dim)
-		if (g[0]==g[1]).data.all():
-			print('Same embedding in gru. wtf?')
-			# pdb.set_trace()
+		# g = h.view(2,-1,self.embedding_dim)
+		# if (g[0]==g[1]).data.all():
+		# 	print('Same embedding in gru. wtf?')
+		# 	# pdb.set_trace()
 		return h
 
 
@@ -116,13 +116,23 @@ class BatchEncoder(nn.Module):
 		self.batch_size = self.settings['batch_size']
 		self.max_variables = self.settings['max_variables']
 		self.embedding_dim = embedding_dim		
-		self.expand_dim_const = Variable(self.settings.zeros([1,self.embedding_dim - self.ground_dim]), requires_grad=False)
+		self.expand_dim_const = Variable(self.settings.zeros([self.max_variables,self.embedding_dim - self.ground_dim]), requires_grad=False)
 		self.max_iters = max_iters		
 		self.num_ground_variables = num_ground_variables		
-		self.embedding = nn.Embedding(num_ground_variables, self.ground_dim, max_norm=1., norm_type=2)
-		self.tseitin_embedding = nn.Embedding(1, self.ground_dim, max_norm=1., norm_type=2)		
-		self.inner_iteration = BatchInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
 		self.use_ground = self.settings['use_ground']
+		self.moving_ground = self.settings['moving_ground']
+		if self.moving_ground:
+			self.embedding = nn.Embedding(num_ground_variables+1, self.ground_dim, max_norm=1., norm_type=2)
+		else:
+			base_annotations = Variable(torch.eye(num_ground_variables+1),requires_grad=False)
+			if self.use_ground:
+				dup_annotations = torch.cat([base_annotations[-1].unsqueeze(0)] * (self.max_variables - num_ground_variables -1))
+				exp_annotations = torch.cat([base_annotations,dup_annotations])				
+			else:
+				exp_annotations = torch.cat([base_annotations[-1].unsqueeze(0)]*self.max_variables)				
+			self.ground_annotations = self.expand_ground_to_state(exp_annotations)
+
+		self.inner_iteration = BatchInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
 	
 		self.zero_block = Variable(self.settings.zeros([1,self.embedding_dim,self.embedding_dim]), requires_grad=False)
 		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
@@ -131,21 +141,32 @@ class BatchEncoder(nn.Module):
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
 		nn_init.normal(self.backwards_pos_neg)
 		self.backwards_block = torch.cat([self.zero_block,self.backwards_pos_neg],dim=0)
+
+		if self.use_ground:
+			self.var_indices = Variable(torch.arange(0,self.max_variables).long().clamp(0,self.num_ground_variables),requires_grad=False)
+		else:
+			self.var_indices = Variable(self.settings.LongTensor([self.num_ground_variables]*self.max_variables),requires_grad=False)
+
+
 		
 # input is one training sample (a formula), we'll permute it a bit at every iteration and possibly split to create a batch
 
 	def expand_ground_to_state(self,v):
 		return torch.cat([v,self.expand_dim_const],dim=1)
 
-	@property
-	def tseitin(self):
-		return self.tseitin_embedding(Variable(self.settings.LongTensor([0])))
+	def get_ground_embeddings(self):
 
-	def get_ground_embeddings(self,i):
-		if i<self.num_ground_variables and self.use_ground:
-			return self.embedding(Variable(self.settings.LongTensor([i])))
+		if self.moving_ground:
+			embs = self.expand_ground_to_state(self.embedding(self.var_indices))
 		else:
-			return self.tseitin
+			embs = self.ground_annotations
+		return embs.view(1,-1).transpose(0,1)
+
+	# def get_ground_embeddings(self,i):
+	# 	if i<self.num_ground_variables and self.use_ground:
+	# 		return self.embedding(Variable(self.settings.LongTensor([i])))
+	# 	else:
+	# 		return self.tseitin
 		
 
 
@@ -170,10 +191,11 @@ class BatchEncoder(nn.Module):
 			print('NaN in block matrices!')
 			pdb.set_trace()
 		
-		for i in range(self.max_variables):
-			v = self.expand_ground_to_state(self.get_ground_embeddings(i))
-			variables.append(v)
-		v = torch.cat(variables,dim=1).transpose(0,1)
+		# for i in range(self.max_variables):
+		# 	v = self.expand_ground_to_state(self.get_ground_embeddings(i))
+		# 	variables.append(v)
+		# v = torch.cat(variables,dim=1).transpose(0,1)
+		v = self.get_ground_embeddings()
 		variables = torch.stack([v]*self.batch_size)
 
 		# Start propagation

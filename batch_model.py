@@ -210,6 +210,46 @@ class BatchEncoder(nn.Module):
 		aux_losses = Variable(torch.zeros(len(variables)))
 		return torch.squeeze(variables), aux_losses
 
+class TopVarEmbedder(nn.Module):
+	def __init__(self, num_classes, **kwargs):
+		super(TopVarEmbedder, self).__init__()        
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.embedding_dim = self.settings['embedding_dim']
+		self.max_variables = self.settings['max_variables']		
+
+	def forward(self, input, output_ind **kwargs):
+		embeddings, aux_losses = self.encoder(input)
+		b = ((torch.abs(output_ind)-1)*self.embedding_dim).view(-1,1)
+		ind = b.clone()
+		for i in range(self.embedding_dim-1):
+			ind = torch.cat([ind,b+1+i],dim=1)
+		out = torch.gather(embeddings,1,ind)
+		return out
+
+class TopLevelClassifier(nn.Module):
+	def __init__(self, num_classes, **kwargs):
+		super(TopLevelClassifier, self).__init__()        
+		self.num_classes = num_classes
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.embedding_dim = self.settings['embedding_dim']
+		self.max_variables = self.settings['max_variables']
+		self.encoder_type = eval(self.settings['encoder_type'])
+		self.encoder = self.encoder_type(**kwargs)
+		self.embedder_type = eval(self.settings['embedder_type'])
+		self.embedder = self.embedder_type(**kwargs)
+
+		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
+
+	def forward(self, input, output_ind):
+		embeddings, aux_losses = self.encoder(input)
+		b = ((torch.abs(output_ind)-1)*self.embedding_dim).view(-1,1)
+		ind = b.clone()
+		for i in range(self.embedding_dim-1):
+			ind = torch.cat([ind,b+1+i],dim=1)
+		out = torch.gather(embeddings,1,ind)
+		return self.softmax_layer(out), aux_losses     # variables are 1-based
+
+
 
 class BatchEqClassifier(nn.Module):
 	def __init__(self, num_classes, **kwargs):

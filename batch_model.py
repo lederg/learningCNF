@@ -176,7 +176,7 @@ class BatchEncoder(nn.Module):
 
 		return torch.stack(rc)
 
-	def forward(self, input):
+	def forward(self, input, **kwargs):
 		variables = []
 		clauses = []
 		f_vars, f_clauses = input
@@ -211,19 +211,33 @@ class BatchEncoder(nn.Module):
 		return torch.squeeze(variables), aux_losses
 
 class TopVarEmbedder(nn.Module):
-	def __init__(self, num_classes, **kwargs):
+	def __init__(self, **kwargs):
 		super(TopVarEmbedder, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.embedding_dim = self.settings['embedding_dim']
-		self.max_variables = self.settings['max_variables']		
+		# self.max_variables = self.settings['max_variables']		
 
-	def forward(self, input, output_ind **kwargs):
-		embeddings, aux_losses = self.encoder(input)
+	def forward(self, embeddings, output_ind, **kwargs):		
 		b = ((torch.abs(output_ind)-1)*self.embedding_dim).view(-1,1)
 		ind = b.clone()
 		for i in range(self.embedding_dim-1):
 			ind = torch.cat([ind,b+1+i],dim=1)
 		out = torch.gather(embeddings,1,ind)
+		return out
+
+class GraphEmbedder(nn.Module):
+	def __init__(self, **kwargs):
+		super(GraphEmbedder, self).__init__()        
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.embedding_dim = self.settings['embedding_dim']
+		self.i_mat = nn.Linear(self.embedding_dim,self.embedding_dim)
+		self.j_mat = nn.Linear(self.embedding_dim,self.embedding_dim)
+	def forward(self, embeddings, batch_size=None, **kwargs):
+		if not batch_size:
+			batch_size = self.settings['batch_size']
+		embeddings = embeddings.view(-1,self.embedding_dim)
+		per_var = F.sigmoid(self.i_mat(embeddings)) * F.tanh(self.j_mat(embeddings))
+		out = F.tanh(torch.sum(per_var.view(batch_size,-1,self.embedding_dim),dim=1)).squeeze()
 		return out
 
 class TopLevelClassifier(nn.Module):
@@ -237,17 +251,12 @@ class TopLevelClassifier(nn.Module):
 		self.encoder = self.encoder_type(**kwargs)
 		self.embedder_type = eval(self.settings['embedder_type'])
 		self.embedder = self.embedder_type(**kwargs)
-
 		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
 
-	def forward(self, input, output_ind):
-		embeddings, aux_losses = self.encoder(input)
-		b = ((torch.abs(output_ind)-1)*self.embedding_dim).view(-1,1)
-		ind = b.clone()
-		for i in range(self.embedding_dim-1):
-			ind = torch.cat([ind,b+1+i],dim=1)
-		out = torch.gather(embeddings,1,ind)
-		return self.softmax_layer(out), aux_losses     # variables are 1-based
+	def forward(self, input, **kwargs):
+		embeddings, aux_losses = self.encoder(input, **kwargs)
+		enc = self.embedder(embeddings,**kwargs)
+		return self.softmax_layer(enc), aux_losses     # variables are 1-based
 
 
 

@@ -111,6 +111,7 @@ def train(ds, ds_validate=None):
             if  len(inputs[0]) != settings['batch_size']:
                 print('Trainer gave us shorter batch!!')
                 # continue
+            effective_bs = len(inputs[0])
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
             ind = data['idx_in_dataset']
@@ -123,7 +124,7 @@ def train(ds, ds_validate=None):
             optimizer.zero_grad()
             # print('iteration %d beginning...' % i)
             # forward + backward + optimize
-            outputs, aux_losses = net(inputs, topvar)
+            outputs, aux_losses = net(inputs, output_ind=topvar, batch_size=effective_bs)
             loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
             try:
                 loss.backward()

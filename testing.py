@@ -70,8 +70,12 @@ def get_embeddings(model, ds: CnfDataset, **kwargs):
                 inputs = [t.cuda() for t in inputs]        
         outputs, aux_losses = model.encoder(inputs, output_ind=topvar, batch_size=test_bs)
         enc = model.embedder(outputs,output_ind=topvar, batch_size=len(inputs[0]))
-        all_encs.append(enc.data.numpy())
-        all_labels.append(labels.data.numpy())
+        if settings['cuda']:
+            all_encs.append(enc.data.cpu().numpy())
+            all_labels.append(labels.data.cpu().numpy())
+        else:
+            all_encs.append(enc.data.numpy())
+            all_labels.append(labels.data.numpy())
         total_iters += 1
         print('Done with iter %d' % total_iters)
         

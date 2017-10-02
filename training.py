@@ -84,7 +84,8 @@ def train(ds, ds_validate=None):
     trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, pin_memory=settings['cuda'])    
     print('%d classes, %d samples'% (ds.num_classes,len(ds)))
     settings.hyperparameters['num_classes'] = ds.num_classes
-    settings.hyperparameters['max_clauses'] = ds.max_clauses
+    if not 'max_clauses' in settings.hyperparameters:
+        settings.hyperparameters['max_clauses'] = ds.max_clauses
     settings.hyperparameters['max_variables'] = ds.max_variables
 
     current_time = time.time()

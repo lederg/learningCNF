@@ -16,8 +16,10 @@ class DataMode(Enum):
 
 
 class CnfDataset(Dataset):    
-    def __init__(self, json_file, threshold=10, ref_dataset=None, mode: DataMode=DataMode.NORMAL):
+    def __init__(self, json_file, threshold=10, ref_dataset=None, mode: DataMode=DataMode.NORMAL, num_max_clauses=None):
         self.CLASS_THRESHOLD = threshold
+        if num_max_clauses:
+            self.num_max_clauses = num_max_clauses
 
         if mode == DataMode.TRENERY:
             self.eq_classes = self.trenery_filter_classes(to_cnf(load_bool_data(json_file)))            

@@ -26,7 +26,7 @@ def cfg():
 		'time': int(time.time()),
 	    'embedding_dim': 64,
 	    'ground_dim': 4,
-	    'max_clauses': 3, 
+	    'max_clauses': 12, 
 	    'max_variables': 3, 
 	    'num_ground_variables': 3, 
 	    'data_mode': DataMode.NORMAL,
@@ -67,8 +67,8 @@ def cfg():
 
 @ex.automain
 def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):
-	ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode)
-	ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode)
+	ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode, num_max_clauses=12)
+	ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode, num_max_clauses=12)
 	# ds3 = CnfDataset(DS_TEST_FILE, threshold, ref_dataset=ds1, mode=data_mode)
 	print('Classes from validation set:')
 	print(ds2.labels)

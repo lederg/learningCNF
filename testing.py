@@ -8,6 +8,7 @@ import torch.utils.data
 from datautils import *
 from settings import *
 import utils
+import ipdb
 
 def test(model, ds: CnfDataset, **kwargs):
     test_bs = 5
@@ -48,12 +49,13 @@ def test(model, ds: CnfDataset, **kwargs):
     return total_loss, total_correct / (total_iters*test_bs)
 
 def get_embeddings(model, ds: CnfDataset, **kwargs):
-    test_bs = 5
+    test_bs = 100
+    all_labels = []
+    all_encs = []
     # test_bs = settings['batch_size']
     settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()    
     sampler = torch.utils.data.sampler.SequentialSampler(ds)
     vloader = torch.utils.data.DataLoader(ds, batch_size=test_bs, sampler = sampler)
-    
     total_iters = 0
     print('Begin forward embedding, number of mini-batches is %d' % len(vloader))
 
@@ -67,8 +69,11 @@ def get_embeddings(model, ds: CnfDataset, **kwargs):
                 topvar, labels = topvar.cuda(), labels.cuda()
                 inputs = [t.cuda() for t in inputs]        
         outputs, aux_losses = model.encoder(inputs, output_ind=topvar, batch_size=test_bs)
-        enc = self.embedder(embeddings,output_ind=topvar, batch_size=test_bs)        
+        enc = model.embedder(outputs,output_ind=topvar, batch_size=len(inputs[0]))
+        all_encs.append(enc.data.numpy())
+        all_labels.append(labels.data.numpy())
         total_iters += 1
+        print('Done with iter %d' % total_iters)
         
 
-    return total_loss, total_correct / (total_iters*test_bs)
+    return (np.concatenate(all_encs,axis=0), np.concatenate(all_labels))

@@ -51,7 +51,7 @@ def cfg():
 	    'use_ground': True,
 	    'moving_ground': False, 
 	    'split': False,
-	    'cuda': False, 
+	    'cuda': True, 
 	    'reset_on_save': False
 	}
 

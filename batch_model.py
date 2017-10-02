@@ -124,6 +124,8 @@ class BatchEncoder(nn.Module):
 			self.embedding = nn.Embedding(num_ground_variables+1, self.ground_dim, max_norm=1., norm_type=2)
 		else:
 			base_annotations = Variable(torch.eye(num_ground_variables+1),requires_grad=False)
+			if self.settings['cuda']:
+				base_annotations = base_annotations.cuda()
 			if self.use_ground:
 				dup_annotations = torch.cat([base_annotations[-1].unsqueeze(0)] * (self.max_variables - num_ground_variables -1))
 				exp_annotations = torch.cat([base_annotations,dup_annotations])				

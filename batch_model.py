@@ -11,13 +11,13 @@ import pdb
 from settings import *
 
 class GroundCombinator(nn.Module):
-	def __init__(self, ground_dim, embedding_dim, hidden_dim=12):
+	def __init__(self, ground_dim, embedding_dim, hidden_dim=80):
 		super(GroundCombinator, self).__init__()        
 		self.layer1 = nn.Linear(embedding_dim+ground_dim,hidden_dim)
 		self.layer2 = nn.Linear(hidden_dim,embedding_dim)
 
 	def forward(self, ground,state):
-		return self.layer2(F.sigmoid(self.layer1(torch.cat([ground,state],dim=1))))
+		return self.layer2(F.relu(self.layer1(torch.cat([ground,state],dim=1))))
 		
 class DummyGroundCombinator(nn.Module):
 	def __init__(self, *args, **kwargs):
@@ -86,7 +86,7 @@ class BatchInnerIteration(nn.Module):
 		return h
 
 
-	def forward(self, variables, v_mat, c_mat):
+	def forward(self, variables, v_mat, c_mat, ground_vars=None):
 		try:
 			c_emb = F.tanh(torch.bmm(c_mat,variables) + self.clause_bias)
 			if (c_emb[0] == c_emb[1]).data.all():
@@ -96,7 +96,8 @@ class BatchInnerIteration(nn.Module):
 			pdb.set_trace()
 		v_emb = F.tanh(torch.bmm(v_mat,c_emb) + self.var_bias)
 		# v_emb = utils.normalize(v_emb.view(-1,self.embedding_dim)).view(self.settings['batch_size'],-1,1)
-		new_vars = self.gru(v_emb.view(-1,self.embedding_dim), variables.view(-1,self.embedding_dim))
+		v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))
+		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))
 		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
 		if (rc != rc).data.any():			# We won't stand for NaN
 			print('NaN in our tensors!!')
@@ -198,6 +199,7 @@ class BatchEncoder(nn.Module):
 		# v = torch.cat(variables,dim=1).transpose(0,1)
 		v = self.get_ground_embeddings()
 		variables = torch.stack([v]*len(input[0]))
+		ground_variables = variables.view(-1,self.embedding_dim)[:,:self.ground_dim]
 
 		# Start propagation
 
@@ -206,7 +208,7 @@ class BatchEncoder(nn.Module):
 			if (variables != variables).data.any():
 				print('Variables have nan!')
 				pdb.set_trace()
-			variables = self.inner_iteration(variables, v_mat, c_mat)
+			variables = self.inner_iteration(variables, v_mat, c_mat, ground_vars=ground_variables)
 			if (variables[0]==variables[1]).data.all():
 				print('Variables identical on (inner) iteration %d' % i)
 		aux_losses = Variable(torch.zeros(len(variables)))

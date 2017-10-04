@@ -7,6 +7,7 @@ import torch.utils.data
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from batch_model import *
 from datautils import *
+import re
 import utils
 import time
 import numpy as np
@@ -78,7 +79,7 @@ def log_name(settings):
         settings['max_iters'], settings['time'])
     
 @ex.capture
-def train(ds, ds_validate=None):
+def train(ds, ds_validate=None, net=None):
     settings = CnfSettings()
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
     trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, pin_memory=settings['cuda'])    
@@ -90,9 +91,18 @@ def train(ds, ds_validate=None):
 
     current_time = time.time()
     cl_type = eval(settings['classifier_type'])
-    net = cl_type(**(settings.hyperparameters))
-    if settings.hyperparameters['cuda']:
-        net.cuda()
+    base_model = settings['base_model']
+    if base_model:
+        net = torch.load(base_model)
+        p = re.compile('^.*run_.*_epoch([0-9]+).model')
+        m = p.match(base_model)
+        # start_epoch = int(m.group(1))
+        start_epoch = 0
+    else:
+        start_epoch = 0
+        net = cl_type(**(settings.hyperparameters))
+        if settings.hyperparameters['cuda']:
+            net.cuda()
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=settings['init_lr'], momentum=0.9)
@@ -103,7 +113,7 @@ def train(ds, ds_validate=None):
 
     total_correct = 0
     last_v_acc = 0
-    for epoch in range(NUM_EPOCHS):
+    for epoch in range(start_epoch,NUM_EPOCHS):
         running_loss = 0.0
         utils.exp_lr_scheduler(optimizer, epoch, init_lr=settings['init_lr'], lr_decay_epoch=settings['decay_num_epochs'],decay_rate=settings['decay_lr'])
         for i, data in enumerate(trainloader, 0):            

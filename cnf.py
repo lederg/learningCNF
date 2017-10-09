@@ -14,7 +14,7 @@ def is_number(s):
     return True
 
 def randomCNF():
-    fraction_of_additional_clauses = 55 - 2 * int(sys.argv[1])
+    fraction_of_additional_clauses = int(55 - 2.3 * int(sys.argv[1]))
     fuzz = Popen("./fuzzsat-0.1/fuzzsat -i {} -I {} -p {} -P {}".format(sys.argv[1],sys.argv[1],fraction_of_additional_clauses,fraction_of_additional_clauses), shell=True, stdout=PIPE, stderr=STDOUT)
     # fuzz = subprocess.Popen("./fuzzsat-0.1/fuzzsat -i 3 -I 500 -p 10 -P 20", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return fuzz.stdout.readlines()
@@ -26,13 +26,13 @@ def normalizeCNF(cnf):
     for line in cnf:
         lits = line.split()[0:-1]
         if is_number(lits[0]):
-            lits = map(int,lits)
+            lits = list(map(int,lits))
             for l in lits:
                 if abs(l) not in occs:
                     occs[abs(l)] = []
                 occs[abs(l)] += [lits] # storing reference to lits so we can manipulate them consistently
         else:
-            if lits[0] == 'p':
+            if lits[0] == b'p':
                 maxvar = int(lits[2])
             
     assert(maxvar != None)
@@ -51,18 +51,18 @@ def normalizeCNF(cnf):
             # print('Found var '+str(v)+ ' with '+ str(len(occs[v]))+ ' occurrences.')
             maxvar += 1
             added_vars += 1
-            glueclauses = [[v,-maxvar],[-v,maxvar]]
-            ## prepend glueclauses to shift all clauses back, don't want to remove the glueclauses with what follows
-            occs[v] = glueclauses + occs[v] 
-            assert(len(occs[v][10:]) > 0) # > 8 and we added the two glueclauses
+            connector_clauses = [[v,-maxvar],[-v,maxvar]]
+            ## prepend connector_clauses to shift all clauses back, don't want to remove the connector_clauses with what follows
+            occs[v] = connector_clauses + occs[v] 
+            assert(len(occs[v][10:]) > 0) # > 8 and we added the two connector_clauses
         
             assert(maxvar not in occs)
-            occs[maxvar] = glueclauses
+            occs[maxvar] = connector_clauses
         
             # move surplus clauses over to new variable
             for clause in occs[v][8:]:
                 # change clause inplace, so change is consistent for occurrence lists of other variables
-                clause[:] = map(lambda x: maxvar * sign(x) if abs(x) == v else x, clause) 
+                clause[:] = list(map(lambda x: maxvar * sign(x) if abs(x) == v else x, clause))
                 occs[maxvar] += [clause]
             assert(len(occs[v]) > len(occs[maxvar]))
         
@@ -73,10 +73,10 @@ def normalizeCNF(cnf):
         
             itervars.add(maxvar)
             
-    print ('  maxvar: ' + str(maxvar))
-    print ('  added vars: ' + str(added_vars))
-    print ('  Max: ' + str( max( [len(occs[v]) for v in occs.keys()] )))
-    print ('  Over 8 occs: ' + str(len( filter(lambda x: x, [len(occs[v]) > 8 for v in occs.keys()] ))))
+    # print ('  maxvar: ' + str(maxvar))
+    # print ('  added vars: ' + str(added_vars))
+    # print ('  Max: ' + str( max( [len(occs[v]) for v in occs.keys()] )))
+    # print ('  Over 8 occs: ' + str(len( filter(lambda x: x, [len(occs[v]) > 8 for v in occs.keys()] ))))
 
     return maxvar, occs
 
@@ -96,7 +96,8 @@ def occs_to_clauses(maxvar, occs):
 
 def write_to_file(maxvar, clause_list, filename):
     textfile = open(filename, "w")
-    textfile.write('p cnf ' + str(maxvar) + ' ' + str(len(clause_list)) + '\n')
+    textfile.write('p cnf {} {}\n'.format(maxvar,len(clause_list)))
+    # textfile.write('p cnf ' + str(maxvar) + ' ' + str(len(clause_list)) + '\n')
     for c in clause_list:
         textfile.write(c + ' 0\n')
     textfile.close()
@@ -113,12 +114,12 @@ def write_to_file(maxvar, clause_list, filename):
 def is_sat(maxvar,clause_list):
     p = Popen(['picosat'],stdout=PIPE,stdin=PIPE)
     
-    p.stdin.write('p cnf ' + str(maxvar) + ' ' + str(len(clause_list)) + '\n')
+    p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clause_list))))
     for c in clause_list:
-        p.stdin.write(c + ' 0\n')
+        p.stdin.write(str.encode(c + ' 0\n'))
     
     p.communicate()[0]
-    print('  ' + str(p.returncode))
+    # print('  ' + str(p.returncode))
     p.stdin.close()
     return p.returncode == 10
 

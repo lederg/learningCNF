@@ -37,7 +37,7 @@ def is_number(s):
         return False
     return True
 
-def qdimacs_to_cnf(filename):
+def dimacs_to_cnf(filename):
     
     CNF = {'topvar' : None, \
            'maxvar' : None, \
@@ -61,7 +61,7 @@ def qdimacs_to_cnf(filename):
                     CNF['topvar'] = lits[0]
                 
             else:
-                if words[0] == b'p':
+                if str.encode(words[0]) == 'p':
                     CNF['maxvar'] = int(words[2])
                     numclauses = int(words[3])
         
@@ -81,7 +81,7 @@ def qdimacs_to_cnf(filename):
 
 def load_class(directory):
     files = [join(directory, f) for f in listdir(directory)]
-    return list(map(qdimacs_to_cnf, files))
+    return list(map(dimacs_to_cnf, files))
 
 
 def main(argv):

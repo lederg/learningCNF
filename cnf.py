@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # USAGE: ./randomCNF <number_of_ground_variables> <number_of_files_to_generate>
 #

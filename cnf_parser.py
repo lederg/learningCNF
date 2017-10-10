@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
 from os import listdir
@@ -61,7 +61,9 @@ def dimacs_to_cnf(filename):
                     CNF['topvar'] = lits[0]
                 
             else:
-                if str.encode(words[0]) == 'p':
+                if type(words[0]) == bytes and words[0] == b'p' \
+                    or  \
+                   type(words[0]) == str and words[0] == 'p':
                     CNF['maxvar'] = int(words[2])
                     numclauses = int(words[3])
         

@@ -6,13 +6,6 @@
 import os, sys
 from subprocess import Popen, PIPE, STDOUT
 
-def is_number(s):
-    try:
-        int(s)
-    except ValueError:
-        return False
-    return True
-
 def randomCNF():
     fraction_of_additional_clauses = int(55 - 2.3 * int(sys.argv[1]))
     fuzz = Popen("./fuzzsat-0.1/fuzzsat -i {} -I {} -p {} -P {}".format(sys.argv[1],sys.argv[1],fraction_of_additional_clauses,fraction_of_additional_clauses), shell=True, stdout=PIPE, stderr=STDOUT)

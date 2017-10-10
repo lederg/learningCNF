@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
+from torch.nn.modules.distance import CosineSimilarity
 from datautils import *
 from settings import *
 import utils
@@ -27,15 +28,15 @@ def test(model, ds: CnfDataset, **kwargs):
     print('Begin testing, number of mini-batches is %d' % len(vloader))
 
     for _,data in zip(range(settings['val_size']),vloader):
-        inputs = (data['variables'], data['clauses'])
-        if  len(inputs[0]) != test_bs:
+        inputs = data['variables']
+        if  len(inputs) != test_bs:
             print('Trainer gave us no batch!!')
             continue
         topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
         labels = Variable(data['label'], requires_grad=False)
         if settings.hyperparameters['cuda']:
                 topvar, labels = topvar.cuda(), labels.cuda()
-                inputs = [t.cuda() for t in inputs]        
+                inputs = inputs.cuda()
         outputs, aux_losses = model(inputs, output_ind=topvar, batch_size=test_bs)
         loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
         correct = outputs.max(dim=1)[1]==labels
@@ -45,6 +46,43 @@ def test(model, ds: CnfDataset, **kwargs):
         total_loss += loss
         total_iters += 1
         print('Testing, iteration %d, total_correct = %d' % (total_iters, total_correct))
+
+    return total_loss, total_correct / (total_iters*test_bs)
+
+
+def siamese_test(model, ds, **kwargs):
+    test_bs = 5
+    dist = CosineSimilarity(dim=1)
+    settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+    criterion = nn.CosineEmbeddingLoss(margin=settings['cosine_margin'])
+    sampler = torch.utils.data.sampler.RandomSampler(ds)
+    vloader = torch.utils.data.DataLoader(ds, batch_size=test_bs, sampler = sampler)
+    total_loss = 0
+    total_correct = 0
+    total_iters = 0
+    for _,data in zip(range(settings['val_size']),vloader):
+        inputs = (data['left']['variables'],data['right']['variables'])
+        if  len(inputs[0]) != test_bs:
+            print('loader gave us no batch!!')
+            continue
+        topvar = (torch.abs(Variable(data['left']['topvar'], requires_grad=False)), torch.abs(Variable(data['right']['topvar'], requires_grad=False)))
+        labels = Variable(data['label'], requires_grad=False)
+        if settings.hyperparameters['cuda']:
+            labels = labels.cuda()
+            topvar = (topvar[0].cuda(), topvar[1].cuda())
+            inputs = [t.cuda() for t in inputs]
+        outputs = model(inputs, output_ind=topvar, batch_size=test_bs)
+        loss = criterion(*outputs, labels)
+        correct = (dist(*outputs)>0).long() == labels
+        num_correct = torch.nonzero(correct.data).size()
+        if len(num_correct):
+            total_correct += num_correct[0]
+        correct = (-(dist(*outputs)<=0).float()).long() == labels
+        num_correct = torch.nonzero(correct.data).size()
+        if len(num_correct):
+            total_correct += num_correct[0]
+        total_loss += loss
+        total_iters += 1
 
     return total_loss, total_correct / (total_iters*test_bs)
 

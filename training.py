@@ -12,11 +12,18 @@ import utils
 import time
 import numpy as np
 import ipdb
+from enum import Enum
 from tensorboard_logger import configure, log_value
 from sacred import Experiment
 from testing import test
 
 EX_NAME = 'trenery_4'
+
+
+class BaseMode(Enum):
+    ALL = 1
+    EMBEDDING = 2
+
 
 ex = Experiment(EX_NAME)
 
@@ -37,7 +44,8 @@ VALIDATE_EVERY = 1000
 # NUM_EPOCHS = 400
 NUM_EPOCHS = 150
 LOG_EVERY = 10
-SAVE_EVERY = 5
+SAVE_EVERY = 1
+# SAVE_EVERY = 5
 
 
 ACC_LR_THRESHOLD = 0.02
@@ -93,23 +101,33 @@ def train(ds, ds_validate=None, net=None):
     cl_type = eval(settings['classifier_type'])
     base_model = settings['base_model']
     if base_model:
+        base_mode = settings['base_mode']
         net = torch.load(base_model)
-        p = re.compile('^.*run_.*_epoch([0-9]+).model')
-        m = p.match(base_model)
+        if base_mode == BaseMode.EMBEDDING:
+            encoder = net.encoder
+            embedder = net.embedder
+            embedder.settings = settings
+            encoder.settings = settings
+            net = cl_type(encoder=encoder, embedder=embedder, **(settings.hyperparameters))            
+        # p = re.compile('^.*run_.*_epoch([0-9]+).model')
+        # m = p.match(base_model)
         # start_epoch = int(m.group(1))
-        start_epoch = 0
     else:
-        start_epoch = 0
         net = cl_type(**(settings.hyperparameters))
-        if settings.hyperparameters['cuda']:
-            net.cuda()
 
+    if settings.hyperparameters['cuda']:
+        net.cuda()
+    else:
+        net.cpu()
+
+    start_epoch = 0
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=settings['init_lr'], momentum=0.9)
     scheduler = ReduceLROnPlateau(optimizer, 'min', patience=3, verbose=True)
     batch_size = settings['batch_size']
     get_step = lambda x,y: x*len(trainloader)+y
     configure("runs/%s" % log_name(settings), flush_secs=5)
+    oldnet = []
 
     total_correct = 0
     last_v_acc = 0
@@ -117,18 +135,17 @@ def train(ds, ds_validate=None, net=None):
         running_loss = 0.0
         utils.exp_lr_scheduler(optimizer, epoch, init_lr=settings['init_lr'], lr_decay_epoch=settings['decay_num_epochs'],decay_rate=settings['decay_lr'])
         for i, data in enumerate(trainloader, 0):            
-            # inputs = (Variable(data['variables'], requires_grad=False), Variable(data['clauses'], requires_grad=False))
-            inputs = (data['variables'], data['clauses'])
-            if  len(inputs[0]) != settings['batch_size']:
+            inputs = data['variables']
+            effective_bs = len(inputs)
+            if  effective_bs != settings['batch_size']:
                 print('Trainer gave us shorter batch!!')
                 # continue
-            effective_bs = len(inputs[0])
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
             ind = data['idx_in_dataset']
             if settings.hyperparameters['cuda']:
                 topvar, labels = topvar.cuda(), labels.cuda()
-                inputs = [t.cuda() for t in inputs]
+                inputs = inputs.cuda()
 
             # zero the parameter gradients
             
@@ -160,8 +177,8 @@ def train(ds, ds_validate=None, net=None):
                 total_correct += num_correct[0]
             if get_step(epoch,i) % LOG_EVERY == 0:
                 log_value('loss',loss.data[0],get_step(epoch,i))
-            if i % PRINT_LOSS_EVERY == PRINT_LOSS_EVERY-1:
-                new_time = time.time()
+            if i % PRINT_LOSS_EVERY == PRINT_LOSS_EVERY-1:                
+                new_time = time.time()                
                 print('Average time per mini-batch, %f' % ((new_time-current_time) / PRINT_LOSS_EVERY))
                 current_time = new_time
                 print('[%d, %5d] loss: %.3f' %
@@ -169,7 +186,8 @@ def train(ds, ds_validate=None, net=None):
                 running_loss = 0.0
                 print('[%d, %5d] training accuracy: %.3f' %
                       (epoch + 1, i + 1, total_correct / (PRINT_LOSS_EVERY*settings['batch_size'])))
-                total_correct = 0.0                
+                total_correct = 0.0   
+
             # if ds_validate and i>0 and i % VALIDATE_EVERY == 0:
 
         # Validate and recompute learning rate
@@ -182,13 +200,18 @@ def train(ds, ds_validate=None, net=None):
         # scheduler.step(v_loss)
 
 
-        if epoch>0 and epoch % SAVE_EVERY == 0:
-            # torch.save(net.state_dict(),'%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
-            torch.save(net,'%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
+        # if epoch>0 and epoch % SAVE_EVERY == 0:            
+        if epoch % SAVE_EVERY == 0:            
+            torch.save(net.state_dict(),'%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
             if settings['reset_on_save']:
                 print('Recreating model!')
                 print(settings.hyperparameters)
-                net = torch.load('%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch))
+                oldnet.append(net)
+                net = cl_type(**(settings.hyperparameters))
+                if settings.hyperparameters['cuda']:
+                    net.cuda()                    
+                net.load_state_dict(torch.load('%s/%s_epoch%d.model' % (settings['model_dir'],log_name(settings), epoch)))
+                pdb.set_trace()
 
 
     print('Finished Training')

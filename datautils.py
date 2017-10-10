@@ -300,7 +300,16 @@ class SiameseDataset(Dataset):
     def __getitem__(self, idx):
         return self.pairs[idx]
 
+    @property
+    def num_classes(self):
+        return 2
 
 
+    @property
+    def max_clauses(self):
+        return self.cnf_ds.max_clauses
 
+    @property
+    def max_variables(self):
+        return self.cnf_ds.max_variables
 

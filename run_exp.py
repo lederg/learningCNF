@@ -32,16 +32,18 @@ def cfg():
 	    'data_mode': DataMode.NORMAL,
 	    'dataset': 'boolean8',
 	    'model_dir': 'saved_models',
-	    # 'base_model': 'saved_models/run_dynamic_test_23_nc20_bs48_ed64_iters6__1506810760_epoch45.model',
+	    # 'base_model': 'saved_models/run_siamese_test_1_nc2_bs64_ed64_iters6__1507265148_epoch25.model',
 	    'base_model': None,
-	    'max_iters': 6,
+	    'base_mode': BaseMode.EMBEDDING,
+	    'max_iters': 1,
 	    'batch_size': 64,
 	    'val_size': 200, 
-	    'threshold': 1500,
+	    'threshold': 5000,
 	    'init_lr': 0.001,
 	    # 'init_lr': 0.0004,
 	    'decay_lr': 0.07,
 	    'decay_num_epochs': 2,
+	    'cosine_margin': 0,
 	    # 'classifier_type': 'BatchGraphLevelClassifier',
 	    # 'classifier_type': 'BatchEqClassifier',
 	    'classifier_type': 'TopLevelClassifier',
@@ -55,9 +57,9 @@ def cfg():
 	    'use_ground': True,
 	    'moving_ground': False, 
 	    'split': False,
-	    'cuda': True, 
-	    # 'cuda': False,1 
-	    'reset_on_save': False
+	    # 'cuda': True, 
+	    'cuda': False,
+	    'reset_on_save': True
 	}
 
 	def_settings = CnfSettings(hyperparams)

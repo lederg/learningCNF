@@ -56,12 +56,10 @@ class BatchInnerIteration(nn.Module):
 		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],embedding_dim)
 		self.cuda = kwargs['cuda']		
-		vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
-		cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
-		nn_init.normal(vb)
-		nn_init.normal(cb)
-		self.var_bias = torch.cat([vb]*self.settings['max_variables'])
-		self.clause_bias = torch.cat([cb]*self.settings['max_clauses'])
+		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+		nn_init.normal(self.vb)
+		nn_init.normal(self.cb)
 		# self.var_bias = torch.stack([torch.cat([vb]*self.settings['max_variables'])]*self.settings['batch_size'])
 		# self.clause_bias = torch.stack([torch.cat([cb]*self.settings['max_clauses'])]*self.settings['batch_size'])
 				
@@ -72,7 +70,12 @@ class BatchInnerIteration(nn.Module):
 		self.W = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
 		self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 
+		self.re_init()
 
+	def re_init(self):
+		self.var_bias = torch.cat([self.vb]*self.settings['max_variables'])
+		self.clause_bias = torch.cat([self.cb]*self.settings['max_clauses'])
+		
 
 	def gru(self, av, prev_emb):
 		z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
@@ -112,6 +115,7 @@ class BatchEncoder(nn.Module):
 	def __init__(self, embedding_dim, num_ground_variables, max_iters, **kwargs):
 		super(BatchEncoder, self).__init__() 
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.debug = False
 		self.ground_dim = self.settings['ground_dim']
 		self.batch_size = self.settings['batch_size']
 		self.max_variables = self.settings['max_variables']
@@ -153,6 +157,19 @@ class BatchEncoder(nn.Module):
 		
 # input is one training sample (a formula), we'll permute it a bit at every iteration and possibly split to create a batch
 
+	def fix_annotations(self):
+		if self.settings['cuda']:
+			self.ground_annotations = self.ground_annotations.cuda()
+			self.zero_block = self.zero_block.cuda()
+			self.forward_block = self.forward_block.cuda()
+			self.backwards_block = self.backwards_block.cuda()
+		else:
+			self.ground_annotations = self.ground_annotations.cpu()
+			self.zero_block = self.zero_block.cpu()
+			self.forward_block = self.forward_block.cpu()
+			self.backwards_block = self.backwards_block.cpu()
+
+
 	def expand_ground_to_state(self,v):
 		return torch.cat([v,self.expand_dim_const],dim=1)
 
@@ -179,36 +196,56 @@ class BatchEncoder(nn.Module):
 
 		return torch.stack(rc)
 
+	def get_block_matrix2(self, blocks, indices):		
+		rc = []
+		for a in indices:
+			rc.append(torch.cat([torch.cat([blocks[x-1] if x != 0 else self.zero_block.squeeze() for x in i],dim=1) for i in a.long()]))
+
+		return torch.stack(rc)
+
 	def forward(self, input, **kwargs):
 		variables = []
 		clauses = []
-		f_vars, f_clauses = input
-		v_mat = self.get_block_matrix(self.forward_block,f_vars)	# v_mat goes from clauses to variables
-		c_mat = self.get_block_matrix(self.backwards_block,f_clauses)	# c_mat goes from variables to clauses
-		if len(c_mat) != len(input[1]) or len(v_mat) != len(input[0]) or len(input[0]) != len(input[1]):
-			print('Wrong block matrix size??!')
-			pdb.set_trace()
+		f_vars = input
+		f_clauses = f_vars.transpose(1,2)
+		# v_mat = self.get_block_matrix(self.forward_block,f_vars)	# v_mat goes from clauses to variables
+		# c_mat = self.get_block_matrix(self.backwards_block,f_clauses)	# c_mat goes from variables to clauses
+		v_mat = self.get_block_matrix2(self.forward_pos_neg,f_vars)	# v_mat goes from clauses to variables		
+		c_mat = self.get_block_matrix2(self.backwards_pos_neg,f_clauses)	# c_mat goes from variables to clauses
+		# if len(c_mat) != len(input[1]) or len(v_mat) != len(input[0]) or len(input[0]) != len(input[1]):
+		# 	print('Wrong block matrix size??!')
+		# 	pdb.set_trace()
 
-		if (c_mat != c_mat).data.any() or (v_mat != v_mat).data.any():
-			print('NaN in block matrices!')
-			pdb.set_trace()
+		# if (c_mat != c_mat).data.any() or (v_mat != v_mat).data.any():
+		# 	print('NaN in block matrices!')
+		# 	pdb.set_trace()
 		
 		# for i in range(self.max_variables):
 		# 	v = self.expand_ground_to_state(self.get_ground_embeddings(i))
 		# 	variables.append(v)
 		# v = torch.cat(variables,dim=1).transpose(0,1)
 		v = self.get_ground_embeddings()
-		variables = torch.stack([v]*len(input[0]))
+		variables = torch.stack([v]*len(input))
 		ground_variables = variables.view(-1,self.embedding_dim)[:,:self.ground_dim]
 
+		if self.debug:
+			print('Variables:')
+			print(variables)
+			pdb.set_trace()
 		# Start propagation
 
+		self.inner_iteration.re_init()
+		
 		for i in range(self.max_iters):
 			# print('Starting iteration %d' % i)
 			if (variables != variables).data.any():
 				print('Variables have nan!')
 				pdb.set_trace()
 			variables = self.inner_iteration(variables, v_mat, c_mat, ground_vars=ground_variables)
+			if self.debug:
+				print('Variables:')
+				print(variables)
+				pdb.set_trace()
 			if (variables[0]==variables[1]).data.all():
 				print('Variables identical on (inner) iteration %d' % i)
 		aux_losses = Variable(torch.zeros(len(variables)))
@@ -245,9 +282,34 @@ class GraphEmbedder(nn.Module):
 		return out
 
 class TopLevelClassifier(nn.Module):
-	def __init__(self, num_classes, **kwargs):
+	def __init__(self, num_classes, encoder=None, embedder=None, **kwargs):
 		super(TopLevelClassifier, self).__init__()        
 		self.num_classes = num_classes
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.embedding_dim = self.settings['embedding_dim']
+		self.max_variables = self.settings['max_variables']
+		if encoder:
+			self.encoder = encoder
+			self.encoder.fix_annotations()
+		else:
+			self.encoder_type = eval(self.settings['encoder_type'])
+			self.encoder = self.encoder_type(**kwargs)
+		if embedder:
+			self.embedder = embedder
+		else:
+			self.embedder_type = eval(self.settings['embedder_type'])
+			self.embedder = self.embedder_type(**kwargs)
+		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
+
+	def forward(self, input, **kwargs):
+		embeddings, aux_losses = self.encoder(input, **kwargs)
+		enc = self.embedder(embeddings,**kwargs)
+		return self.softmax_layer(enc), aux_losses     # variables are 1-based
+
+
+class TopLevelSiamese(nn.Module):
+	def __init__(self, **kwargs):
+		super(TopLevelSiamese, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.embedding_dim = self.settings['embedding_dim']
 		self.max_variables = self.settings['max_variables']
@@ -255,12 +317,15 @@ class TopLevelClassifier(nn.Module):
 		self.encoder = self.encoder_type(**kwargs)
 		self.embedder_type = eval(self.settings['embedder_type'])
 		self.embedder = self.embedder_type(**kwargs)
-		self.softmax_layer = nn.Linear(self.encoder.embedding_dim,num_classes)
 
-	def forward(self, input, **kwargs):
-		embeddings, aux_losses = self.encoder(input, **kwargs)
-		enc = self.embedder(embeddings,**kwargs)
-		return self.softmax_layer(enc), aux_losses     # variables are 1-based
+	def forward(self, input, output_ind, **kwargs):
+		left, right = input
+		left_idx, right_idx = output_ind
+		l_embeddings, _ = self.encoder(left, **kwargs)
+		r_embeddings, _ = self.encoder(right, **kwargs)
+		l_enc = self.embedder(l_embeddings, output_ind=left_idx, **kwargs)
+		r_enc = self.embedder(r_embeddings, output_ind=right_idx, **kwargs)
+		return (l_enc, r_enc)
 
 
 

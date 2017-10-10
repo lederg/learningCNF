@@ -5,6 +5,7 @@
 
 import os, sys
 from subprocess import Popen, PIPE, STDOUT
+from cnf_parser import is_number
 
 def randomCNF():
     fraction_of_additional_clauses = int(55 - 2.3 * int(sys.argv[1]))

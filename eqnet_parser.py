@@ -17,14 +17,14 @@ def load_bool_data(fname):
         eq_class_keys = json_data.keys()
         
         for k in eq_class_keys:
-            print(k)
+            # print(k)
             eq_class = []
             eq_class.append(json_data[k]['Original']['Tree']['Children']['child'])
             num_formulas = 1
             for j in range(len(json_data[k]['Noise'])):
                 eq_class.append(json_data[k]['Noise'][j]['Tree']['Children']['child'])
                 num_formulas += 1
-            print('  ' + str(num_formulas) + ' variants')
+            # print('  ' + str(num_formulas) + ' variants')
             rc.append(eq_class)
         del eq_class_keys
         del json_data

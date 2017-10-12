@@ -16,7 +16,7 @@ class DataMode(Enum):
 
 
 
-def filter_classes_by_ref(ref_dataset, classes, threshold):
+def filter_classes_by_ref(ref_dataset, classes, threshold, **kwargs):
     return {k: v for k,v in classes.items() if k in ref_dataset.labels}
 
 def filter_classes(classes, threshold):
@@ -32,7 +32,7 @@ def filter_classes(classes, threshold):
         rc[k] = v1
     return rc
 
-def trenery_filter_classes(classes, threshold):
+def trenery_filter_classes(classes, threshold, **kwargs):
     a = {k: v for k,v in classes.items() if len(v) > threshold}
     m = np.mean([len(x) for x in a.values()])
     rc = {'Other': []}
@@ -46,7 +46,7 @@ def trenery_filter_classes(classes, threshold):
             rc['Other'] += v1
     return rc
 
-def tf_filter_classes(classes, threshold):
+def tf_filter_classes(classes, threshold, **kwargs):
     a = {k: v for k,v in classes.items() if len(v) > threshold}
     m = np.mean([len(x) for x in a.values()])
     rc = {}
@@ -58,14 +58,14 @@ def tf_filter_classes(classes, threshold):
             rc[k] = v1            
     return rc
 
-def sat_filter_classes(classes, threshold):
+def sat_filter_classes(classes, threshold, max_size=100, **kwargs):    
     a = {k: v for k,v in classes.items() if len(v) > threshold}
     m = np.mean([len(x) for x in a.values()])
     rc = {'SAT': []}
     for k,v in a.items():
-        v1 = [x for x in v if x['clauses_per_variable']]
+        v1 = [x for x in v if len(x['clauses_per_variable']) < max_size and len(x['clauses']) < max_size]
         if len(v1) < len(v):
-            print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
+            print('removed %d formulas from key %s' % (len(v)-len(v1),k))
         if k in ['False']:
             rc[k] = v1
         else:
@@ -74,13 +74,13 @@ def sat_filter_classes(classes, threshold):
 
 
 class CnfDataset(Dataset):    
-    def __init__(self, classes, filter_fn = filter_classes, threshold=10, num_max_clauses=None):
+    def __init__(self, classes, filter_fn = filter_classes, threshold=10, **kwargs):
         self.CLASS_THRESHOLD = threshold
-        if num_max_clauses:
-            self.num_max_clauses = num_max_clauses
+        if 'num_max_clauses' in kwargs:
+            self.num_max_clauses = kwargs['num_max_clauses']
 
 
-        self.eq_classes = filter_fn(classes, threshold)
+        self.eq_classes = filter_fn(classes, threshold, **kwargs)
 
     
         # self.eq_classes = self.dummy_filter(to_cnf(load_bool_data(json_file)))
@@ -118,7 +118,7 @@ class CnfDataset(Dataset):
         unsat = load_class(unsat_dname)
         classes = {'SAT': sat, 'False': unsat}
 
-        return cls(classes, filter_fn = sat_filter_classes, threshold=0)
+        return cls(classes, filter_fn = sat_filter_classes, **kwargs)
 
     def __len__(self):
         return sum(self.class_size)

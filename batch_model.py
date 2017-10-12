@@ -91,6 +91,7 @@ class BatchInnerIteration(nn.Module):
 
 	def forward(self, variables, v_mat, c_mat, ground_vars=None):
 		try:
+			# pdb.set_trace()
 			c_emb = F.tanh(torch.bmm(c_mat,variables) + self.clause_bias)
 			if (c_emb[0] == c_emb[1]).data.all():
 				print('c_emb identical!')

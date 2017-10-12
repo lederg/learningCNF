@@ -71,7 +71,7 @@ def dimacs_to_cnf(filename):
             print('WARNING: Number of clauses in file is inconsistent.')
         
         assert(CNF['maxvar'] != None)
-        CNF['origvars'] = range(1,CNF['maxvar'])
+        CNF['origvars'] = {i: i for i in range(1,CNF['maxvar']+1)}
     
     for v in CNF['clauses_per_variable'].keys():
         if len(CNF['clauses_per_variable'][v]) > MAX_CLAUSES_PER_VARIABLE:

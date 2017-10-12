@@ -74,8 +74,8 @@ def cfg():
 
 @ex.automain
 def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):
-	ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode)
-	ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode)
+	ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
+	ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=threshold, ref_dataset=ds1, mode=data_mode)
 	# ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode, num_max_clauses=12)
 	# ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode, num_max_clauses=12)
 	# ds3 = CnfDataset(DS_TEST_FILE, threshold, ref_dataset=ds1, mode=data_mode)

@@ -1,4 +1,5 @@
 from eqnet_parser import *
+from cnf_parser import *
 import numpy as np
 from functools import partial
 from torch.utils.data import Dataset
@@ -15,31 +16,110 @@ class DataMode(Enum):
 
 
 
+def filter_classes_by_ref(ref_dataset, classes, threshold):
+    return {k: v for k,v in classes.items() if k in ref_dataset.labels}
+
+def filter_classes(classes, threshold):
+    a = {k: v for k,v in classes.items() if len(v) > threshold}
+    m = np.mean([len(x) for x in a.values()])
+    rc = a
+    # rc = {k: v for k,v in a.items() if len(v) < 3*m}
+    rc1 = {}
+    for k,v in rc.items():
+        v1 = [x for x in v if x['clauses_per_variable']]
+        if len(v1) < len(v):
+            print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
+        rc[k] = v1
+    return rc
+
+def trenery_filter_classes(classes, threshold):
+    a = {k: v for k,v in classes.items() if len(v) > threshold}
+    m = np.mean([len(x) for x in a.values()])
+    rc = {'Other': []}
+    for k,v in a.items():
+        v1 = [x for x in v if x['clauses_per_variable']]
+        if len(v1) < len(v):
+            print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
+        if k in ['True', 'False']:
+            rc[k] = v1
+        else:
+            rc['Other'] += v1
+    return rc
+
+def tf_filter_classes(classes, threshold):
+    a = {k: v for k,v in classes.items() if len(v) > threshold}
+    m = np.mean([len(x) for x in a.values()])
+    rc = {}
+    for k,v in a.items():
+        v1 = [x for x in v if x['clauses_per_variable']]
+        if len(v1) < len(v):
+            print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
+        if k in ['True', 'False']:
+            rc[k] = v1            
+    return rc
+
+def sat_filter_classes(classes, threshold):
+    a = {k: v for k,v in classes.items() if len(v) > threshold}
+    m = np.mean([len(x) for x in a.values()])
+    rc = {'SAT': []}
+    for k,v in a.items():
+        v1 = [x for x in v if x['clauses_per_variable']]
+        if len(v1) < len(v):
+            print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
+        if k in ['False']:
+            rc[k] = v1
+        else:
+            rc['SAT'] += v1
+    return rc
+
+
 class CnfDataset(Dataset):    
-    def __init__(self, json_file, threshold=10, ref_dataset=None, mode: DataMode=DataMode.NORMAL, num_max_clauses=None):
+    def __init__(self, classes, filter_fn = filter_classes, threshold=10, num_max_clauses=None):
         self.CLASS_THRESHOLD = threshold
         if num_max_clauses:
             self.num_max_clauses = num_max_clauses
 
-        if mode == DataMode.TRENERY:
-            self.eq_classes = self.trenery_filter_classes(to_cnf(load_bool_data(json_file)))            
-        elif mode == DataMode.SAT:
-            self.eq_classes = self.sat_filter_classes(to_cnf(load_bool_data(json_file)))            
-        elif mode == DataMode.TF:
-            self.eq_classes = self.tf_filter_classes(to_cnf(load_bool_data(json_file)))            
-        elif mode == DataMode.NORMAL:
-            if not ref_dataset:
-                self.eq_classes = self.filter_classes(to_cnf(load_bool_data(json_file)))
-            else:
-                self.eq_classes = self.filter_classes_by_ref(to_cnf(load_bool_data(json_file)),ref_dataset)
-        else:
-            print('OK, thats not a known DataMode..')
+
+        self.eq_classes = filter_fn(classes, threshold)
+
+    
         # self.eq_classes = self.dummy_filter(to_cnf(load_bool_data(json_file)))
         self.labels = list(self.eq_classes.keys())
         self.samples = list(self.eq_classes.values())        
         self.class_size = [len(x) for x in self.samples]
         self.class_cumsize = np.cumsum(self.class_size) 
         self.cache = np.empty(sum(self.class_size),dtype=object)
+
+
+    @classmethod
+    def from_eqparser(cls, json_file, mode: DataMode=DataMode.NORMAL, ref_dataset=None, **kwargs):
+        classes = to_cnf(load_bool_data(json_file))
+
+        if mode == DataMode.TRENERY:
+            func = trenery_filter_classes
+        elif mode == DataMode.SAT:
+            func = sat_filter_classes
+        elif mode == DataMode.TF:
+            func = tf_filter_classes
+        elif mode == DataMode.NORMAL:
+            if not ref_dataset:
+                func = filter_classes
+            else:
+                func = partial(filter_classes_by_ref, ref_dataset)
+        else:
+            print('OK, thats not a known DataMode..')
+            pdb.set_trace()
+
+        return cls(classes, filter_fn=func, **kwargs)
+
+    @classmethod
+    def from_dimacs(cls, sat_dname, unsat_dname, **kwargs):
+        sat = load_class(sat_dname)
+        unsat = load_class(unsat_dname)
+        classes = {'SAT': sat, 'False': unsat}
+
+        return cls(classes, filter_fn = sat_filter_classes, threshold=0)
+
     def __len__(self):
         return sum(self.class_size)
 
@@ -162,63 +242,7 @@ class CnfDataset(Dataset):
 
     def dummy_filter(self, classes):
         return {'b': classes['b'], 'a': classes['a']}
-
-    def filter_classes_by_ref(self,classes, ref_dataset):
-        return {k: v for k,v in classes.items() if k in ref_dataset.labels}
-
-    def filter_classes(self,classes):
-        a = {k: v for k,v in classes.items() if len(v) > self.CLASS_THRESHOLD}
-        m = np.mean([len(x) for x in a.values()])
-        rc = a
-        # rc = {k: v for k,v in a.items() if len(v) < 3*m}
-        rc1 = {}
-        for k,v in rc.items():
-            v1 = [x for x in v if x['clauses_per_variable']]
-            if len(v1) < len(v):
-                print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
-            rc[k] = v1
-        return rc
-
-    def trenery_filter_classes(self,classes):
-        a = {k: v for k,v in classes.items() if len(v) > self.CLASS_THRESHOLD}
-        m = np.mean([len(x) for x in a.values()])
-        rc = {'Other': []}
-        for k,v in a.items():
-            v1 = [x for x in v if x['clauses_per_variable']]
-            if len(v1) < len(v):
-                print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
-            if k in ['True', 'False']:
-                rc[k] = v1
-            else:
-                rc['Other'] += v1
-        return rc
-
-    def tf_filter_classes(self,classes):
-        a = {k: v for k,v in classes.items() if len(v) > self.CLASS_THRESHOLD}
-        m = np.mean([len(x) for x in a.values()])
-        rc = {}
-        for k,v in a.items():
-            v1 = [x for x in v if x['clauses_per_variable']]
-            if len(v1) < len(v):
-                print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
-            if k in ['True', 'False']:
-                rc[k] = v1            
-        return rc
-
-    def sat_filter_classes(self,classes):
-        a = {k: v for k,v in classes.items() if len(v) > self.CLASS_THRESHOLD}
-        m = np.mean([len(x) for x in a.values()])
-        rc = {'SAT': []}
-        for k,v in a.items():
-            v1 = [x for x in v if x['clauses_per_variable']]
-            if len(v1) < len(v):
-                print('removed empty %d formulas from key %s' % (len(v)-len(v1),k))
-            if k in ['False']:
-                rc[k] = v1
-            else:
-                rc['SAT'] += v1
-        return rc
-
+    
     @property
     def ground_vars(self):
         try:
@@ -240,7 +264,8 @@ class CnfDataset(Dataset):
         rc = 0
         for x in self.samples:
             for sample in x:
-                rc = max(rc,max([len(x) for x in sample['clauses_per_variable'].values()]))
+                # rc = max(rc,max([len(x) for x in sample['clauses_per_variable'].values()]))
+                rc = max(rc,len(sample['clauses']))
         self.num_max_clauses = rc
         return rc
 

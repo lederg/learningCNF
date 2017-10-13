@@ -39,14 +39,14 @@ DS_TRAIN_TEMPLATE = 'expressions-synthetic/split/%s-trainset.json'
 DS_VALIDATION_TEMPLATE = 'expressions-synthetic/split/%s-validationset.json'
 DS_TEST_TEMPLATE = 'expressions-synthetic/split/%s-testset.json'
 
-# PRINT_LOSS_EVERY = 100
-PRINT_LOSS_EVERY = 20
+PRINT_LOSS_EVERY = 100
+# PRINT_LOSS_EVERY = 20
 VALIDATE_EVERY = 1000
 # NUM_EPOCHS = 400
 NUM_EPOCHS = 150
 LOG_EVERY = 10
-SAVE_EVERY = 1
-# SAVE_EVERY = 5
+# SAVE_EVERY = 1
+SAVE_EVERY = 5
 
 
 ACC_LR_THRESHOLD = 0.02
@@ -151,7 +151,7 @@ def train(ds, ds_validate=None, net=None):
             # zero the parameter gradients
             
             optimizer.zero_grad()
-            print('iteration %d beginning...' % i)
+            # print('iteration %d beginning...' % i)
             # forward + backward + optimize
             outputs, aux_losses = net(inputs, output_ind=topvar, batch_size=effective_bs)
             loss = criterion(outputs, labels)   # + torch.sum(aux_losses)

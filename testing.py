@@ -28,7 +28,7 @@ def test(model, ds: CnfDataset, **kwargs):
     print('Begin testing, number of mini-batches is %d' % len(vloader))
 
     for _,data in zip(range(settings['val_size']),vloader):
-        inputs = data['variables']
+        inputs = Variable(data['variables'], requires_grad=False)        
         if  len(inputs) != test_bs:
             print('Trainer gave us no batch!!')
             continue

@@ -39,14 +39,14 @@ DS_TRAIN_TEMPLATE = 'expressions-synthetic/split/%s-trainset.json'
 DS_VALIDATION_TEMPLATE = 'expressions-synthetic/split/%s-validationset.json'
 DS_TEST_TEMPLATE = 'expressions-synthetic/split/%s-testset.json'
 
-# PRINT_LOSS_EVERY = 100
-PRINT_LOSS_EVERY = 20
+PRINT_LOSS_EVERY = 100
+# PRINT_LOSS_EVERY = 20
 VALIDATE_EVERY = 1000
 # NUM_EPOCHS = 400
 NUM_EPOCHS = 150
 LOG_EVERY = 10
-SAVE_EVERY = 1
-# SAVE_EVERY = 5
+# SAVE_EVERY = 1
+SAVE_EVERY = 5
 
 
 ACC_LR_THRESHOLD = 0.02
@@ -151,7 +151,7 @@ def train(ds, ds_validate=None, net=None):
             # zero the parameter gradients
             
             optimizer.zero_grad()
-            print('iteration %d beginning...' % i)
+            # print('iteration %d beginning...' % i)
             # forward + backward + optimize
             outputs, aux_losses = net(inputs, output_ind=topvar, batch_size=effective_bs)
             loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
@@ -193,12 +193,13 @@ def train(ds, ds_validate=None, net=None):
 
         # Validate and recompute learning rate
 
-        v_loss, v_acc = test(net, ds_validate, weighted_test=True)
-        v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
-        print('Validation loss %f, accuracy %f' % (v_loss,v_acc))
-        log_value('validation_loss',v_loss,get_step(epoch,i))
-        log_value('validation_accuracy',v_acc,get_step(epoch,i))
-        # scheduler.step(v_loss)
+        if ds_validate is not None:
+            v_loss, v_acc = test(net, ds_validate, weighted_test=True)
+            v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
+            print('Validation loss %f, accuracy %f' % (v_loss,v_acc))
+            log_value('validation_loss',v_loss,get_step(epoch,i))
+            log_value('validation_accuracy',v_acc,get_step(epoch,i))
+            # scheduler.step(v_loss)
 
 
         # if epoch>0 and epoch % SAVE_EVERY == 0:            

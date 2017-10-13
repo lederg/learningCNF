@@ -141,27 +141,27 @@ class FactoredInnerIteration(nn.Module):
 	def forward(self, variables, v_mat, c_mat, ground_vars=None, v_block=None, c_block=None):
 		assert(v_block is not None and c_block is not None)
 
-		pdb.set_trace()
+		org_size = variables.size()
 		v = variables.view(-1,self.embedding_dim).t()
 		size = v.size(1)	# batch x num_vars
 		pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)
 		pos_cmat = c_mat.clamp(0,1).float()
 		neg_cmat = -c_mat.clamp(-1,0).float()
-		y1 = pos_cmat.transpose(0,1).contiguous().view(pos_cmat.size(1),-1)
-		y2 = neg_cmat.transpose(0,1).contiguous().view(neg_cmat.size(1),-1)
-		c = torch.mm(y1,pos_vars) + torch.mm(y2,neg_vars)
-			
-
-		try:
-			# pdb.set_trace()
-			c_emb = F.tanh(torch.bmm(c_mat,variables) + self.clause_bias)
-			if (c_emb[0] == c_emb[1]).data.all():
-				print('c_emb identical!')
-			# c_emb = utils.normalize(c_emb.view(-1,self.embedding_dim)).view(self.settings['batch_size'],-1,1)
-		except:
-			pdb.set_trace()
-		v_emb = F.tanh(torch.bmm(v_mat,c_emb) + self.var_bias)
-		# v_emb = utils.normalize(v_emb.view(-1,self.embedding_dim)).view(self.settings['batch_size'],-1,1)
+		pos_vmat = v_mat.clamp(0,1).float()
+		neg_vmat = -v_mat.clamp(-1,0).float()
+		y1 = pos_vars.contiguous().view(org_size[0],-1,self.embedding_dim)
+		y2 = neg_vars.contiguous().view(org_size[0],-1,self.embedding_dim)
+		# y1 = pos_cmat.transpose(0,1).contiguous().view(pos_cmat.size(1),-1)
+		# y2 = neg_cmat.transpose(0,1).contiguous().view(neg_cmat.size(1),-1)
+		c = torch.bmm(pos_cmat,y1) + torch.bmm(neg_cmat,y2)
+		c = c + self.cb.squeeze()
+		cv = c.view(-1,self.embedding_dim).t()
+		size = cv.size(1)
+		pos_cvars, neg_cvars = torch.bmm(v_block,cv.expand(2,self.embedding_dim,size)).transpose(1,2)
+		y1 = pos_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+		y2 = neg_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+		nv = torch.bmm(pos_vmat,y1) + torch.bmm(neg_vmat,y2)
+		v_emb = nv + self.vb.squeeze()				
 		v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))
 		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))
 		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
@@ -202,6 +202,7 @@ class BatchEncoder(nn.Module):
 			self.ground_annotations = self.expand_ground_to_state(exp_annotations)
 
 		self.inner_iteration = FactoredInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
+		self.inner_iteration2 = BatchInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
 	
 		self.zero_block = Variable(self.settings.zeros([1,self.embedding_dim,self.embedding_dim]), requires_grad=False)
 		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
@@ -273,8 +274,8 @@ class BatchEncoder(nn.Module):
 		# c_mat = self.get_block_matrix(self.backwards_block,f_clauses)	# c_mat goes from variables to clauses
 
 
-		# v_mat = self.get_block_matrix2(self.forward_pos_neg,f_vars)	# v_mat goes from clauses to variables		
-		# c_mat = self.get_block_matrix2(self.backwards_pos_neg,f_clauses)	# c_mat goes from variables to clauses
+		v_mat = self.get_block_matrix2(self.forward_pos_neg,f_vars.data)	# v_mat goes from clauses to variables		
+		c_mat = self.get_block_matrix2(self.backwards_pos_neg,f_clauses.data)	# c_mat goes from variables to clauses
 
 
 		# if len(c_mat) != len(input[1]) or len(v_mat) != len(input[0]) or len(input[0]) != len(input[1]):
@@ -306,8 +307,9 @@ class BatchEncoder(nn.Module):
 			if (variables != variables).data.any():
 				print('Variables have nan!')
 				pdb.set_trace()
-			# variables = self.inner_iteration(variables, v_mat, c_mat, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg)
-			variables = self.inner_iteration(variables, f_vars, f_clauses, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg)
+			pdb.set_trace()
+			variables1 = self.inner_iteration(variables, f_vars, f_clauses, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg)
+			variables2 = self.inner_iteration2(variables, v_mat, c_mat, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg)
 			if self.debug:
 				print('Variables:')
 				print(variables)

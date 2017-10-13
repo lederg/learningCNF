@@ -192,13 +192,13 @@ def train(ds, ds_validate=None, net=None):
             # if ds_validate and i>0 and i % VALIDATE_EVERY == 0:
 
         # Validate and recompute learning rate
-
-        v_loss, v_acc = test(net, ds_validate, weighted_test=True)
-        v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
-        print('Validation loss %f, accuracy %f' % (v_loss,v_acc))
-        log_value('validation_loss',v_loss,get_step(epoch,i))
-        log_value('validation_accuracy',v_acc,get_step(epoch,i))
-        # scheduler.step(v_loss)
+        if ds_validate is not None:
+            v_loss, v_acc = test(net, ds_validate, weighted_test=True)
+            v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
+            print('Validation loss %f, accuracy %f' % (v_loss,v_acc))
+            log_value('validation_loss',v_loss,get_step(epoch,i))
+            log_value('validation_accuracy',v_acc,get_step(epoch,i))
+            # scheduler.step(v_loss)
 
 
         # if epoch>0 and epoch % SAVE_EVERY == 0:            

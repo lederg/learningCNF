@@ -344,7 +344,7 @@ class BatchEncoder(nn.Module):
 		# 	v = self.expand_ground_to_state(self.get_ground_embeddings(i))
 		# 	variables.append(v)
 		# v = torch.cat(variables,dim=1).transpose(0,1)
-		
+
 		v = self.get_ground_embeddings()
 		# variables = torch.stack([v]*len(input))		
 		variables = v.expand(len(input),v.size(0),1).contiguous()
@@ -364,7 +364,7 @@ class BatchEncoder(nn.Module):
 				print('Variables have nan!')
 				pdb.set_trace()
 			variables = self.inner_iteration(variables, f_vars, f_clauses, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg)
-			# variables2 = self.inner_iteration(variables2, v_mat, c_mat, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg, old_forward=True)
+			# variables = self.inner_iteration(variables, v_mat, c_mat, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg, old_forward=True)
 			if self.debug:
 				print('Variables:')
 				print(variables)

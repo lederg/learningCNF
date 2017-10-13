@@ -36,13 +36,13 @@ def cfg():
 	    'base_model': None,
 	    'base_mode': BaseMode.EMBEDDING,
 	    'max_iters': 8,
-	    'batch_size': 64,
+	    'batch_size': 40,
 	    'val_size': 100, 
 	    'threshold': 10,
 	    'init_lr': 0.001,
 	    # 'init_lr': 0.0004,
 	    'decay_lr': 0.07,
-	    'decay_num_epochs': 2,
+	    'decay_num_epochs': 4,
 	    'cosine_margin': 0,
 	    # 'classifier_type': 'BatchGraphLevelClassifier',
 	    # 'classifier_type': 'BatchEqClassifier',
@@ -74,14 +74,14 @@ def cfg():
 
 @ex.automain
 def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):
-	ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
-	ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=0, ref_dataset=ds1, mode=data_mode)
-	# ns1 = CnfDataset.from_dimacs('data/train_3/sat/', 'data/train_3/unsat/', max_size=60)
-	# ns2 = CnfDataset.from_dimacs('data/validation_3/sat/', 'data/validation_3/unsat/', max_size=60)
+	# ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
+	# ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=0, ref_dataset=ds1, mode=data_mode)
+	ns1 = CnfDataset.from_dimacs('data/train_3/sat/', 'data/train_3/unsat/', max_size=30)
+	ns2 = CnfDataset.from_dimacs('data/validation_3/sat/', 'data/validation_3/unsat/', max_size=30)
 	# ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode, num_max_clauses=12)
 	# ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode, num_max_clauses=12)
 	# ds3 = CnfDataset(DS_TEST_FILE, threshold, ref_dataset=ds1, mode=data_mode)
-	print('Classes from validation set:')
-	print(ds2.labels)
-	train(ds1,ds2)
-	# train(ns1,ns2)
+	# print('Classes from validation set:')
+	# print(ds2.labels)
+	# train(ds1,ds2)
+	train(ns1)

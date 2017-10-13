@@ -136,7 +136,7 @@ def train(ds, ds_validate=None, net=None):
         running_loss = 0.0
         utils.exp_lr_scheduler(optimizer, epoch, init_lr=settings['init_lr'], lr_decay_epoch=settings['decay_num_epochs'],decay_rate=settings['decay_lr'])
         for i, data in enumerate(trainloader, 0):            
-            inputs = data['variables']
+            inputs = Variable(data['variables'], requires_grad=False)
             effective_bs = len(inputs)
             if  effective_bs != settings['batch_size']:
                 print('Trainer gave us shorter batch!!')

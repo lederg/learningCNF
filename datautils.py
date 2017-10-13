@@ -216,7 +216,8 @@ class CnfDataset(Dataset):
                     if t in x:
                         new_clause[j]=1
                     elif -t in x:
-                        new_clause[j]=2
+                        # new_clause[j]=2
+                        new_clause[j]=-1
                 new_all_clauses.append(new_clause)
             else:                
                 new_all_clauses.append(new_clause)
@@ -232,7 +233,8 @@ class CnfDataset(Dataset):
                     if t in x:
                         new_var[j]=1
                     elif -t in x:
-                        new_var[j]=2
+                        # new_var[j]=2
+                        new_var[j]=-1
                 new_all_variables.append(new_var)
             else:
                 new_all_variables.append(new_var)

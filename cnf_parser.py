@@ -3,14 +3,7 @@
 import sys
 from os import listdir
 from os.path import isfile, join
-
-MAX_CLAUSES_PER_VARIABLE = 8
-
-# max_fixed_var = 10
-# fixed_variables = {}
-# for i in range(max_fixed_var):
-#     fixed_variables[chr(ord('a') + i)] = i + 1
-
+from cnf_tools import *
 
 def simplify_clause(c):
     s = set(c)
@@ -29,13 +22,6 @@ def add_clauses(CNF, clauses):
                 if v not in CNF['clauses_per_variable']:
                     CNF['clauses_per_variable'][v] = []
                 CNF['clauses_per_variable'][v] += [c]
-
-def is_number(s):
-    try:
-        int(s)
-    except ValueError:
-        return False
-    return True
 
 def dimacs_to_cnf(filename):
     

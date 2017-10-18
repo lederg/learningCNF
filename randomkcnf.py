@@ -17,8 +17,9 @@ def randomClause(maxVar, size):
             polarity = 2 * randint(0,1) - 1
             clause.add(new * polarity)
     # print('  generated clause: ' + clause_to_string(list(clause)))
-            
-    return list(clause)
+    clause = list(clause)
+    clause.sort()
+    return clause
     
     # from numpy.random import choice
     # variables = choice(range(1,maxVar+1),size,False)
@@ -26,11 +27,18 @@ def randomClause(maxVar, size):
     # variables * polarities
 
 def random3CNF(maxVar, numClauses):
-    # for _ in range(numClauses):
-    #     clauses += randomClause(maxVar, 3)
-    # return clauses
-    return [randomClause(maxVar, 3) for _ in range(numClauses)]
-
+    # return [randomClause(maxVar, 3) for _ in range(numClauses)]
+    clauses = []
+    clause_set = set()
+    while len(clauses) < numClauses:
+        new = randomClause(maxVar, 3)
+        new_str = clause_to_string(new) # because list is not hashable
+        if new_str not in clause_set:
+            clause_set.add(new_str)
+            clauses.append(new)
+        # else: 
+            # print('Duplicate clause')
+    return clauses
 
 def main(argv):
     
@@ -52,15 +60,15 @@ def main(argv):
     num_unsat = 0
     
     for i in range(int(sys.argv[2])):
-        # if i % 10 == 9:
-        print('Generating file {}'.format(i + 1))
+        if i % 10 == 9:
+            print('Generating file {}'.format(i + 1))
         
         numVars = int(sys.argv[1])
-        numClauses = int( 4.258 * numVars + 58.26 * numVars**-.66666 ) # taken from paper: "Predicting Satisfiability at the Phase Transition" attributing it to Crawford and Auton 
-        
+        numClauses = int( 4.258 * numVars  + 58.26 * (numVars**-.6666) ) + randint(0,1) # taken from paper: "Predicting Satisfiability at the Phase Transition" attributing it to Crawford and Auton'96
+        # numClauses = int( 4.24 * numVars  + 6.21) + randint(0,1) # taken from Crawford and Auton'93
         clauses = random3CNF(numVars,numClauses)
-        # maxvar, clauses = normalizeCNF(clauses)
         maxvar = numVars
+        # maxvar, clauses = normalizeCNF(clauses)
         
         if is_sat(maxvar,clauses):
             num_sat += 1
@@ -69,6 +77,7 @@ def main(argv):
             num_unsat += 1
             write_to_file(maxvar, clauses, '{}/unsat/unsat-{}.cnf'.format(directory,num_unsat))
         
+    print('Generated {} sat und {} unsat formulas.'.format(num_sat, num_unsat))
         # textfile = open("tmp.dimacs", "w")
         # textfile.writelines(cnfstring)
         # textfile.close()

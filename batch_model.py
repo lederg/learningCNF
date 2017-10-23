@@ -88,10 +88,114 @@ class BatchInnerIteration(nn.Module):
 		# 	# pdb.set_trace()
 		return h
 
-
-	def forward(self, variables, v_mat, c_mat, ground_vars=None):
-		try:
+	def forward(self, variables, v_mat, c_mat, ground_vars=None, **kwargs):
+		try:			
+			c_emb = F.tanh(torch.bmm(c_mat,variables) + self.clause_bias)
+			return c_emb
+			if (c_emb[0] == c_emb[1]).data.all():
+				print('c_emb identical!')
+			# c_emb = utils.normalize(c_emb.view(-1,self.embedding_dim)).view(self.settings['batch_size'],-1,1)
+		except:
+			pdb.set_trace()
+		v_emb = F.tanh(torch.bmm(v_mat,c_emb) + self.var_bias)
+		# v_emb = utils.normalize(v_emb.view(-1,self.embedding_dim)).view(self.settings['batch_size'],-1,1)
+		v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))
+		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))
+		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
+		if (rc != rc).data.any():			# We won't stand for NaN
+			print('NaN in our tensors!!')
+			pdb.set_trace()
+		if (rc[0] == rc[1]).data.all():
+			print('Same embedding. wtf?')
 			# pdb.set_trace()
+		return rc
+
+
+class FactoredInnerIteration(nn.Module):
+	def __init__(self, get_ground_embeddings, embedding_dim, max_variables, num_ground_variables, **kwargs):
+		super(FactoredInnerIteration, self).__init__()        
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.comb_type = eval(self.settings['combinator_type'])
+		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
+		self.get_ground_embeddings = get_ground_embeddings
+		self.embedding_dim = embedding_dim
+		self.max_variables = max_variables				
+		self.num_ground_variables = num_ground_variables	
+		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
+		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],embedding_dim)
+		self.cuda = kwargs['cuda']		
+		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+		nn_init.normal(self.vb)
+		nn_init.normal(self.cb)
+		# self.var_bias = torch.stack([torch.cat([vb]*self.settings['max_variables'])]*self.settings['batch_size'])
+		# self.clause_bias = torch.stack([torch.cat([cb]*self.settings['max_clauses'])]*self.settings['batch_size'])
+				
+		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
+		self.W_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
+		self.W = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
+
+		self.re_init()
+
+	def re_init(self):
+		self.var_bias = torch.cat([self.vb]*self.settings['max_variables'])
+		self.clause_bias = torch.cat([self.cb]*self.settings['max_clauses'])
+		
+
+	def gru(self, av, prev_emb):
+		z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
+		r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
+		h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
+		h = (1-z) * prev_emb + z*h_tilda
+		# g = h.view(2,-1,self.embedding_dim)
+		# if (g[0]==g[1]).data.all():
+		# 	print('Same embedding in gru. wtf?')
+		# 	# pdb.set_trace()
+		return h
+
+
+
+
+	def forward(self, variables, v_mat, c_mat, ground_vars=None, v_block=None, c_block=None, **kwargs):		
+		if 'old_forward' in kwargs and kwargs['old_forward']:
+			return self.forward2(variables,v_mat,c_mat,ground_vars=ground_vars, **kwargs)
+		assert(v_block is not None and c_block is not None)
+
+		org_size = variables.size()
+		v = variables.view(-1,self.embedding_dim).t()
+		size = v.size(1)	# batch x num_vars
+		pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)
+		pos_cmat = c_mat.clamp(0,1).float()
+		neg_cmat = -c_mat.clamp(-1,0).float()
+		pos_vmat = v_mat.clamp(0,1).float()
+		neg_vmat = -v_mat.clamp(-1,0).float()
+		y1 = pos_vars.contiguous().view(org_size[0],-1,self.embedding_dim)
+		y2 = neg_vars.contiguous().view(org_size[0],-1,self.embedding_dim)		
+		c = torch.bmm(pos_cmat,y1) + torch.bmm(neg_cmat,y2)		
+		c = F.tanh(c + self.cb.squeeze())
+		cv = c.view(-1,self.embedding_dim).t()
+		size = cv.size(1)
+		pos_cvars, neg_cvars = torch.bmm(v_block,cv.expand(2,self.embedding_dim,size)).transpose(1,2)
+		y1 = pos_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+		y2 = neg_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+		nv = torch.bmm(pos_vmat,y1) + torch.bmm(neg_vmat,y2)
+		v_emb = F.tanh(nv + self.vb.squeeze())
+		v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))
+		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))
+		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
+		if (rc != rc).data.any():			# We won't stand for NaN
+			print('NaN in our tensors!!')
+			pdb.set_trace()
+		if (rc[0] == rc[1]).data.all():
+			print('Same embedding. wtf?')
+			# pdb.set_trace()
+		return rc
+
+	def forward2(self, variables, v_mat, c_mat, ground_vars=None, **kwargs):
+		try:			
 			c_emb = F.tanh(torch.bmm(c_mat,variables) + self.clause_bias)
 			if (c_emb[0] == c_emb[1]).data.all():
 				print('c_emb identical!')
@@ -110,6 +214,7 @@ class BatchInnerIteration(nn.Module):
 			print('Same embedding. wtf?')
 			# pdb.set_trace()
 		return rc
+
 
 
 class BatchEncoder(nn.Module):
@@ -139,15 +244,14 @@ class BatchEncoder(nn.Module):
 				exp_annotations = torch.cat([base_annotations[-1].unsqueeze(0)]*self.max_variables)				
 			self.ground_annotations = self.expand_ground_to_state(exp_annotations)
 
-		self.inner_iteration = BatchInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
+		self.inner_iteration = FactoredInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
+		# self.inner_iteration2 = BatchInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
 	
 		self.zero_block = Variable(self.settings.zeros([1,self.embedding_dim,self.embedding_dim]), requires_grad=False)
 		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
-		nn_init.normal(self.forward_pos_neg)
-		self.forward_block = torch.cat([self.zero_block,self.forward_pos_neg],dim=0)		
+		nn_init.normal(self.forward_pos_neg)		
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
 		nn_init.normal(self.backwards_pos_neg)
-		self.backwards_block = torch.cat([self.zero_block,self.backwards_pos_neg],dim=0)
 
 		if self.use_ground:
 			self.var_indices = Variable(torch.arange(0,self.max_variables).long().clamp(0,self.num_ground_variables),requires_grad=False)
@@ -198,9 +302,20 @@ class BatchEncoder(nn.Module):
 		return torch.stack(rc)
 
 	def get_block_matrix2(self, blocks, indices):		
+		def get_block(blocks, t):
+			if t == 0:
+				return self.zero_block.squeeze()
+			elif t == 1:
+				return blocks[0]
+			elif t == -1:
+				return blocks[1]
+			else:
+				pdb.set_trace()
+
 		rc = []
 		for a in indices:
-			rc.append(torch.cat([torch.cat([blocks[x-1] if x != 0 else self.zero_block.squeeze() for x in i],dim=1) for i in a.long()]))
+			# rc.append(torch.cat([torch.cat([blocks[x-1] if x != 0 else self.zero_block.squeeze() for x in i],dim=1) for i in a.long()]))
+			rc.append(torch.cat([torch.cat([get_block(blocks,x) for x in i],dim=1) for i in a.long()]))
 
 		return torch.stack(rc)
 
@@ -211,8 +326,12 @@ class BatchEncoder(nn.Module):
 		f_clauses = f_vars.transpose(1,2)
 		# v_mat = self.get_block_matrix(self.forward_block,f_vars)	# v_mat goes from clauses to variables
 		# c_mat = self.get_block_matrix(self.backwards_block,f_clauses)	# c_mat goes from variables to clauses
-		v_mat = self.get_block_matrix2(self.forward_pos_neg,f_vars)	# v_mat goes from clauses to variables		
-		c_mat = self.get_block_matrix2(self.backwards_pos_neg,f_clauses)	# c_mat goes from variables to clauses
+
+
+		# v_mat = self.get_block_matrix2(self.forward_pos_neg,f_vars.data)	# v_mat goes from clauses to variables		
+		# c_mat = self.get_block_matrix2(self.backwards_pos_neg,f_clauses.data)	# c_mat goes from variables to clauses
+
+
 		# if len(c_mat) != len(input[1]) or len(v_mat) != len(input[0]) or len(input[0]) != len(input[1]):
 		# 	print('Wrong block matrix size??!')
 		# 	pdb.set_trace()
@@ -225,8 +344,10 @@ class BatchEncoder(nn.Module):
 		# 	v = self.expand_ground_to_state(self.get_ground_embeddings(i))
 		# 	variables.append(v)
 		# v = torch.cat(variables,dim=1).transpose(0,1)
+
 		v = self.get_ground_embeddings()
-		variables = torch.stack([v]*len(input))
+		# variables = torch.stack([v]*len(input))		
+		variables = v.expand(len(input),v.size(0),1).contiguous()
 		ground_variables = variables.view(-1,self.embedding_dim)[:,:self.ground_dim]
 
 		if self.debug:
@@ -242,13 +363,14 @@ class BatchEncoder(nn.Module):
 			if (variables != variables).data.any():
 				print('Variables have nan!')
 				pdb.set_trace()
-			variables = self.inner_iteration(variables, v_mat, c_mat, ground_vars=ground_variables)
+			variables = self.inner_iteration(variables, f_vars, f_clauses, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg)
+			# variables = self.inner_iteration(variables, v_mat, c_mat, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg, old_forward=True)
 			if self.debug:
 				print('Variables:')
 				print(variables)
 				pdb.set_trace()
-			if (variables[0]==variables[1]).data.all():
-				print('Variables identical on (inner) iteration %d' % i)
+			# if (variables[0]==variables[1]).data.all():
+			# 	print('Variables identical on (inner) iteration %d' % i)
 		aux_losses = Variable(torch.zeros(len(variables)))
 		return torch.squeeze(variables), aux_losses
 

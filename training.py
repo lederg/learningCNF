@@ -39,11 +39,11 @@ DS_TRAIN_TEMPLATE = 'expressions-synthetic/split/%s-trainset.json'
 DS_VALIDATION_TEMPLATE = 'expressions-synthetic/split/%s-validationset.json'
 DS_TEST_TEMPLATE = 'expressions-synthetic/split/%s-testset.json'
 
-PRINT_LOSS_EVERY = 100
+PRINT_LOSS_EVERY = 50
 # PRINT_LOSS_EVERY = 20
 VALIDATE_EVERY = 1000
-# NUM_EPOCHS = 400
-NUM_EPOCHS = 150
+NUM_EPOCHS = 400
+# NUM_EPOCHS = 150
 LOG_EVERY = 10
 # SAVE_EVERY = 1
 SAVE_EVERY = 5
@@ -101,9 +101,10 @@ def train(ds, ds_validate=None, net=None):
     current_time = time.time()
     cl_type = eval(settings['classifier_type'])
     base_model = settings['base_model']
+    net = cl_type(**(settings.hyperparameters))
     if base_model:
         base_mode = settings['base_mode']
-        net = torch.load(base_model)
+        net.load_state_dict(torch.load(base_model))        
         if base_mode == BaseMode.EMBEDDING:
             encoder = net.encoder
             embedder = net.embedder
@@ -136,7 +137,7 @@ def train(ds, ds_validate=None, net=None):
         running_loss = 0.0
         utils.exp_lr_scheduler(optimizer, epoch, init_lr=settings['init_lr'], lr_decay_epoch=settings['decay_num_epochs'],decay_rate=settings['decay_lr'])
         for i, data in enumerate(trainloader, 0):            
-            inputs = data['variables']
+            inputs = Variable(data['variables'], requires_grad=False)
             effective_bs = len(inputs)
             if  effective_bs != settings['batch_size']:
                 print('Trainer gave us shorter batch!!')
@@ -192,7 +193,6 @@ def train(ds, ds_validate=None, net=None):
             # if ds_validate and i>0 and i % VALIDATE_EVERY == 0:
 
         # Validate and recompute learning rate
-
         if ds_validate is not None:
             v_loss, v_acc = test(net, ds_validate, weighted_test=True)
             v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()

@@ -9,7 +9,6 @@ from torch.nn.modules.distance import CosineSimilarity
 from datautils import *
 from settings import *
 import utils
-import ipdb
 import pdb
 
 def test(model, ds: CnfDataset, **kwargs):
@@ -28,12 +27,20 @@ def test(model, ds: CnfDataset, **kwargs):
     total_iters = 0
     print('Begin testing, number of mini-batches is %d' % len(vloader))
 
-    # pdb.set_trace()
     for _,data in zip(range(settings['val_size']),vloader):
-        inputs = data['variables']
+        inputs = Variable(data['variables'], requires_grad=False)
+
+        # pad inputs
+
+        s = inputs.size()
+        padsize = settings['max_variables'] - s[1]
+        if s and padsize > 0:
+            pad = Variable(settings.zeros([s[0],padsize,s[2]]),requires_grad=False)
+            inputs = torch.cat([inputs,pad.double()],1)
+
         if  len(inputs) != test_bs:
             print('Trainer gave us no batch!!')
-            continue            
+            continue
         topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
         labels = Variable(data['label'], requires_grad=False)
         if settings.hyperparameters['cuda']:

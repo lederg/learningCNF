@@ -24,7 +24,7 @@ def cfg():
 	hyperparams = {
 		'exp_name': EX_NAME,
 		'time': int(time.time()),
-	    'embedding_dim': 8,
+	    'embedding_dim': 6,
 	    'ground_dim': 3,
 	    # 'max_clauses': 12, 
 	    'max_variables': 3, 
@@ -32,17 +32,17 @@ def cfg():
 	    'data_mode': DataMode.SAT,
 	    'dataset': 'boolean10',
 	    'model_dir': 'saved_models',
-	    # 'base_model': 'saved_models/run_siamese_test_1_nc2_bs64_ed64_iters6__1507265148_epoch25.model',
+	    # 'base_model': 'saved_models/run_bigsat_50_4_nc2_bs40_ed4_iters8__1508199570_epoch200.model',
 	    'base_model': None,
-	    'base_mode': BaseMode.EMBEDDING,
-	    'max_iters': 7,
-	    'batch_size': 32,
-	    'val_size': 20, 
+	    'base_mode': BaseMode.ALL,
+	    'max_iters': 8,
+	    'batch_size': 64,
+	    'val_size': 100, 
 	    'threshold': 10,
-	    'init_lr': 0.001,
+	    'init_lr': 0.0011,
 	    # 'init_lr': 0.0004,
-	    'decay_lr': 0.07,
-	    'decay_num_epochs': 4,
+	    'decay_lr': 0.055,
+	    'decay_num_epochs': 6,
 	    'cosine_margin': 0,
 	    # 'classifier_type': 'BatchGraphLevelClassifier',
 	    # 'classifier_type': 'BatchEqClassifier',
@@ -76,13 +76,14 @@ def cfg():
 def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):
 	# ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
 	# ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=0, ref_dataset=ds1, mode=data_mode)
-	ns1 = CnfDataset.from_dimacs('data/train_big_3/sat/', 'data/train_big_3/unsat/', max_size=18)
-	ns2 = CnfDataset.from_dimacs('data/validation_3/sat/', 'data/validation_3/unsat/', max_size=18)
+	ns1 = CnfDataset.from_dimacs('data/train_big_3/sat/', 'data/train_big_3/unsat/', max_size=200)
+	ns2 = CnfDataset.from_dimacs('data/validation_3/sat/', 'data/validation_3/unsat/', max_size=200)
 	# ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode, num_max_clauses=12)
 	# ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode, num_max_clauses=12)
 	# ds3 = CnfDataset(DS_TEST_FILE, threshold, ref_dataset=ds1, mode=data_mode)
 	# print('Classes from validation set:')
 	# print(ds2.labels)
 	# train(ds1,ds2)
-	# train(ns1,ns2)
-	train(ns1)
+
+	print('max_variables: %d' % ns1.max_variables)
+	train(ns1,ns2)

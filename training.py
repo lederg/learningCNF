@@ -39,11 +39,11 @@ DS_TRAIN_TEMPLATE = 'expressions-synthetic/split/%s-trainset.json'
 DS_VALIDATION_TEMPLATE = 'expressions-synthetic/split/%s-validationset.json'
 DS_TEST_TEMPLATE = 'expressions-synthetic/split/%s-testset.json'
 
-PRINT_LOSS_EVERY = 100
+PRINT_LOSS_EVERY = 50
 # PRINT_LOSS_EVERY = 20
 VALIDATE_EVERY = 1000
-# NUM_EPOCHS = 400
-NUM_EPOCHS = 150
+NUM_EPOCHS = 400
+# NUM_EPOCHS = 150
 LOG_EVERY = 10
 # SAVE_EVERY = 1
 SAVE_EVERY = 5
@@ -101,9 +101,10 @@ def train(ds, ds_validate=None, net=None):
     current_time = time.time()
     cl_type = eval(settings['classifier_type'])
     base_model = settings['base_model']
+    net = cl_type(**(settings.hyperparameters))
     if base_model:
         base_mode = settings['base_mode']
-        net = torch.load(base_model)
+        net.load_state_dict(torch.load(base_model))        
         if base_mode == BaseMode.EMBEDDING:
             encoder = net.encoder
             embedder = net.embedder
@@ -113,8 +114,6 @@ def train(ds, ds_validate=None, net=None):
         # p = re.compile('^.*run_.*_epoch([0-9]+).model')
         # m = p.match(base_model)
         # start_epoch = int(m.group(1))
-    else:
-        net = cl_type(**(settings.hyperparameters))
 
     if settings.hyperparameters['cuda']:
         net.cuda()

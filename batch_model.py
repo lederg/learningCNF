@@ -328,8 +328,8 @@ class BatchEncoder(nn.Module):
 		# c_mat = self.get_block_matrix(self.backwards_block,f_clauses)	# c_mat goes from variables to clauses
 
 
-		v_mat = self.get_block_matrix2(self.forward_pos_neg,f_vars.data)	# v_mat goes from clauses to variables		
-		c_mat = self.get_block_matrix2(self.backwards_pos_neg,f_clauses.data)	# c_mat goes from variables to clauses
+		# v_mat = self.get_block_matrix2(self.forward_pos_neg,f_vars.data)	# v_mat goes from clauses to variables		
+		# c_mat = self.get_block_matrix2(self.backwards_pos_neg,f_clauses.data)	# c_mat goes from variables to clauses
 
 
 		# if len(c_mat) != len(input[1]) or len(v_mat) != len(input[0]) or len(input[0]) != len(input[1]):

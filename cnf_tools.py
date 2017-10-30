@@ -6,7 +6,7 @@
 import os
 from subprocess import Popen, PIPE, STDOUT
 
-MAX_CLAUSES_PER_VARIABLE = 8
+MAX_CLAUSES_PER_VARIABLE = 35
 
 def is_number(s):
     try:

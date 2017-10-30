@@ -159,7 +159,10 @@ class CnfDataset(Dataset):
     def transform_sample(self,sample):
         clauses = sample['clauses_per_variable']
         auxvars = sample['auxvars']
+        if sample['topvar'] is None:
+            sample['topvar'] = 1
         topvar = sample['topvar']
+
         
         origvars = list(sample['origvars'].values())
         num_total_vars = len(origvars) + len(auxvars)

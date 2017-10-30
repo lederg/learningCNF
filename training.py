@@ -39,7 +39,7 @@ DS_TRAIN_TEMPLATE = 'expressions-synthetic/split/%s-trainset.json'
 DS_VALIDATION_TEMPLATE = 'expressions-synthetic/split/%s-validationset.json'
 DS_TEST_TEMPLATE = 'expressions-synthetic/split/%s-testset.json'
 
-PRINT_LOSS_EVERY = 50
+PRINT_LOSS_EVERY = 100
 # PRINT_LOSS_EVERY = 20
 VALIDATE_EVERY = 1000
 NUM_EPOCHS = 400

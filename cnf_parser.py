@@ -4,6 +4,7 @@ import sys
 from os import listdir
 from os.path import isfile, join
 from cnf_tools import *
+import ipdb
 
 def simplify_clause(c):
     s = set(c)
@@ -13,8 +14,8 @@ def simplify_clause(c):
     return list(s)
 
 def add_clauses(CNF, clauses):
-    for c in clauses:
-        c = simplify_clause(c)
+    for t in clauses:
+        c = simplify_clause(t)        
         if c != None:
             CNF['clauses'] += [c]
             for l in c:
@@ -53,8 +54,8 @@ def dimacs_to_cnf(filename):
                     CNF['maxvar'] = int(words[2])
                     numclauses = int(words[3])
         
-        if numclauses != len(CNF['clauses']):
-            print('WARNING: Number of clauses in file is inconsistent.')
+        # if numclauses != len(CNF['clauses']):
+        #     print('WARNING: Number of clauses in file is inconsistent.')
         
         assert(CNF['maxvar'] != None)
         CNF['origvars'] = {i: i for i in range(1,CNF['maxvar']+1)}
@@ -62,6 +63,7 @@ def dimacs_to_cnf(filename):
     for v in CNF['clauses_per_variable'].keys():
         if len(CNF['clauses_per_variable'][v]) > MAX_CLAUSES_PER_VARIABLE:
             print('Error: too many clauses for variable ' + str(v))
+            ipdb.set_trace()
             quit()
 
     return CNF

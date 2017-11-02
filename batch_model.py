@@ -167,21 +167,33 @@ class FactoredInnerIteration(nn.Module):
 		org_size = variables.size()
 		v = variables.view(-1,self.embedding_dim).t()
 		size = v.size(1)	# batch x num_vars
-		pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)
-		pos_cmat = c_mat.clamp(0,1).float()
-		neg_cmat = -c_mat.clamp(-1,0).float()
-		pos_vmat = v_mat.clamp(0,1).float()
-		neg_vmat = -v_mat.clamp(-1,0).float()
-		y1 = pos_vars.contiguous().view(org_size[0],-1,self.embedding_dim)
-		y2 = neg_vars.contiguous().view(org_size[0],-1,self.embedding_dim)		
-		c = torch.bmm(pos_cmat,y1) + torch.bmm(neg_cmat,y2)		
+		use_neg = self.settings['negate_type'] != 'minus'
+		if use_neg:
+			pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)
+			pos_cmat = c_mat.clamp(0,1).float()
+			neg_cmat = -c_mat.clamp(-1,0).float()
+			pos_vmat = v_mat.clamp(0,1).float()
+			neg_vmat = -v_mat.clamp(-1,0).float()
+			y1 = pos_vars.contiguous().view(org_size[0],-1,self.embedding_dim)
+			y2 = neg_vars.contiguous().view(org_size[0],-1,self.embedding_dim)		
+			c = torch.bmm(pos_cmat,y1) + torch.bmm(neg_cmat,y2)		
+		else:
+			vars_all = torch.mm(c_block[0],v).t().contiguous().view(org_size[0],-1,self.embedding_dim)
+			c = torch.bmm(c_mat.float(),vars_all)	
+
 		c = F.tanh(c + self.cb.squeeze())
 		cv = c.view(-1,self.embedding_dim).t()
 		size = cv.size(1)
-		pos_cvars, neg_cvars = torch.bmm(v_block,cv.expand(2,self.embedding_dim,size)).transpose(1,2)
-		y1 = pos_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
-		y2 = neg_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
-		nv = torch.bmm(pos_vmat,y1) + torch.bmm(neg_vmat,y2)
+		if use_neg:
+			pos_cvars, neg_cvars = torch.bmm(v_block,cv.expand(2,self.embedding_dim,size)).transpose(1,2)
+			y1 = pos_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+			y2 = neg_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+			nv = torch.bmm(pos_vmat,y1) + torch.bmm(neg_vmat,y2)
+		else:
+			vars_all = torch.mm(v_block[0],cv).t().contiguous().view(org_size[0],-1,self.embedding_dim)
+			nv = torch.bmm(v_mat.float(),vars_all)	
+			
+		# pdb.set_trace()
 		v_emb = F.tanh(nv + self.vb.squeeze())
 		v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))
 		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))

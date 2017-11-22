@@ -163,40 +163,55 @@ class FactoredInnerIteration(nn.Module):
 		if 'old_forward' in kwargs and kwargs['old_forward']:
 			return self.forward2(variables,v_mat,c_mat,ground_vars=ground_vars, **kwargs)
 		assert(v_block is not None and c_block is not None)
-
+		bsize = kwargs['batch_size'] if 'batch_size' in kwargs else self.settings['batch_size']
 		org_size = variables.size()
 		v = variables.view(-1,self.embedding_dim).t()
 		size = v.size(1)	# batch x num_vars
 		use_neg = self.settings['negate_type'] != 'minus'
 		if use_neg:
 			pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)
-			pos_cmat = c_mat.clamp(0,1).float()
-			neg_cmat = -c_mat.clamp(-1,0).float()
-			pos_vmat = v_mat.clamp(0,1).float()
-			neg_vmat = -v_mat.clamp(-1,0).float()
-			y1 = pos_vars.contiguous().view(org_size[0],-1,self.embedding_dim)
-			y2 = neg_vars.contiguous().view(org_size[0],-1,self.embedding_dim)		
-			c = torch.bmm(pos_cmat,y1) + torch.bmm(neg_cmat,y2)		
+			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
+				pos_cmat = kwargs['cmat_pos']
+				neg_cmat = kwargs['cmat_neg']				
+				try:
+					c = torch.mm(pos_cmat,pos_vars) + torch.mm(neg_cmat,neg_vars)
+					c = c.view(bsize,-1,self.embedding_dim)
+				except Exception:
+					pdb.set_trace()
+			else:				
+				pos_cmat = c_mat.clamp(0,1).float()
+				neg_cmat = -c_mat.clamp(-1,0).float()
+				y1 = pos_vars.contiguous().view(org_size[0],-1,self.embedding_dim)
+				y2 = neg_vars.contiguous().view(org_size[0],-1,self.embedding_dim)	
+				c = torch.bmm(pos_cmat,y1) + torch.bmm(neg_cmat,y2)									
 		else:
 			vars_all = torch.mm(c_block[0],v).t().contiguous().view(org_size[0],-1,self.embedding_dim)
 			c = torch.bmm(c_mat.float(),vars_all)	
 
-		c = F.tanh(c + self.cb.squeeze())
-		cv = c.view(-1,self.embedding_dim).t()
+		c = F.tanh(c + self.cb.squeeze())		
+		cv = c.view(-1,self.embedding_dim).t()		
 		size = cv.size(1)
 		if use_neg:
 			pos_cvars, neg_cvars = torch.bmm(v_block,cv.expand(2,self.embedding_dim,size)).transpose(1,2)
-			y1 = pos_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
-			y2 = neg_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
-			nv = torch.bmm(pos_vmat,y1) + torch.bmm(neg_vmat,y2)
+			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
+				pos_vmat = kwargs['cmat_pos'].t()
+				neg_vmat = kwargs['cmat_neg'].t()
+				nv = torch.mm(pos_vmat,pos_cvars) + torch.mm(neg_vmat,neg_cvars)
+				nv = nv.view(bsize,-1,self.embedding_dim)
+			else:	
+				pos_vmat = v_mat.clamp(0,1).float()
+				neg_vmat = -v_mat.clamp(-1,0).float()
+				y1 = pos_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+				y2 = neg_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+				nv = torch.bmm(pos_vmat,y1) + torch.bmm(neg_vmat,y2)
 		else:
 			vars_all = torch.mm(v_block[0],cv).t().contiguous().view(org_size[0],-1,self.embedding_dim)
 			nv = torch.bmm(v_mat.float(),vars_all)	
 			
 		# pdb.set_trace()
 		v_emb = F.tanh(nv + self.vb.squeeze())
-		v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))
-		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))
+		v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))		
+		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	
 		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
 		if (rc != rc).data.any():			# We won't stand for NaN
 			print('NaN in our tensors!!')
@@ -334,31 +349,13 @@ class BatchEncoder(nn.Module):
 	def forward(self, input, **kwargs):
 		variables = []
 		clauses = []
-		f_vars = input
-		f_clauses = f_vars.transpose(1,2)
-		# v_mat = self.get_block_matrix(self.forward_block,f_vars)	# v_mat goes from clauses to variables
-		# c_mat = self.get_block_matrix(self.backwards_block,f_clauses)	# c_mat goes from variables to clauses
-
-
-		# v_mat = self.get_block_matrix2(self.forward_pos_neg,f_vars.data)	# v_mat goes from clauses to variables		
-		# c_mat = self.get_block_matrix2(self.backwards_pos_neg,f_clauses.data)	# c_mat goes from variables to clauses
-
-
-		# if len(c_mat) != len(input[1]) or len(v_mat) != len(input[0]) or len(input[0]) != len(input[1]):
-		# 	print('Wrong block matrix size??!')
-		# 	pdb.set_trace()
-
-		# if (c_mat != c_mat).data.any() or (v_mat != v_mat).data.any():
-		# 	print('NaN in block matrices!')
-		# 	pdb.set_trace()
-		
-		# for i in range(self.max_variables):
-		# 	v = self.expand_ground_to_state(self.get_ground_embeddings(i))
-		# 	variables.append(v)
-		# v = torch.cat(variables,dim=1).transpose(0,1)
-
-		v = self.get_ground_embeddings()
-		# variables = torch.stack([v]*len(input))		
+		if self.settings['sparse']:			
+			f_vars = None
+			f_clauses = None
+		else:
+			f_vars = input
+			f_clauses = f_vars.transpose(1,2)		
+		v = self.get_ground_embeddings()		
 		variables = v.expand(len(input),v.size(0),1).contiguous()
 		ground_variables = variables.view(-1,self.embedding_dim)[:,:self.ground_dim]
 
@@ -375,7 +372,7 @@ class BatchEncoder(nn.Module):
 			if (variables != variables).data.any():
 				print('Variables have nan!')
 				pdb.set_trace()
-			variables = self.inner_iteration(variables, f_vars, f_clauses, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg)
+			variables = self.inner_iteration(variables, f_vars, f_clauses, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg, **kwargs)
 			# variables = self.inner_iteration(variables, v_mat, c_mat, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg, old_forward=True)
 			if self.debug:
 				print('Variables:')

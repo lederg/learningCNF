@@ -91,7 +91,8 @@ def log_name(settings):
 def train(ds, ds_validate=None, net=None):
     settings = CnfSettings()
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
-    trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, pin_memory=settings['cuda'])    
+    # trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, pin_memory=settings['cuda'], collate_fn = cnf_collate)
+    trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, collate_fn = cnf_collate)
     print('%d classes, %d samples'% (ds.num_classes,len(ds)))
     settings.hyperparameters['num_classes'] = ds.num_classes
     if not 'max_clauses' in settings.hyperparameters:
@@ -125,6 +126,7 @@ def train(ds, ds_validate=None, net=None):
     start_epoch = 0
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=settings['init_lr'], momentum=0.9)
+    # optimizer = optim.Adam(net.parameters(), lr=settings['init_lr'])
     scheduler = ReduceLROnPlateau(optimizer, 'min', patience=3, verbose=True)
     batch_size = settings['batch_size']
     get_step = lambda x,y: x*len(trainloader)+y
@@ -136,7 +138,7 @@ def train(ds, ds_validate=None, net=None):
     for epoch in range(start_epoch,NUM_EPOCHS):
         running_loss = 0.0
         utils.exp_lr_scheduler(optimizer, epoch, init_lr=settings['init_lr'], lr_decay_epoch=settings['decay_num_epochs'],decay_rate=settings['decay_lr'])
-        for i, data in enumerate(trainloader, 0):            
+        for i, data in enumerate(trainloader, 0):
             inputs = Variable(data['variables'], requires_grad=False)
             effective_bs = len(inputs)
             if  effective_bs != settings['batch_size']:
@@ -144,17 +146,19 @@ def train(ds, ds_validate=None, net=None):
                 # continue
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
+            cmat_pos = Variable(data['sp_v2c_pos'], requires_grad=False)
+            cmat_neg = Variable(data['sp_v2c_neg'], requires_grad=False)
             ind = data['idx_in_dataset']
             if settings.hyperparameters['cuda']:
                 topvar, labels = topvar.cuda(), labels.cuda()
-                inputs = inputs.cuda()
+                inputs, cmat_pos, cmat_neg = inputs.cuda(), cmat_pos.cuda(), cmat_neg.cuda()
 
             # zero the parameter gradients
             
             optimizer.zero_grad()
             # print('iteration %d beginning...' % i)
             # forward + backward + optimize
-            outputs, aux_losses = net(inputs, output_ind=topvar, batch_size=effective_bs)
+            outputs, aux_losses = net(inputs, output_ind=topvar, cmat_pos=cmat_pos, cmat_neg=cmat_neg, batch_size=effective_bs)
             loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
             try:
                 loss.backward()

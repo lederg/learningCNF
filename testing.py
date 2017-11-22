@@ -12,16 +12,19 @@ import utils
 import pdb
 
 def test(model, ds: CnfDataset, **kwargs):
-    test_bs = 5
-    # test_bs = settings['batch_size']
     settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+    test_bs = 10
+    # test_bs = settings['batch_size']
+    c_size = settings['max_clauses']
+    v_size = settings['max_variables']
     criterion = nn.CrossEntropyLoss()
     if 'weighted_test' in kwargs and kwargs['weighted_test']:
         sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
-        vloader = torch.utils.data.DataLoader(ds, batch_size=test_bs, sampler = sampler, pin_memory=settings['cuda'])
+        vloader = torch.utils.data.DataLoader(ds, batch_size=test_bs, sampler = sampler, collate_fn = cnf_collate)
+        # vloader = torch.utils.data.DataLoader(ds, batch_size=test_bs, sampler = sampler, pin_memory=settings['cuda'], collate_fn = cnf_collate)
     else:
         sampler = torch.utils.data.sampler.RandomSampler(ds)
-        vloader = torch.utils.data.DataLoader(ds, batch_size=test_bs, sampler = sampler)
+        vloader = torch.utils.data.DataLoader(ds, batch_size=test_bs, sampler = sampler, collate_fn = cnf_collate)
     total_loss = 0
     total_correct = 0
     total_iters = 0
@@ -29,14 +32,19 @@ def test(model, ds: CnfDataset, **kwargs):
 
     for _,data in zip(range(settings['val_size']),vloader):
         inputs = Variable(data['variables'], requires_grad=False)
+        cmat_pos = Variable(data['sp_v2c_pos'], requires_grad=False)
+        cmat_neg = Variable(data['sp_v2c_neg'], requires_grad=False)
 
         # pad inputs
-
         s = inputs.size()
-        padsize = settings['max_variables'] - s[1]
+        padsize = settings['max_variables'] - ds.max_variables
         if s and padsize > 0:
-            pad = Variable(settings.zeros([s[0],padsize,s[2]]),requires_grad=False)
-            inputs = torch.cat([inputs,pad.double()],1)
+            if settings['sparse']:
+                cmat_pos = Variable(torch.sparse.FloatTensor(cmat_pos.data._indices(),cmat_pos.data._values(),torch.Size([c_size*test_bs,v_size*test_bs])))
+                cmat_neg = Variable(torch.sparse.FloatTensor(cmat_neg.data._indices(),cmat_neg.data._values(),torch.Size([c_size*test_bs,v_size*test_bs])))
+            else:
+                pad = Variable(settings.zeros([s[0],padsize,s[2]]),requires_grad=False)
+                inputs = torch.cat([inputs,pad.double()],1)
 
         if  len(inputs) != test_bs:
             print('Trainer gave us no batch!!')
@@ -44,9 +52,9 @@ def test(model, ds: CnfDataset, **kwargs):
         topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
         labels = Variable(data['label'], requires_grad=False)
         if settings.hyperparameters['cuda']:
-                topvar, labels = topvar.cuda(), labels.cuda()
-                inputs = inputs.cuda()
-        outputs, aux_losses = model(inputs, output_ind=topvar, batch_size=test_bs)
+            topvar, labels = topvar.cuda(), labels.cuda()
+            inputs, cmat_pos, cmat_neg = inputs.cuda(), cmat_pos.cuda(), cmat_neg.cuda()
+        outputs, aux_losses = model(inputs, output_ind=topvar, batch_size=test_bs, cmat_pos=cmat_pos, cmat_neg=cmat_neg)
         loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
         correct = outputs.max(dim=1)[1]==labels
         num_correct = torch.nonzero(correct.data).size()

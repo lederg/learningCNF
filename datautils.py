@@ -4,9 +4,15 @@ import numpy as np
 from functools import partial
 from torch.utils.data import Dataset
 from enum import Enum
+import time
+import torch
+import re
+import collections
 import os
 import random
 import pdb
+
+_use_shared_memory = False
 
 class DataMode(Enum):
     NORMAL = 1
@@ -14,6 +20,41 @@ class DataMode(Enum):
     TRENERY=3
     TF=4
 
+# We make the batch of sparse matrices into one huge sparse matrix
+
+def cnf_collate(batch):
+    rc = {}
+    null_fields = ['sparse', 'num_vars', 'num_clauses']
+    sample = batch[0]
+    v_size = sample['num_vars']
+    c_size = sample['num_clauses']
+    for k in batch[0].keys():
+        if k == 'sp_indices':
+            rc_i = np.concatenate([b[k] + np.asarray([i*c_size,i*v_size]) for i,b in enumerate(batch)], 0)
+        elif k == 'sp_vals':
+            rc_v = np.concatenate([b[k] for b in batch], 0)
+        elif k == 'samples':
+            rc[k] = [b[k] for b in batch]
+        elif k in null_fields:
+            continue
+        elif isinstance(sample[k],np.ndarray):
+            rc[k] = torch.stack([torch.from_numpy(b[k]) for b in batch], 0)
+        else:
+            rc[k] = torch.from_numpy(np.asarray([b[k] for b in batch]))            
+
+
+    if sample['sparse']:
+        sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
+        sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
+        sp_val_pos = torch.ones(len(sp_ind_pos))
+        sp_val_neg = torch.ones(len(sp_ind_neg))
+
+        rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([c_size*len(batch),v_size*len(batch)]))
+        rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([c_size*len(batch),v_size*len(batch)]))
+    else:
+        rc['sp_v2c_pos'] = None
+        rc['sp_v2c_neg'] = None
+    return rc
 
 
 def filter_classes_by_ref(ref_dataset, classes, threshold, **kwargs):
@@ -63,7 +104,8 @@ def sat_filter_classes(classes, threshold, max_size=100, **kwargs):
     m = np.mean([len(x) for x in a.values()])
     rc = {'SAT': []}
     for k,v in a.items():
-        v1 = [x for x in v if len(x['clauses_per_variable']) < max_size and len(x['clauses']) < max_size]
+        # v1 = [x for x in v if len(x['clauses_per_variable']) < max_size and len(x['clauses']) < max_size]
+        v1 = [x for x in v if len(x['clauses_per_variable']) < max_size]
         if len(v1) < len(v):
             print('removed %d formulas from key %s' % (len(v)-len(v1),k))
         if k in ['False']:
@@ -79,8 +121,11 @@ class CnfDataset(Dataset):
         if 'num_max_clauses' in kwargs:
             self.num_max_clauses = kwargs['num_max_clauses']
 
-
+        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else False
+        time1 = time.time()
         self.eq_classes = filter_fn(classes, threshold, **kwargs)
+        time2 = time.time()
+        print('After filtering, time difference was %f' % (time2-time1))
 
     
         # self.eq_classes = self.dummy_filter(to_cnf(load_bool_data(json_file)))
@@ -129,8 +174,10 @@ class CnfDataset(Dataset):
         i = np.where(self.class_cumsize > idx)[0][0]            # This is the equivalence class
         j = idx if i==0 else idx-self.class_cumsize[i-1]        # index inside equivalence class
         orig_sample = self.samples[i][j]        
-        variables, clauses, topvar = self.transform_sample(orig_sample)
-        self.cache[idx] = {'variables': variables, 'clauses': clauses, 'label': i, 'topvar': topvar, 'idx_in_dataset': idx}
+        variables, clauses, topvar, sp_indices, sp_vals = self.transform_sample(orig_sample)
+        self.cache[idx] = {'variables': variables, 'clauses': clauses, 'sp_indices': sp_indices, 'sp_vals': sp_vals, 'label': i, 'topvar': topvar, 
+                            'idx_in_dataset': idx, 'samples': orig_sample, 'sparse': self.sparse, 'num_vars': self.max_variables,
+                            'num_clauses': self.max_clauses}
         # self.cache[idx] = {'topvar': topvar}
         return self.cache[idx]
         
@@ -166,8 +213,7 @@ class CnfDataset(Dataset):
         
         origvars = list(sample['origvars'].values())
         num_total_vars = len(origvars) + len(auxvars)
-        rc = []
-        rc1 = []
+        
 
         def convert_var(v):
             j = abs(v)
@@ -184,65 +230,48 @@ class CnfDataset(Dataset):
                 print('What the heck?')
                 import ipdb; ipdb.set_trace()
 
-        # First append ground vars or empty clauses. 
-        for i in range(1,self.ground_vars+1):     # we are appending anyway, so who cares about index        
-            if i in origvars:            
-                try:
-                    rc.append([list(map(convert_var,x)) for x in clauses[i]])
-                except:
-                    import ipdb; ipdb.set_trace()
-            else:
-                rc.append([])
-
-        # No empty clauses for auxvars
-        for i in auxvars:
-            rc.append([list(map(convert_var,x)) for x in clauses[i]])
-
+        
         all_clauses = [list(map(convert_var,x)) for x in sample['clauses']]
-        for i,v in enumerate(rc):
-            cl = []         # new list of indices for clauses
-            for c in v:     # for each clause, add either its index or negative index
-                idx = all_clauses.index(c) + 1      # clauses (and variables) are 1 based
-                if not i+1 in c:
-                    idx = -idx
-                cl.append(idx)
-            rc1.append(cl)
 
-        new_all_clauses = []
-        new_all_variables = []
-        for i in range(self.max_clauses):
-            new_clause = np.zeros(self.max_variables)
-            if i<len(all_clauses):
-                x = all_clauses[i]
-                for j in range(self.max_variables):
-                    t = j+1
-                    if t in x:
-                        new_clause[j]=1
-                    elif -t in x:
-                        # new_clause[j]=2
-                        new_clause[j]=-1
-                new_all_clauses.append(new_clause)
-            else:                
-                new_all_clauses.append(new_clause)
-        if len(new_all_clauses) != self.max_clauses:
-            import ipdb; ipdb.set_trace()
+        if self.sparse:        
+            indices = []
+            values = []        
+            for i,c in enumerate(all_clauses):
+                for v in c:
+                    val = 1 if v>0 else -1
+                    v = abs(v)-1
+                    indices.append(np.array([i,v]))
+                    values.append(val)
 
-        for i in range(self.max_variables):
-            new_var = np.zeros(self.max_clauses)
-            if i<len(rc1):
-                x = rc1[i]
-                for j in range(self.max_clauses):
-                    t = j+1
-                    if t in x:
-                        new_var[j]=1
-                    elif -t in x:
-                        # new_var[j]=2
-                        new_var[j]=-1
-                new_all_variables.append(new_var)
-            else:
-                new_all_variables.append(new_var)
+            sp_indices = np.vstack(indices)
+            sp_vals = np.stack(values)
+            c2v = np.zeros(1)
+            v2c = np.zeros(1)
+        
+        else:
+            new_all_clauses = []        
+            for i in range(self.max_clauses):
+                new_clause = np.zeros(self.max_variables)
+                if i<len(all_clauses):
+                    x = all_clauses[i]
+                    for j in range(self.max_variables):
+                        t = j+1
+                        if t in x:
+                            new_clause[j]=1
+                        elif -t in x:
+                            # new_clause[j]=2
+                            new_clause[j]=-1
+                    new_all_clauses.append(new_clause)
+                else:                
+                    new_all_clauses.append(new_clause)
+            if len(new_all_clauses) != self.max_clauses:
+                import ipdb; ipdb.set_trace()
 
-        return np.stack(new_all_variables), np.stack(new_all_clauses), convert_var(sample['topvar'])
+            sp_indices = np.zeros(1)
+            sp_vals = np.zeros(1)
+            v2c = np.stack(new_all_clauses)
+            c2v = v2c.transpose()        
+        return c2v, v2c, convert_var(sample['topvar']), sp_indices, sp_vals
 
 
     def dummy_filter(self, classes):

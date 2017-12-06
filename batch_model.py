@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import utils
 import numpy as np
-import ipdb
+# import ipdb
 import pdb
 from settings import *
 
@@ -258,9 +258,15 @@ class BatchEncoder(nn.Module):
 		self.num_ground_variables = num_ground_variables		
 		self.use_ground = self.settings['use_ground']
 		self.moving_ground = self.settings['moving_ground']
+
+		# 'moving_ground' will make num_ground_variables embeddings, plus only one for all the non-ground variables.
+
 		if self.moving_ground:
 			self.embedding = nn.Embedding(num_ground_variables+1, self.ground_dim, max_norm=1., norm_type=2)
 		else:
+
+		# If not moving ground, then just a one-hot representation for different ground variables plus last one for non-ground vars.
+
 			base_annotations = Variable(torch.eye(num_ground_variables+1),requires_grad=False)
 			if self.settings['cuda']:
 				base_annotations = base_annotations.cuda()
@@ -268,6 +274,7 @@ class BatchEncoder(nn.Module):
 				dup_annotations = torch.cat([base_annotations[-1].unsqueeze(0)] * (self.max_variables - num_ground_variables -1))
 				exp_annotations = torch.cat([base_annotations,dup_annotations])				
 			else:
+				pdb.set_trace()
 				exp_annotations = torch.cat([base_annotations[-1].unsqueeze(0)]*self.max_variables)				
 			self.ground_annotations = self.expand_ground_to_state(exp_annotations)
 
@@ -306,7 +313,6 @@ class BatchEncoder(nn.Module):
 		return torch.cat([v,self.expand_dim_const],dim=1)
 
 	def get_ground_embeddings(self):
-
 		if self.moving_ground:
 			embs = self.expand_ground_to_state(self.embedding(self.var_indices))
 		else:

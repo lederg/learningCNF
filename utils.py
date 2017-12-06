@@ -44,3 +44,16 @@ def exp_lr_scheduler(optimizer, epoch, init_lr=0.001, lr_decay_epoch=7, decay_ra
             param_group['lr'] = lr
 
     return optimizer
+
+
+# cross-product
+
+def dict_product(dicts):
+    """    
+    >>> list(dict_product(dict(number=[1,2], character='ab')))
+    [{'character': 'a', 'number': 1},
+     {'character': 'a', 'number': 2},
+     {'character': 'b', 'number': 1},
+     {'character': 'b', 'number': 2}]
+    """
+    return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))

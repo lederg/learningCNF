@@ -85,9 +85,9 @@ def log_name(settings):
     name = ex.current_run.experiment_info['name']
     return 'run_%s_nc%d_bs%d_ed%d_iters%d__%s' % (name, settings['num_classes'], 
         settings['batch_size'], settings['embedding_dim'], 
-        settings['max_iters'], settings['time'])
+        settings['max_iters'], settings['exp_time'])
     
-@ex.capture
+# @ex.capture
 def train(ds, ds_validate=None, net=None):
     settings = CnfSettings()
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
@@ -165,7 +165,7 @@ def train(ds, ds_validate=None, net=None):
             except RuntimeError as e:
                 print('Woah, something is going on')
                 print(e)
-                ipdb.set_trace()            
+                # ipdb.set_trace()            
             
 
             if settings['moving_ground'] and (net.encoder.embedding.weight.grad != net.encoder.embedding.weight.grad).data.any():

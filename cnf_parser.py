@@ -4,7 +4,7 @@ import sys
 from os import listdir
 from os.path import isfile, join
 from cnf_tools import *
-import ipdb
+# import ipdb
 
 def simplify_clause(c):
     s = set(c)
@@ -63,7 +63,7 @@ def dimacs_to_cnf(filename):
     for v in CNF['clauses_per_variable'].keys():
         if len(CNF['clauses_per_variable'][v]) > MAX_CLAUSES_PER_VARIABLE:
             print('Error: too many clauses for variable ' + str(v))
-            ipdb.set_trace()
+            # ipdb.set_trace()
             quit()
 
     return CNF

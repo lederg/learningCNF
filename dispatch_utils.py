@@ -1,6 +1,24 @@
 import subprocess
 import time
 
+
+def args_to_dict(args):
+	if isinstance(args,str):
+		args = args.split(' ')
+	rc = {}
+	for k in args:
+		a, b = k.split('=')
+		rc[a]=b		
+	return rc
+
+def dict_to_args(d, as_string=True):
+	rc = []
+	for (a,b) in d.items():
+		rc.append(a+'='+str(b))
+	if as_string:
+		rc = " ".join(rc)
+	return rc
+
 def get_mongo_addr(machine, sfx):
 	rc = subprocess.run(['docker-machine', 'ip', machine], stdout=subprocess.PIPE)
 	assert(rc.returncode == 0)
@@ -16,14 +34,17 @@ def machine_name(name):
   return str(name)+str(time.time())[-4:]
 
 def provision_machine(name):
-	rc = subprocess.run(['./provision.sh', name])
+	if not machine_exists(name):
+		rc = subprocess.run(['./provision.sh', name])
+	else:
+		print('Machine %s already exists!')	
 	assert(machine_exists(name))
 
 def remove_machine(name):
-	rc = subprocess.run(['docker-machine', '-y', 'rm', name])
+	rc = subprocess.run(['docker-machine', 'rm', '-y', name])
 	assert(not machine_exists(name))
 
 def execute_machine(name, args):
 	assert(machine_exists(name))
-	rc = subprocess.run(['start-container', name, args])
+	rc = subprocess.run(['./start-container.sh', name, args])
 	

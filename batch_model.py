@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import utils
 import numpy as np
-# import ipdb
+import ipdb
 import pdb
 from settings import *
 
@@ -216,8 +216,8 @@ class FactoredInnerIteration(nn.Module):
 		if (rc != rc).data.any():			# We won't stand for NaN
 			print('NaN in our tensors!!')
 			pdb.set_trace()
-		if (rc[0] == rc[1]).data.all():
-			print('Same embedding. wtf?')
+		# if (rc[0] == rc[1]).data.all():
+		# 	print('Same embedding. wtf?')
 			# pdb.set_trace()
 		return rc
 
@@ -318,14 +318,6 @@ class BatchEncoder(nn.Module):
 		else:
 			embs = self.ground_annotations
 		return embs.view(1,-1).transpose(0,1)
-
-	# def get_ground_embeddings(self,i):
-	# 	if i<self.num_ground_variables and self.use_ground:
-	# 		return self.embedding(Variable(self.settings.LongTensor([i])))
-	# 	else:
-	# 		return self.tseitin
-		
-
 
 	def get_block_matrix(self, blocks, indices):		
 		rc = []

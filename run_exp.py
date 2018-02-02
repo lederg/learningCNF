@@ -27,13 +27,15 @@ def cfg():
 	max_variables = 3 
 	num_ground_variables = 3 
 	data_mode = DataMode.SAT
+	data_dir = 'data/'
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
 	# 'base_model = 'saved_models/run_bigsat_50_4_nc2_bs40_ed4_iters8__1508199570_epoch200.model'
 	base_model = None
 	base_mode = BaseMode.ALL
 	max_iters = 12
-	batch_size = 64
+	batch_size = 1			# for RL
+	# batch_size = 64
 	val_size = 100 
 	threshold = 10
 	init_lr = 0.001
@@ -55,15 +57,20 @@ def cfg():
 	# 'sparse = True
 	sparse = False
 	gru_bias = False
-	use_ground = False
-	moving_ground = True 
+	use_ground = True
+	moving_ground = False 
 	split = False
 	# 'cuda = True 
 	cuda = False
 	reset_on_save = False
 
 
+	run_task='train'
 
+	max_edges = 20
+
+
+	
 	DS_TRAIN_FILE = 'expressions-synthetic/split/%s-trainset.json' % dataset
 	DS_VALIDATION_FILE = 'expressions-synthetic/split/%s-validationset.json' % dataset
 	DS_TEST_FILE = 'expressions-synthetic/split/%s-testset.json' % dataset
@@ -72,6 +79,13 @@ def cfg():
 @ex.automain
 def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):	
 	settings = CnfSettings(ex.current_run.config)
+
+	if settings['run_task'] == 'train_cadet':
+		from task_cadet import cadet_main
+		cadet_main(settings)
+		exit()
+
+
 	# pdb.set_trace()
 	ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
 	ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=0, ref_dataset=ds1, mode=data_mode)

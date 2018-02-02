@@ -69,6 +69,53 @@ def dimacs_to_cnf(filename):
     return CNF
 
 
+def qdimacs_to_cnf(filename):    
+    cvars = {}
+    clauses = []
+    maxvar = 0
+    num_clauses = 0
+    with open(filename, 'r') as f:
+        f.readline()        # header
+        line = f.readline().split(' ')        # Number of vars/clauses - "p cnf 159 312"
+        maxvar = int(line[2])
+        num_clauses = int(line[3])        
+        line = f.readline() # universal vars
+        universal_vars = [int(x) for x in line.split(' ')[1:-1]]
+        line = f.readline() # existential vars
+        existential_vars = [int(x) for x in line.split(' ')[1:-1]]
+        for x in universal_vars:
+            cvars[x] = {'universal': True, 'clauses': []}
+        for x in existential_vars:
+            cvars[x] = {'universal': False, 'clauses': []}
+
+        # read all clauses
+        for line in f.readlines():
+            words = line.split()        
+            lits = [int(x) for x in words[:-1]]            
+            clauses.append(simplify_clause(lits))
+
+    for c in clauses:
+        for lit in c:
+            cvars[abs(lit)]['clauses'].append(c)
+
+    # Make sure not too many clauses per var            
+    for x in cvars.keys():
+        if len(cvars[x]['clauses']) > MAX_CLAUSES_PER_VARIABLE:
+            print(len(cvars[x]['clauses']))
+            print('Error: too many clauses for variable ' + str(x))
+            from IPython.core.debugger import Tracer
+            Tracer()() 
+            ipdb.set_trace()
+            # quit()
+            
+
+                        
+    return {'maxvar' : maxvar, 
+           'num_clauses': num_clauses, 
+           'clauses': clauses,
+           'cvars' : cvars
+           }
+    
 def load_class(directory):
     files = [join(directory, f) for f in listdir(directory)]
     return list(map(dimacs_to_cnf, files))

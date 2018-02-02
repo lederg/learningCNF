@@ -29,8 +29,13 @@ def cnf_collate(batch):
     v_size = sample['num_vars']
     c_size = sample['num_clauses']
     for k in batch[0].keys():
+
+        # We have a batch of sparse matrices, which we want to make into a big sparse matrix (along the 2nd dimension, no 3rd)
+
+        # remap indices
         if k == 'sp_indices':
             rc_i = np.concatenate([b[k] + np.asarray([i*c_size,i*v_size]) for i,b in enumerate(batch)], 0)
+        # just concatenate vals
         elif k == 'sp_vals':
             rc_v = np.concatenate([b[k] for b in batch], 0)
         elif k == 'samples':

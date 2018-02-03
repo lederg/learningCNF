@@ -1,0 +1,3 @@
+
+FuzzSAT is a fuzzer which generates structured CNFs. First, a boolean circuit is constructed where logical gates and inputs are selected at random. The generated circuit is then translated into CNF. In order to increase diversity, random clauses of varying size are added to obtain the final CNF.
+

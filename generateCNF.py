@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+#
+# USAGE: ./cnf <number_of_ground_variables> <number_of_files_to_generate>
+#
+
+import os
+import sys
+from cnf_tools import *
+from random import randint
+
+def randomCNF():
+    ground_vars_num = sys.argv[2]
+    fraction_of_additional_clauses = int(55 - 2.3 * int(ground_vars_num))
+    fuzz = Popen("./fuzzsat-0.1/fuzzsat -i {} -I {} -p {} -P {}".format(ground_vars_num,ground_vars_num,fraction_of_additional_clauses,fraction_of_additional_clauses), shell=True, stdout=PIPE, stderr=STDOUT)
+    # fuzz = subprocess.Popen("./fuzzsat-0.1/fuzzsat -i 3 -I 500 -p 10 -P 20", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return fuzz.stdout.readlines()
+
+def randomQBF():
+    ground_vars_num = sys.argv[2]
+    fraction_of_additional_clauses = 10
+    fuzz = Popen("./fuzzsat-0.1/fuzzsat -i {} -I {} -p {} -P {} -l 3 -L 8".format(ground_vars_num,ground_vars_num,fraction_of_additional_clauses,fraction_of_additional_clauses), shell=True, stdout=PIPE, stderr=STDOUT)
+    # fuzz = subprocess.Popen("./fuzzsat-0.1/fuzzsat -i 3 -I 500 -p 10 -P 20", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return fuzz.stdout.readlines()
+
+def main(argv):
+    
+    assert(len(sys.argv) == 4)
+    assert(sys.argv[1] == 'sat' or sys.argv[1] == 'qbf')
+    assert(is_number(sys.argv[2]))
+    assert(is_number(sys.argv[3]))
+    
+    qbf = sys.argv[1] == 'qbf'
+    
+    if not os.path.exists('data/'):
+        os.makedirs('data/')
+    directory = 'data/random{}_{}/'.format('QBF' if qbf else 'CNF',sys.argv[2])
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    if not os.path.exists(directory+'sat/'):
+        os.makedirs(directory+'sat/')
+    if not os.path.exists(directory+'unsat/'):
+        os.makedirs(directory+'unsat/')
+    
+    file_extension = 'qdimacs' if qbf else 'dimacs'
+    
+    num_sat = 0
+    num_unsat = 0
+    
+    for i in range(int(sys.argv[3])):
+        # if i % 10 == 0:
+        print('Generating file no {}'.format(i+1))
+        
+        maxvar, clauses = dimacs_to_clauselist(randomQBF() if qbf else randomCNF())
+        # maxvar, clauses = normalizeCNF(clauses)
+        universals = set()
+        
+        if qbf:
+            # randomly select n variables to be universals
+            n = 4
+            assert(n < maxvar)
+            # print('maxvar {}'.format(maxvar))
+            for _ in range(n):
+                candidate = randint(1,maxvar)
+                universals.add(candidate)
+                # print(str(universals))
+        
+        assert((len(universals) > 0) == qbf)
+        if is_sat(maxvar,clauses,universals):
+            num_sat += 1
+            write_to_file(
+                maxvar,
+                clauses,
+                '{}/sat/sat-{}.{}'.format(directory,num_sat,file_extension),
+                universals)
+        else:
+            num_unsat += 1
+            write_to_file(
+                maxvar,
+                clauses,
+                '{}/unsat/unsat-{}.{}'.format(directory,num_unsat,file_extension),
+                universals)
+        
+        # textfile = open("tmp.dimacs", "w")
+        # textfile.writelines(cnfstring)
+        # textfile.close()
+        #
+        # sat = subprocess.Popen("picosat tmp.dimacs", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # sat.communicate()[0]
+        # print(sat.returncode)
+
+if __name__ == "__main__":
+    main(sys.argv)

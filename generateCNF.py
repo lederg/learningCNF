@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 #
-# USAGE: ./cnf <number_of_ground_variables> <number_of_files_to_generate>
+# USAGE to generate SAT formulas: 
+#   ./generateCNF.py sat <number_of_ground_variables> <number_of_files_to_generate>
 #
-
+# USAGE to generate QBF formulas: 
+#   ./generateCNF.py QBF <number_of_ground_variables> <number_of_files_to_generate>
+#
 import os
 import sys
 from cnf_tools import *

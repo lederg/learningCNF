@@ -18,6 +18,9 @@ class QbfBase(object):
         self.sparse = kwargs['sparse'] if 'sparse' in kwargs else False
         self.qcnf = qcnf
 
+    def reload_qdimacs(self, fname):
+        self.qcnf = qdimacs_to_cnf(fname)
+
     @classmethod 
     def from_qdimacs(cls, fname, **kwargs):
         return cls(qdimacs_to_cnf(fname), **kwargs)
@@ -95,7 +98,7 @@ class QbfBase(object):
 
             rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([self.num_clauses,self.num_vars]))
             rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([self.num_clauses,self.num_vars]))
-        else:
-            rc['v2c'] = torch.from_numpy(self.get_dense_adj_matrices(self.qcnf))
+        
+        rc['v2c'] = torch.from_numpy(self.get_dense_adj_matrices(self.qcnf))
 
         return rc

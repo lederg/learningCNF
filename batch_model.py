@@ -170,6 +170,7 @@ class FactoredInnerIteration(nn.Module):
 		use_neg = self.settings['negate_type'] != 'minus'
 		if use_neg:
 			pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)
+			ipdb.set_trace()
 			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
 				pos_cmat = kwargs['cmat_pos']
 				neg_cmat = kwargs['cmat_neg']				

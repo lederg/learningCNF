@@ -22,9 +22,13 @@ from training import *
 def cfg():	
 	exp_name = EX_NAME
 	exp_time = int(time.time())
-	embedding_dim = 6
+	state_dim = 30
+	embedding_dim = 10
 	ground_dim = 3
-	max_variables = 3 
+	policy_dim1 = 100
+	policy_dim2 = 50
+	max_variables = 200 
+	max_clauses = 600
 	num_ground_variables = 3 
 	data_mode = DataMode.SAT
 	data_dir = 'data/'
@@ -54,8 +58,8 @@ def cfg():
 	embedder_type = 'GraphEmbedder'	    
 	# 'negate_type = 'minus'
 	negate_type = 'regular'
-	# 'sparse = True
-	sparse = False
+	sparse = True
+	# sparse = False
 	gru_bias = False
 	use_ground = True
 	moving_ground = False 

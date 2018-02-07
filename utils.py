@@ -45,6 +45,12 @@ def exp_lr_scheduler(optimizer, epoch, init_lr=0.001, lr_decay_epoch=7, decay_ra
 
     return optimizer
 
+def discount(x, gamma):
+    """
+    Compute discounted sum of future values
+    out[i] = in[i] + gamma * in[i+1] + gamma^2 * in[i+2] + ...
+    """
+    return scipy.signal.lfilter([1],[1,-gamma],x[::-1], axis=0)[::-1]
 
 # cross-product
 

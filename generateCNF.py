@@ -39,10 +39,6 @@ def main(argv):
     directory = 'data/random{}_{}/'.format('QBF' if qbf else 'CNF',sys.argv[2])
     if not os.path.exists(directory):
         os.makedirs(directory)
-    if not os.path.exists(directory+'sat/'):
-        os.makedirs(directory+'sat/')
-    if not os.path.exists(directory+'unsat/'):
-        os.makedirs(directory+'unsat/')
     
     file_extension = 'qdimacs' if qbf else 'dimacs'
     
@@ -55,33 +51,64 @@ def main(argv):
         
         maxvar, clauses = dimacs_to_clauselist(randomQBF() if qbf else randomCNF())
         # maxvar, clauses = normalizeCNF(clauses)
-        universals = set()
         
         if qbf:
-            # randomly select n variables to be universals
-            n = 4
-            assert(n < maxvar)
-            # print('maxvar {}'.format(maxvar))
-            for _ in range(n):
-                candidate = randint(1,maxvar)
-                universals.add(candidate)
-                # print(str(universals))
-        
-        assert((len(universals) > 0) == qbf)
-        if is_sat(maxvar,clauses,universals):
-            num_sat += 1
+            # randomly select n variables to be universals; find a set of universals that provokes many conflicts
+            candidate_universals = None
+            candidate_conflicts = None
+            candidate_returncode = None
+            print('  maxvar {}'.format(str(maxvar)))
+            for n in range(1,int(maxvar/8)):
+                universals = set()
+                # print('  Trying n={} universals'.format(n))
+                for _ in range(n):
+                    candidate = randint(1,maxvar)
+                    universals.add(candidate)
+                    # print(str(universals))
+                
+                assert((len(universals) > 0) == qbf)
+                (returncode, conflicts) = eval_formula(maxvar,clauses,universals)
+                if candidate_universals == None or candidate_conflicts < conflicts:
+                    candidate_universals = universals
+                    candidate_conflicts = conflicts
+                    candidate_returncode = returncode
+            
+            if candidate_returncode == 10:
+                result_string = 'SAT'  
+                num_sat += 1
+            else:
+                result_string = 'UNSAT'
+                num_unsat += 1
+            print('  best candidate has {} universals, is {}, and has {} conflicts'.format(len(candidate_universals),result_string,candidate_conflicts))
+            
             write_to_file(
                 maxvar,
                 clauses,
-                '{}/sat/sat-{}.{}'.format(directory,num_sat,file_extension),
+                '{}/{}_{}.{}'.format(directory,str(i),result_string,file_extension),
                 universals)
+            
         else:
-            num_unsat += 1
-            write_to_file(
-                maxvar,
-                clauses,
-                '{}/unsat/unsat-{}.{}'.format(directory,num_unsat,file_extension),
-                universals)
+            if not os.path.exists(directory+'sat/'):
+                os.makedirs(directory+'sat/')
+            if not os.path.exists(directory+'unsat/'):
+                os.makedirs(directory+'unsat/')
+            assert((len(universals) > 0) == qbf)
+            if is_sat(maxvar,clauses,universals):
+                print('  SAT')
+                num_sat += 1
+                write_to_file(
+                    maxvar,
+                    clauses,
+                    '{}/sat/sat-{}.{}'.format(directory,num_sat,file_extension),
+                    universals)
+            else:
+                print('  UNSAT')
+                num_unsat += 1
+                write_to_file(
+                    maxvar,
+                    clauses,
+                    '{}/unsat/unsat-{}.{}'.format(directory,num_unsat,file_extension),
+                    universals)
         
         # textfile = open("tmp.dimacs", "w")
         # textfile.writelines(cnfstring)

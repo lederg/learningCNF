@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 from subprocess import Popen, PIPE, STDOUT
 
 MAX_CLAUSES_PER_VARIABLE = 35
@@ -37,11 +38,24 @@ def write_to_file(maxvar, clause_list, filename, universals=set()):
         textfile.write(clause_to_string(c))
     textfile.close()
 
-def is_sat(maxvar,clauses,universals=set()):
+def extract_num_conflicts(s):
+    res = re.findall(' Conflicts: (\d+)', str(s))
+    if len(res) == 1:
+        return int(res[0])
+    else:
+        print('  ERROR: {}'.format(s))
+        return 0;
+    
+# def extract_num_vars(s):
+#     res = re.findall('Maximal variable index: (\d+)', str(s))
+#     assert(len(res) == 1)
+#     return int(res[0])
+
+def eval_formula(maxvar,clauses,universals=set()):
     # print(str(maxvar))
     # print(str(clauses))
-    tool = 'cadet2.3.1' if len(universals) > 0 else 'picosat'
-    p = Popen([tool,'-v','1'],stdout=PIPE,stdin=PIPE)
+    tool = './../cadet/feat-rl/cadet' if len(universals) > 0 else 'picosat'
+    p = Popen([tool,'-v','1','--cegar'],stdout=PIPE,stdin=PIPE)
     p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clauses))))
     if len(universals) > 0:
         p.stdin.write(str.encode('a'))
@@ -57,10 +71,18 @@ def is_sat(maxvar,clauses,universals=set()):
         p.stdin.write(str.encode(clause_to_string(c)))
     stdout, stderr = p.communicate()
     # print('  ' + str(p.returncode))
-    print('  ' + str(stdout))
+    # print('  ' + str(stdout))
     # print('  ' + str(stderr))
+    
+    # print('  Maxvar: ' + str(maxvar))
+    # print('  Conflicts: ' + str(extract_num_conflicts(stdout)))
+    
     p.stdin.close()
-    return p.returncode == 10
+    return (p.returncode, extract_num_conflicts(stdout))
+    
+def is_sat(maxvar,clauses,universals=set()):
+    (returncode,_) = eval_formula(maxvar,clauses,universals)
+    return returncode == 10
 
 def dimacs_to_clauselist(dimacs):
     clauses = []

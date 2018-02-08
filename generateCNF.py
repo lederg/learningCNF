@@ -74,7 +74,7 @@ def main(argv):
                     candidate_conflicts = conflicts
                     candidate_returncode = returncode
             
-            if candidate_conflicts > 0:
+            if candidate_conflicts != None and candidate_conflicts > randint(0,10):
                 if candidate_returncode == 10:
                     result_string = 'SAT'  
                     num_sat += 1
@@ -82,15 +82,17 @@ def main(argv):
                     result_string = 'UNSAT'
                     num_unsat += 1
                 print('  best candidate has {} universals, is {}, and has {} conflicts'.format(len(candidate_universals),result_string,candidate_conflicts))
-            
+                
+                filedir = '{}/{}_{}.{}'.format(directory, str(num_generated), result_string, file_extension)
+                
                 write_to_file(
                     maxvar,
                     clauses,
-                    '{}/{}_{}.{}'.format(directory,str(num_generated),result_string,file_extension),
-                    universals)
+                    filedir,
+                    candidate_universals)
                 num_generated += 1
             else:
-                print('Failed to generate file: not enough conflicts')
+                print('Failed to generate candidate universals: not enough conflicts')
             
         else:
             if not os.path.exists(directory+'sat/'):
@@ -123,6 +125,8 @@ def main(argv):
         # sat = subprocess.Popen("picosat tmp.dimacs", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         # sat.communicate()[0]
         # print(sat.returncode)
-
+    
+    print('Generated {} SAT and {} UNSAT formulas'.format(str(num_sat),str(num_unsat)))
+        
 if __name__ == "__main__":
     main(sys.argv)

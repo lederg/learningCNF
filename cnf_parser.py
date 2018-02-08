@@ -69,20 +69,22 @@ def dimacs_to_cnf(filename):
     return CNF
 
 
-def qdimacs_to_cnf(filename):    
+def qdimacs_to_cnf(filename, zero_based=False):
     cvars = {}
     clauses = []
     maxvar = 0
     num_clauses = 0
+    # offset = -1 if zero_based else 0
+    offset = 0
     with open(filename, 'r') as f:
         f.readline()        # header
         line = f.readline().split(' ')        # Number of vars/clauses - "p cnf 159 312"
         maxvar = int(line[2])
         num_clauses = int(line[3])        
         line = f.readline() # universal vars
-        universal_vars = [int(x) for x in line.split(' ')[1:-1]]
+        universal_vars = [int(x)+offset for x in line.split(' ')[1:-1]]
         line = f.readline() # existential vars
-        existential_vars = [int(x) for x in line.split(' ')[1:-1]]
+        existential_vars = [int(x)+offset for x in line.split(' ')[1:-1]]
         for x in universal_vars:
             cvars[x] = {'universal': True, 'clauses': []}
         for x in existential_vars:

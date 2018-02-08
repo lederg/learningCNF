@@ -27,17 +27,17 @@ class Policy(nn.Module):
 		self.graph_embedder = GraphEmbedder(settings=self.settings)
 		self.encoder = QbfEncoder(**self.settings.hyperparameters)
 		self.linear1 = nn.Linear(self.state_dim+self.embedding_dim, self.policy_dim1)
-		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
-		self.action_score = nn.Linear(self.policy_dim2,1)
+		# self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
+		self.action_score = nn.Linear(self.policy_dim1,1)
 		self.activation = F.relu
 
 
 	# (Re)load the encoder
-	def re_init_qbf_base(self, fname):
-		self.qbf.reload_qdimacs(fname)
+	def re_init_qbf_base(self, qbf):
+		self.qbf = qbf
 		assert(self.max_variables >= self.qbf.num_vars)
 		assert(self.max_clauses >= self.qbf.num_clauses)
-		self.encoder.recreate_ground(self.qbf.qcnf['cvars'])
+		self.encoder.recreate_ground(self.qbf.var_types)
 
 	# state is just a vector of fixed size state_dim which should be expanded. 
 	# actions is a list of action indices. We will use them to get the relevant embeddings.
@@ -65,23 +65,19 @@ class Policy(nn.Module):
 			'''
 
 			a = self.get_data_from_qbf()
-			vs, _ = self.encoder(**a)
+			vs = self.encoder(**a)
 		cand_actions = vs[actions]
 		inputs = torch.cat([state.expand(len(cand_actions),len(state)), cand_actions],dim=1)
 
 		# Note, the softmax is on dimension 0, along the batch. We compute it on all candidate actions.
 
-		rc = F.softmax(self.action_scores(self.activation(self.linear2(self.activation(self.linear1(inputs))))), dim=0)
+		# rc = F.softmax(self.action_scores(self.activation(self.linear2(self.activation(self.linear1(inputs))))), dim=0)
+		outputs = self.action_scores(self.activation(self.linear1(inputs)))
+		rc = F.softmax(outputs, dim=0)
 		return rc
 
-		
-
-
-
-
-
 class QbfEncoder(nn.Module):
-	def __init__(self, embedding_dim, num_ground_variables, max_iters, cvars=None, **kwargs):
+	def __init__(self, embedding_dim, num_ground_variables, max_iters, **kwargs):
 		super(QbfEncoder, self).__init__() 
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.debug = False
@@ -96,14 +92,12 @@ class QbfEncoder(nn.Module):
 		nn_init.normal(self.forward_pos_neg)		
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
 		nn_init.normal(self.backwards_pos_neg)
-		
-		if cvars:
-			self.recreate_ground(cvars)
+				
 		else:
 			self.ground_annotations = None
 		
-	def recreate_ground(self, cvars):
-		self.ground_annotations = self.expand_ground_to_state(self.create_ground_labels(cvars))
+	def recreate_ground(self, var_types):
+		self.ground_annotations = self.expand_ground_to_state(self.create_ground_labels(var_types))
 
 	def fix_annotations(self):
 		if self.settings['cuda']:
@@ -111,11 +105,10 @@ class QbfEncoder(nn.Module):
 		else:
 			self.ground_annotations = self.ground_annotations.cpu()
 			
-	def create_ground_labels(self,cvars):
+	def create_ground_labels(self,var_types):
 		base_annotations = self.settings.zeros([self.max_variables, self.ground_dim])
-		for i in cvars:			
-			base_annotations[i-1][0] = int(not cvars[i]['universal'])
-			base_annotations[i-1][1] = int(cvars[i]['universal'])
+		for i,val in enumerate(var_types):
+			base_annotations[i][val] = True
 
 		return Variable(base_annotations, requires_grad=False)
 
@@ -169,5 +162,5 @@ class QbfEncoder(nn.Module):
 				pdb.set_trace()
 			# if (variables[0]==variables[1]).data.all():
 			# 	print('Variables identical on (inner) iteration %d' % i)
-		aux_losses = Variable(torch.zeros(len(variables)))
-		return torch.squeeze(variables), aux_losses
+		# aux_losses = Variable(torch.zeros(len(variables)))
+		return torch.squeeze(variables)

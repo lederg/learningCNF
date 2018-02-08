@@ -38,6 +38,18 @@ class QbfBase(object):
     def max_clauses(self):
         return self.num_clauses
 
+
+    # This returns a 0-based numpy array of values per variable up to num_vars. 0 in universal, 1 is existential, 2 is missing
+
+    @property 
+    def var_types(self):        
+        a = self.qcnf['cvars']
+        rc = np.zeros(self.num_vars)+2
+        for k in a.keys():
+            rc[k-1] = 0 if a[k]['universal'] else 1
+        return rc
+
+
     def get_adj_matrices(self,sample):
         if self.sparse:
             return self.get_sparse_adj_matrices(sample)
@@ -45,15 +57,14 @@ class QbfBase(object):
             return self.get_dense_adj_matrices(sample)
 
     def get_sparse_adj_matrices(self,sample):
-        clauses = sample['clauses']        
-        cvars = sample['cvars']                            
+        clauses = sample['clauses']                
         indices = []
         values = []        
 
         for i,c in enumerate(clauses):
             for v in c:
                 val = 1 if v>0 else -1
-                v = abs(v)-1
+                v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
                 indices.append(np.array([i,v]))
                 values.append(val)
 
@@ -62,8 +73,7 @@ class QbfBase(object):
         return sp_indices, sp_vals
         
     def get_dense_adj_matrices(self,sample):
-        clauses = sample['clauses']        
-        cvars = sample['cvars']                            
+        clauses = sample['clauses']                
         new_all_clauses = []        
 
         for i in range(self.max_clauses):
@@ -71,7 +81,7 @@ class QbfBase(object):
             if i<len(clauses):
                 x = clauses[i]
                 for j in range(self.max_vars):
-                    t = j+1
+                    t = j+1             # We read directly from file, which is 1-based, this makes it into 0-based
                     if t in x:
                         new_clause[j]=1
                     elif -t in x:                        

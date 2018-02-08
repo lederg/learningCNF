@@ -45,9 +45,10 @@ def main(argv):
     num_sat = 0
     num_unsat = 0
     
-    for i in range(int(sys.argv[3])):
+    num_generated = 0
+    while num_generated < int(sys.argv[3]):
         # if i % 10 == 0:
-        print('Generating file no {}'.format(i+1))
+        print('Generating file no {}'.format(num_generated+1))
         
         maxvar, clauses = dimacs_to_clauselist(randomQBF() if qbf else randomCNF())
         # maxvar, clauses = normalizeCNF(clauses)
@@ -73,19 +74,23 @@ def main(argv):
                     candidate_conflicts = conflicts
                     candidate_returncode = returncode
             
-            if candidate_returncode == 10:
-                result_string = 'SAT'  
-                num_sat += 1
-            else:
-                result_string = 'UNSAT'
-                num_unsat += 1
-            print('  best candidate has {} universals, is {}, and has {} conflicts'.format(len(candidate_universals),result_string,candidate_conflicts))
+            if candidate_conflicts > 0:
+                if candidate_returncode == 10:
+                    result_string = 'SAT'  
+                    num_sat += 1
+                else:
+                    result_string = 'UNSAT'
+                    num_unsat += 1
+                print('  best candidate has {} universals, is {}, and has {} conflicts'.format(len(candidate_universals),result_string,candidate_conflicts))
             
-            write_to_file(
-                maxvar,
-                clauses,
-                '{}/{}_{}.{}'.format(directory,str(i),result_string,file_extension),
-                universals)
+                write_to_file(
+                    maxvar,
+                    clauses,
+                    '{}/{}_{}.{}'.format(directory,str(num_generated),result_string,file_extension),
+                    universals)
+                num_generated += 1
+            else:
+                print('Failed to generate file: not enough conflicts')
             
         else:
             if not os.path.exists(directory+'sat/'):
@@ -109,6 +114,7 @@ def main(argv):
                     clauses,
                     '{}/unsat/unsat-{}.{}'.format(directory,num_unsat,file_extension),
                     universals)
+            num_generated += 1
         
         # textfile = open("tmp.dimacs", "w")
         # textfile.writelines(cnfstring)

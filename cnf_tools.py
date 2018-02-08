@@ -54,7 +54,7 @@ def extract_num_conflicts(s):
 def eval_formula(maxvar,clauses,universals=set()):
     # print(str(maxvar))
     # print(str(clauses))
-    tool = './../cadet/feat-rl/cadet' if len(universals) > 0 else 'picosat'
+    tool = './../cadet/dev/cadet' if len(universals) > 0 else 'picosat'
     p = Popen([tool,'-v','1','--cegar'],stdout=PIPE,stdin=PIPE)
     p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clauses))))
     if len(universals) > 0:

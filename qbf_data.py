@@ -9,7 +9,7 @@ import re
 import collections
 import os
 import random
-import pdb
+import ipdb
 
 _use_shared_memory = False
 
@@ -17,6 +17,11 @@ class QbfBase(object):
     def __init__(self, qcnf = None, **kwargs):
         self.sparse = kwargs['sparse'] if 'sparse' in kwargs else False
         self.qcnf = qcnf
+        if 'max_variables' in kwargs:
+            self._max_vars = kwargs['max_variables']
+        if 'max_clauses' in kwargs:
+            self._max_clauses = kwargs['max_clauses']
+
 
     def reload_qdimacs(self, fname):
         self.qcnf = qdimacs_to_cnf(fname)
@@ -33,10 +38,16 @@ class QbfBase(object):
         return self.qcnf['num_clauses']
     @property
     def max_vars(self):
-        return self.num_vars
+        try:
+            return self._max_vars
+        except:
+            return self.num_vars
     @property
     def max_clauses(self):
-        return self.num_clauses
+        try:
+            return self._max_clauses
+        except:
+            return self.num_clauses
 
 
     # This returns a 0-based numpy array of values per variable up to num_vars. 0 in universal, 1 is existential, 2 is missing
@@ -76,24 +87,12 @@ class QbfBase(object):
         clauses = sample['clauses']                
         new_all_clauses = []        
 
-        for i in range(self.max_clauses):
-            new_clause = np.zeros(self.max_vars)
-            if i<len(clauses):
-                x = clauses[i]
-                for j in range(self.max_vars):
-                    t = j+1             # We read directly from file, which is 1-based, this makes it into 0-based
-                    if t in x:
-                        new_clause[j]=1
-                    elif -t in x:                        
-                        new_clause[j]=-1
-                new_all_clauses.append(new_clause)
-            else:                
-                new_all_clauses.append(new_clause)
-        if len(new_all_clauses) != self.max_clauses:
-            import ipdb; ipdb.set_trace()
-        
-        v2c = np.stack(new_all_clauses)        
-        return v2c
+        rc = np.zeros([self.max_clauses, self.max_vars])
+        for i in range(self.num_clauses):
+            for j in clauses[i]:                
+                t = (abs(j)-1)*sign(j)
+                rc[i][t]=sign(j)
+        return rc
 
 
     def as_tensor_dict(self):
@@ -106,9 +105,8 @@ class QbfBase(object):
             sp_val_pos = torch.ones(len(sp_ind_pos))
             sp_val_neg = torch.ones(len(sp_ind_neg))
 
-            rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([self.num_clauses,self.num_vars]))
-            rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([self.num_clauses,self.num_vars]))
+            rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([self.max_clauses,self.max_vars]))
+            rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([self.max_clauses,self.max_vars]))
         
         rc['v2c'] = torch.from_numpy(self.get_dense_adj_matrices(self.qcnf))
-
         return rc

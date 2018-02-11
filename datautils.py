@@ -11,6 +11,7 @@ import collections
 import os
 import random
 import pdb
+import ipdb
 
 _use_shared_memory = False
 
@@ -53,7 +54,6 @@ def cnf_collate(batch):
         sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
         sp_val_pos = torch.ones(len(sp_ind_pos))
         sp_val_neg = torch.ones(len(sp_ind_neg))
-
         rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([c_size*len(batch),v_size*len(batch)]))
         rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([c_size*len(batch),v_size*len(batch)]))
     else:

@@ -8,9 +8,9 @@ import utils
 import numpy as np
 import ipdb
 # import pdb
-from settings import *
 from qbf_data import *
 from batch_model import FactoredInnerIteration, GroundCombinator, DummyGroundCombinator, GraphEmbedder
+from settings import *
 
 
 class Policy(nn.Module):
@@ -30,7 +30,7 @@ class Policy(nn.Module):
 		# self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
 		self.action_score = nn.Linear(self.policy_dim1,1)
 		self.activation = F.relu
-
+		self.saved_log_probs = []
 
 	# (Re)load the encoder
 	def re_init_qbf_base(self, qbf):
@@ -44,13 +44,13 @@ class Policy(nn.Module):
 
 
 	def get_data_from_qbf(self):
-		b = self.qbf.as_tensor_dict()
+		b = self.qbf.as_tensor_dict()		
 		if self.settings['cuda']:
 			func = lambda x: x.cuda() 
 		else:
 			func = lambda x: x
 		rc = {}
-		rc['input'] = func(Variable(b['v2c'].transpose(0,1), requires_grad=False))
+		rc['input'] = func(Variable(b['v2c'].transpose(0,1).unsqueeze(0), requires_grad=False))
 		rc['cmat_pos'] = func(Variable(b['sp_v2c_pos'], requires_grad=False))
 		rc['cmat_neg'] = func(Variable(b['sp_v2c_neg'], requires_grad=False))
 		return rc
@@ -62,10 +62,10 @@ class Policy(nn.Module):
 		else:
 			''' We have to get the embeddings from our encoder, which possibly changed. We assume the QbfEncoder is up to date 
 					with the structure of the graph and includes the correct ground embeddings. We also assume our qbf is up to date.
-			'''
-
+			'''			
 			a = self.get_data_from_qbf()
 			vs = self.encoder(**a)
+		ipdb.set_trace()
 		cand_actions = vs[actions]
 		inputs = torch.cat([state.expand(len(cand_actions),len(state)), cand_actions],dim=1)
 
@@ -82,7 +82,8 @@ class QbfEncoder(nn.Module):
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.debug = False
 		self.ground_dim = 3					# 1 - existential, 2 - universal, 3 (not yet used) - determinized
-		self.batch_size = 1					# Not using self.settings['batch_size'] for now, cuz its RL, no batch
+		# self.batch_size = 1
+		self.batch_size = self.settings['batch_size']
 		self.max_variables = self.settings['max_variables']
 		self.embedding_dim = embedding_dim		
 		self.expand_dim_const = Variable(self.settings.zeros([self.max_variables,self.embedding_dim - self.ground_dim]), requires_grad=False)
@@ -92,9 +93,7 @@ class QbfEncoder(nn.Module):
 		nn_init.normal(self.forward_pos_neg)		
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
 		nn_init.normal(self.backwards_pos_neg)
-				
-		else:
-			self.ground_annotations = None
+		self.ground_annotations = None
 		
 	def recreate_ground(self, var_types):
 		self.ground_annotations = self.expand_ground_to_state(self.create_ground_labels(var_types))
@@ -137,7 +136,7 @@ class QbfEncoder(nn.Module):
 		else:
 			f_vars = input
 			f_clauses = f_vars.transpose(1,2)		
-		v = self.get_ground_embeddings()		
+		v = self.get_ground_embeddings()				
 		variables = v.expand(len(input),v.size(0),1).contiguous()
 		ground_variables = variables.view(-1,self.embedding_dim)[:,:self.ground_dim]
 

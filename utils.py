@@ -2,6 +2,7 @@ import torch
 import itertools
 import numpy as np
 from torch.autograd import Variable
+import scipy.signal
 import getopt
 import sys
 from pprint import pprint

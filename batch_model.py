@@ -169,16 +169,12 @@ class FactoredInnerIteration(nn.Module):
 		size = v.size(1)	# batch x num_vars
 		use_neg = self.settings['negate_type'] != 'minus'
 		if use_neg:
-			pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)
-			ipdb.set_trace()
+			pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)			
 			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
 				pos_cmat = kwargs['cmat_pos']
-				neg_cmat = kwargs['cmat_neg']				
-				try:
-					c = torch.mm(pos_cmat,pos_vars) + torch.mm(neg_cmat,neg_vars)
-					c = c.view(bsize,-1,self.embedding_dim)
-				except Exception:
-					pdb.set_trace()
+				neg_cmat = kwargs['cmat_neg']												
+				c = torch.mm(pos_cmat,pos_vars) + torch.mm(neg_cmat,neg_vars)
+				c = c.view(bsize,-1,self.embedding_dim)				
 			else:				
 				pos_cmat = c_mat.clamp(0,1).float()
 				neg_cmat = -c_mat.clamp(-1,0).float()
@@ -254,7 +250,7 @@ class BatchEncoder(nn.Module):
 		self.batch_size = self.settings['batch_size']
 		self.max_variables = self.settings['max_variables']
 		self.embedding_dim = embedding_dim		
-		self.expand_dim_const = Variable(self.settings.zeros([self.max_variables,self.embedding_dim - self.ground_dim]), requires_grad=False)
+		self.expand_dim_const = Variable(self.settings.zeros([self.max_variables,self.embedding_dim - self.ground_dim - 1 ]), requires_grad=False)
 		self.max_iters = max_iters		
 		self.num_ground_variables = num_ground_variables		
 		self.use_ground = self.settings['use_ground']
@@ -353,7 +349,7 @@ class BatchEncoder(nn.Module):
 			f_clauses = None
 		else:
 			f_vars = input
-			f_clauses = f_vars.transpose(1,2)		
+			f_clauses = f_vars.transpose(1,2)				
 		v = self.get_ground_embeddings()		
 		variables = v.expand(len(input),v.size(0),1).contiguous()
 		ground_variables = variables.view(-1,self.embedding_dim)[:,:self.ground_dim]

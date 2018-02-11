@@ -38,8 +38,7 @@ def cfg():
 	base_model = None
 	base_mode = BaseMode.ALL
 	max_iters = 12
-	batch_size = 1			# for RL
-	# batch_size = 64
+	batch_size = 64
 	val_size = 100 
 	threshold = 10
 	init_lr = 0.001
@@ -91,16 +90,16 @@ def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):
 
 
 	# pdb.set_trace()
-	ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
-	ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=0, ref_dataset=ds1, mode=data_mode)
-	# ns1 = CnfDataset.from_dimacs('data/train_big_20/sat/', 'data/train_big_20/unsat/', max_size=300, sparse=settings['sparse'])
-	# ns2 = CnfDataset.from_dimacs('data/validation_20/sat/', 'data/validation_20/unsat/', max_size=300, sparse=settings['sparse'])
+	# ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
+	# ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=0, ref_dataset=ds1, mode=data_mode)
+	ns1 = CnfDataset.from_dimacs('data/train_big_10/sat/', 'data/train_big_10/unsat/', max_size=100, sparse=settings['sparse'])
+	ns2 = CnfDataset.from_dimacs('data/validation_10/sat/', 'data/validation_10/unsat/', max_size=100, sparse=settings['sparse'])
 	# ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode, num_max_clauses=12)
 	# ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode, num_max_clauses=12)
 	# ds3 = CnfDataset(DS_TEST_FILE, threshold, ref_dataset=ds1, mode=data_mode)
-	print('Classes from validation set:')
-	print(ds2.labels)
-	train(ds1,ds2)
+	# print('Classes from validation set:')
+	# print(ds2.labels)
+	# train(ds1,ds2)
 
-	# print('max_variables, clauses: %d, %d' % (ns1.max_variables, ns1.max_clauses))
-	# train(ns1,ns2)
+	print('max_variables, clauses: %d, %d' % (ns1.max_variables, ns1.max_clauses))
+	train(ns1,ns2)

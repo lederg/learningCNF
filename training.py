@@ -148,6 +148,7 @@ def train(ds, ds_validate=None, net=None):
             labels = Variable(data['label'], requires_grad=False)
             cmat_pos = Variable(data['sp_v2c_pos'], requires_grad=False)
             cmat_neg = Variable(data['sp_v2c_neg'], requires_grad=False)
+            ipdb.set_trace()
             ind = data['idx_in_dataset']
             if settings.hyperparameters['cuda']:
                 topvar, labels = topvar.cuda(), labels.cuda()

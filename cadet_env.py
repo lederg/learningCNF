@@ -15,7 +15,7 @@ class CadetEnv:
   def __init__(self, cadet_binary, debug=False, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
-    self.cadet_proc = Popen([self.cadet_binary,  '--rl'], stdout=PIPE, stdin=PIPE, stderr=PIPE, universal_newlines=True)
+    self.cadet_proc = Popen([self.cadet_binary,  '--rl', '--cegar'], stdout=PIPE, stdin=PIPE, stderr=PIPE, universal_newlines=True)
     self.qbf = QbfBase(**kwargs)
     self.done = True      
 
@@ -82,7 +82,8 @@ class CadetEnv:
       self.vars_deterministic[np.asarray(var_updates_add)] = 1
     if var_updates_remove:
       self.vars_deterministic[np.asarray(var_updates_remove)] = 0
-    return state, np.where(self.vars_deterministic==0)[0], self.done
+    # return state, np.where(self.vars_deterministic==0)[0], self.done
+    return state, np.asarray(var_updates_add), np.asarray(var_updates_remove), self.done
 
   def step(self, action):
     assert(not self.done)

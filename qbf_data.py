@@ -15,6 +15,8 @@ _use_shared_memory = False
 
 MAX_VARIABLES = 50
 MAX_CLAUSES = 500
+GROUND_DIM = 4
+IDX_VAR_MISSING = 2
 
 class QbfBase(object):    
     def __init__(self, qcnf = None, **kwargs):
@@ -66,7 +68,7 @@ class QbfBase(object):
         rc = np.zeros(self.num_vars)+2
         for k in a.keys():
             rc[k-1] = 0 if a[k]['universal'] else 1
-        return rc
+        return rc.astype(int)
 
 
     def get_adj_matrices(self,sample):
@@ -118,9 +120,7 @@ class QbfBase(object):
         
         rc['v2c'] = torch.from_numpy(self.get_dense_adj_matrices(self.qcnf))
         return rc
-
-    # Continue here tomorrow, the idea is to make it return np vals of everything, to be used in a dataset object
-
+    
     def as_np_dict(self):
         rc = {}
                 
@@ -157,6 +157,7 @@ class QbfDataset(Dataset):
         rc = [x for x in rc if x and x.num_vars <= self.max_vars and x.num_clauses < self.max_clauses\
                                                              and x.num_clauses > 0 and x.num_vars > 0]
         self.samples += rc
+        return len(rc)
 
     def load_file(self,fname):
         self.load_files([fname])
@@ -168,21 +169,41 @@ class QbfDataset(Dataset):
         print('getting idx %d' % idx)
         return self.samples[idx].as_np_dict()
 
+def create_ground_labels(self,var_types):
+        base_annotations = self.settings.zeros([self.max_variables, self.ground_dim])
+        for i,val in enumerate(var_types):
+            base_annotations[i][val] = True
+
+        return base_annotations
 
 
 def qbf_collate(batch):
     rc = {}
 
-    v_size = max([x['num_vars'] for x in batch])
-    c_size = max([x['num_clauses'] for x in batch])
+    # Get max var/clauses for this batch    
+    v_size = max([b['num_vars'] for b in batch])
+    c_size = max([b['num_clauses'] for b in batch])
+
+    # adjacency matrix indices in one huge matrix
     rc_i = np.concatenate([b['sp_indices'] + np.asarray([i*c_size,i*v_size]) for i,b in enumerate(batch)], 0)
     rc_v = np.concatenate([b['sp_vals'] for b in batch], 0)
+
+    # make var_types into ground embeddings
+    embs = np.zeros([len(batch),v_size,GROUND_DIM])
+    for i,b in enumerate(batch):
+        for j, val in enumerate(b['var_types']):
+            embs[i][j][val] = True
+        embs[i,b['num_vars']:,IDX_VAR_MISSING] = True
+
+    # break into pos/neg
     sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
     sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
     sp_val_pos = torch.ones(len(sp_ind_pos))
     sp_val_neg = torch.ones(len(sp_ind_neg))
+
+
     rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([c_size*len(batch),v_size*len(batch)]))
     rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([c_size*len(batch),v_size*len(batch)]))
-    
+    rc['ground'] = torch.from_numpy(embs)
     return rc
 

@@ -3,9 +3,9 @@ import ipdb
 
 def cfg():	
 	exp_time = int(time.time())
-	state_dim = 30
+	state_dim = 35
 	embedding_dim = 10
-	ground_dim = 3
+	ground_dim = 4
 	policy_dim1 = 100
 	policy_dim2 = 50
 	max_variables = 200 

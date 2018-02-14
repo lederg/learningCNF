@@ -86,8 +86,11 @@ def qdimacs_to_cnf(filename, zero_based=False):
         num_clauses = int(line[3])        
         for line in f.readlines():            
             if line[0] == 'a' or line[0] == 'e':                
-                vs = [int(x)+offset for x in line.split(' ')[1:-1]]                    
+                vs = [int(x)+offset for x in line.split(' ')[1:-1]]
                 for x in vs:
+                    if x>maxvar:
+                        print('Warning: maxvar is lower than whats in the formula, updating')
+                        maxvar = x
                     cvars[x] = {'universal': line[0]=='a', 'clauses': []}
 
         # read all clauses

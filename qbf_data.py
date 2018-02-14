@@ -13,6 +13,9 @@ import ipdb
 
 _use_shared_memory = False
 
+MAX_VARIABLES = 50
+MAX_CLAUSES = 500
+
 class QbfBase(object):    
     def __init__(self, qcnf = None, **kwargs):
         self.sparse = kwargs['sparse'] if 'sparse' in kwargs else False
@@ -28,7 +31,12 @@ class QbfBase(object):
 
     @classmethod 
     def from_qdimacs(cls, fname, **kwargs):
-        return cls(qdimacs_to_cnf(fname), **kwargs)
+        try:
+            rc = qdimacs_to_cnf(fname)
+            if rc:
+                return cls(rc, **kwargs)
+        except:
+            print('Error parsing file %s' % fname)
 
     @property
     def num_vars(self):
@@ -110,3 +118,71 @@ class QbfBase(object):
         
         rc['v2c'] = torch.from_numpy(self.get_dense_adj_matrices(self.qcnf))
         return rc
+
+    # Continue here tomorrow, the idea is to make it return np vals of everything, to be used in a dataset object
+
+    def as_np_dict(self):
+        rc = {}
+                
+        rc_i, rc_v = self.get_sparse_adj_matrices(self.qcnf)
+        
+        # rc['sp_ind_pos'] = rc_i[np.where(rc_v>0)]
+        # rc['sp_ind_neg'] = rc_i[np.where(rc_v<0)]
+        rc['sp_indices'] = rc_i
+        rc['sp_vals'] = rc_v
+        rc['var_types'] = self.var_types
+        rc['num_vars'] = self.num_vars
+        rc['num_clauses'] = self.num_clauses
+                
+        return rc
+
+
+f2qbf = lambda x: QbfBase.from_qdimacs(x)
+
+class QbfDataset(Dataset):
+    def __init__(self,dirname=None, fnames=None, max_variables=MAX_VARIABLES, max_clauses=MAX_CLAUSES):
+        self.samples = []
+        self.max_vars = max_variables
+        self.max_clauses = max_clauses
+        if dirname:            
+            self.load_dir(dirname)
+        elif fnames:
+            self.load_files(fnames)
+
+    def load_dir(self, directory):
+        self.load_files([join(directory, f) for f in listdir(directory)])
+
+    def load_files(self, files):
+        rc = map(f2qbf,files)
+        rc = [x for x in rc if x and x.num_vars <= self.max_vars and x.num_clauses < self.max_clauses\
+                                                             and x.num_clauses > 0 and x.num_vars > 0]
+        self.samples += rc
+
+    def load_file(self,fname):
+        self.load_files([fname])
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        print('getting idx %d' % idx)
+        return self.samples[idx].as_np_dict()
+
+
+
+def qbf_collate(batch):
+    rc = {}
+
+    v_size = max([x['num_vars'] for x in batch])
+    c_size = max([x['num_clauses'] for x in batch])
+    rc_i = np.concatenate([b['sp_indices'] + np.asarray([i*c_size,i*v_size]) for i,b in enumerate(batch)], 0)
+    rc_v = np.concatenate([b['sp_vals'] for b in batch], 0)
+    sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
+    sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
+    sp_val_pos = torch.ones(len(sp_ind_pos))
+    sp_val_neg = torch.ones(len(sp_ind_neg))
+    rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([c_size*len(batch),v_size*len(batch)]))
+    rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([c_size*len(batch),v_size*len(batch)]))
+    
+    return rc
+

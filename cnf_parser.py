@@ -77,24 +77,25 @@ def qdimacs_to_cnf(filename, zero_based=False):
     # offset = -1 if zero_based else 0
     offset = 0
     with open(filename, 'r') as f:
-        f.readline()        # header
-        line = f.readline().split(' ')        # Number of vars/clauses - "p cnf 159 312"
+        while True:
+            a = f.readline()        # header
+            if a[0] == 'p':
+                break
+        line = a.split(' ')        # Number of vars/clauses - "p cnf 159 312"
         maxvar = int(line[2])
         num_clauses = int(line[3])        
-        line = f.readline() # universal vars
-        universal_vars = [int(x)+offset for x in line.split(' ')[1:-1]]
-        line = f.readline() # existential vars
-        existential_vars = [int(x)+offset for x in line.split(' ')[1:-1]]
-        for x in universal_vars:
-            cvars[x] = {'universal': True, 'clauses': []}
-        for x in existential_vars:
-            cvars[x] = {'universal': False, 'clauses': []}
+        for line in f.readlines():            
+            if line[0] == 'a' or line[0] == 'e':                
+                vs = [int(x)+offset for x in line.split(' ')[1:-1]]                    
+                for x in vs:
+                    cvars[x] = {'universal': line[0]=='a', 'clauses': []}
 
         # read all clauses
-        for line in f.readlines():
-            words = line.split()        
-            lits = [int(x) for x in words[:-1]]            
-            clauses.append(simplify_clause(lits))
+        
+            else:
+                words = line.split()        
+                lits = [int(x) for x in words[:-1]]            
+                clauses.append(simplify_clause(lits))
 
     for c in clauses:
         for lit in c:
@@ -105,17 +106,15 @@ def qdimacs_to_cnf(filename, zero_based=False):
         if len(cvars[x]['clauses']) > MAX_CLAUSES_PER_VARIABLE:
             print(len(cvars[x]['clauses']))
             print('Error: too many clauses for variable ' + str(x))
-            from IPython.core.debugger import Tracer
-            Tracer()() 
-            ipdb.set_trace()
-            # quit()
+            return None
             
 
                         
     return {'maxvar' : maxvar, 
            'num_clauses': num_clauses, 
            'clauses': clauses,
-           'cvars' : cvars
+           'cvars' : cvars,
+           'fname': filename
            }
     
 def load_class(directory):

@@ -20,7 +20,8 @@ class Policy(nn.Module):
 		self.max_variables = self.settings['max_variables']
 		self.max_clauses = self.settings['max_clauses']
 		self.state_dim = self.settings['state_dim']
-		self.embedding_dim = self.settings['embedding_dim']		
+		self.embedding_dim = self.settings['embedding_dim']
+		self.ground_dim = self.settings['ground_dim']
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']
 		self.qbf = QbfBase(sparse=self.settings['sparse'])
@@ -36,11 +37,15 @@ class Policy(nn.Module):
 	def re_init_qbf_base(self, qbf):
 		self.qbf = qbf
 		assert(self.max_variables >= self.qbf.num_vars)
-		assert(self.max_clauses >= self.qbf.num_clauses)
-		self.encoder.recreate_ground(self.qbf.var_types)
+		assert(self.max_clauses >= self.qbf.num_clau(batched) ses)
+		# self.encoder.recreate_ground(self.qbf.var_types)
 
-	# state is just a vector of fixed size state_dim which should be expanded. 
-	# actions is a list of action indices. We will use them to get the relevant embeddings.
+	def create_ground_labels(self,var_types):
+		base_annotations = self.settings.zeros([self.max_variables, self.ground_dim])
+		for i,val in enumerate(var_types):
+			base_annotations[i][val] = True
+
+		return base_annotations
 
 
 	def get_data_from_qbf(self):
@@ -53,42 +58,42 @@ class Policy(nn.Module):
 		rc['input'] = func(Variable(b['v2c'].transpose(0,1).unsqueeze(0), requires_grad=False))
 		rc['cmat_pos'] = func(Variable(b['sp_v2c_pos'], requires_grad=False))
 		rc['cmat_neg'] = func(Variable(b['sp_v2c_neg'], requires_grad=False))
+		rc['ground_embeddings'] = func(Variable(self.create_ground_labels(self.qbf.var_types)))
 		return rc
 
+	# state is just a (batched) vector of fixed size state_dim which should be expanded. 
+	# ground_embeddings are batch * max_vars * ground_embedding
 
-	def forward(self, state, actions, **kwargs):
+	# kwargs includes 'input', 'cmat_pos', 'cmat_neg', the latter two already in the correct format.
+
+	def forward(self, state, **kwargs):		
 		if 'vs' in kwargs.keys():
 			vs = kwargs['vs']
-		else:
-			''' We have to get the embeddings from our encoder, which possibly changed. We assume the QbfEncoder is up to date 
-					with the structure of the graph and includes the correct ground embeddings. We also assume our qbf is up to date.
-			'''			
-			a = self.get_data_from_qbf()
-			vs = self.encoder(**a)
-		ipdb.set_trace()
-		cand_actions = vs[actions]
-		inputs = torch.cat([state.expand(len(cand_actions),len(state)), cand_actions],dim=1)
+		else:			
+			# vs = self.encoder(**a).view(self.settings['batch_size'],self.max_variables,self.embedding_dim)		
+			vs = self.encoder(**a).view(-1,self.embedding_dim)		
+		inputs = torch.cat([state.expand(len(vs),len(state)), vs],dim=1)
 
 		# Note, the softmax is on dimension 0, along the batch. We compute it on all candidate actions.
 
 		# rc = F.softmax(self.action_scores(self.activation(self.linear2(self.activation(self.linear1(inputs))))), dim=0)
-		outputs = self.action_scores(self.activation(self.linear1(inputs)))
-		rc = F.softmax(outputs, dim=0)
+		outputs = self.action_scores(self.activation(self.linear1(inputs))).view(-1,self.max_variables)
+		rc = F.softmax(outputs)
 		return rc
 
 class QbfEncoder(nn.Module):
-	def __init__(self, embedding_dim, num_ground_variables, max_iters, **kwargs):
+	def __init__(self, **kwargs):
 		super(QbfEncoder, self).__init__() 
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.debug = False
 		self.ground_dim = 3					# 1 - existential, 2 - universal, 3 (not yet used) - determinized
 		# self.batch_size = 1
 		self.batch_size = self.settings['batch_size']
+		self.embedding_dim = self.settings['embedding_dim']
 		self.max_variables = self.settings['max_variables']
-		self.embedding_dim = embedding_dim		
-		self.expand_dim_const = Variable(self.settings.zeros([self.max_variables,self.embedding_dim - self.ground_dim]), requires_grad=False)
-		self.max_iters = max_iters				
-		self.inner_iteration = FactoredInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=0, **kwargs)			
+		self.expand_dim_const = Variable(self.settings.zeros(1).expand(self.batch_size*self.max_variables,self.embedding_dim - self.ground_dim), requires_grad=False)
+		self.max_iters = self.settings['max_iters']
+		self.inner_iteration = FactoredInnerIteration(self.get_ground_embeddings, **kwargs)			
 		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
 		nn_init.normal(self.forward_pos_neg)		
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
@@ -104,13 +109,6 @@ class QbfEncoder(nn.Module):
 		else:
 			self.ground_annotations = self.ground_annotations.cpu()
 			
-	def create_ground_labels(self,var_types):
-		base_annotations = self.settings.zeros([self.max_variables, self.ground_dim])
-		for i,val in enumerate(var_types):
-			base_annotations[i][val] = True
-
-		return Variable(base_annotations, requires_grad=False)
-
 	def expand_ground_to_state(self,v):
 		return torch.cat([v,self.expand_dim_const],dim=1)
 
@@ -126,8 +124,11 @@ class QbfEncoder(nn.Module):
 
 
 # This should probably be factored into a base class, its basically the same as for BatchEncoder
+
+# ground_embeddings are (batch,maxvars,embedding_dim)
+
 	
-	def forward(self, input, **kwargs):
+	def forward(self, input, ground_embeddings, **kwargs):
 		variables = []
 		clauses = []
 		if self.settings['sparse']:			
@@ -135,25 +136,24 @@ class QbfEncoder(nn.Module):
 			f_clauses = None
 		else:
 			f_vars = input
-			f_clauses = f_vars.transpose(1,2)		
-		v = self.get_ground_embeddings()				
-		variables = v.expand(len(input),v.size(0),1).contiguous()
-		ground_variables = variables.view(-1,self.embedding_dim)[:,:self.ground_dim]
+			f_clauses = f_vars.transpose(1,2)				
+		v = self.expand_ground_to_state(ground_embeddings.view(-1,self.embedding_dim)).view(1,-1).transpose(0,1)
+		variables = v.view(-1,self.embedding_dim*self.max_variables,1)
+		
+		# Inner iteration expects (batch*,embedding_dim*maxvar,1) for variables
 
 		if self.debug:
 			print('Variables:')
 			print(variables)
 			pdb.set_trace()
 		# Start propagation
-
-		self.inner_iteration.re_init()
 		
 		for i in range(self.max_iters):
 			# print('Starting iteration %d' % i)
 			if (variables != variables).data.any():
 				print('Variables have nan!')
 				pdb.set_trace()
-			variables = self.inner_iteration(variables, f_vars, f_clauses, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg, **kwargs)
+			variables = self.inner_iteration(variables, f_vars, f_clauses, ground_vars=ground_embeddings, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg, **kwargs)
 			# variables = self.inner_iteration(variables, v_mat, c_mat, ground_vars=ground_variables, v_block = self.forward_pos_neg, c_block=self.backwards_pos_neg, old_forward=True)
 			if self.debug:
 				print('Variables:')

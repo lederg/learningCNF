@@ -5,9 +5,7 @@ def cfg():
 	exp_time = int(time.time())
 	state_dim = 35
 	embedding_dim = 10
-	ground_dim = 4
-	policy_dim1 = 100
-	policy_dim2 = 50
+	ground_dim = 5
 	max_variables = 200 
 	max_clauses = 600
 	num_ground_variables = 3 	
@@ -47,9 +45,16 @@ def cfg():
 	# 'cuda = True 
 	cuda = False
 	reset_on_save = False
-
-
 	run_task='train'
+
+# RL
+
+	gamma=0.99
+	policy_dim1 = 100
+	policy_dim2 = 50
+	min_timesteps_per_batch = 400
+
+# Localization
 
 	max_edges = 20
 

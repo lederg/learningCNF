@@ -15,8 +15,12 @@ _use_shared_memory = False
 
 MAX_VARIABLES = 50
 MAX_CLAUSES = 500
-GROUND_DIM = 4
+GROUND_DIM = 5
+IDX_VAR_UNIVERSAL = 0
+IDX_VAR_EXISTENTIAL = 1
 IDX_VAR_MISSING = 2
+IDX_VAR_DETERMINIZED = 3
+IDX_VAR_ACTIVITY = 4
 
 class QbfBase(object):    
     def __init__(self, qcnf = None, **kwargs):
@@ -153,29 +157,25 @@ class QbfDataset(Dataset):
         self.load_files([join(directory, f) for f in listdir(directory)])
 
     def load_files(self, files):
-        rc = map(f2qbf,files)
-        rc = [x for x in rc if x and x.num_vars <= self.max_vars and x.num_clauses < self.max_clauses\
-                                                             and x.num_clauses > 0 and x.num_vars > 0]
+        rc = zip(map(f2qbf,files),files)
+        rc = [x for x in rc if x[0] and x[0].num_vars <= self.max_vars and x[0].num_clauses < self.max_clauses\
+                                                             and x[0].num_clauses > 0 and x[0].num_vars > 0]
         self.samples += rc
         return len(rc)
 
     def load_file(self,fname):
         self.load_files([fname])
 
+    def get_files_list(self):
+        _, rc = zip(*self.samples)
+        return rc
+
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         print('getting idx %d' % idx)
-        return self.samples[idx].as_np_dict()
-
-def create_ground_labels(self,var_types):
-        base_annotations = self.settings.zeros([self.max_variables, self.ground_dim])
-        for i,val in enumerate(var_types):
-            base_annotations[i][val] = True
-
-        return base_annotations
-
+        return self.samples[idx][0].as_np_dict()
 
 def qbf_collate(batch):
     rc = {}

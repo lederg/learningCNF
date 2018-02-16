@@ -32,19 +32,6 @@ class Policy(nn.Module):
 		self.activation = F.relu
 		self.saved_log_probs = []
 	
-	def get_data_from_qbf(self):
-		b = self.qbf.as_tensor_dict()		
-		if self.settings['cuda']:
-			func = lambda x: x.cuda() 
-		else:
-			func = lambda x: x
-		rc = {}
-		rc['input'] = func(Variable(b['v2c'].transpose(0,1).unsqueeze(0), requires_grad=False))
-		rc['cmat_pos'] = func(Variable(b['sp_v2c_pos'], requires_grad=False))
-		rc['cmat_neg'] = func(Variable(b['sp_v2c_neg'], requires_grad=False))
-		rc['ground_embeddings'] = func(Variable(self.create_ground_labels(self.qbf.var_types)))
-		return rc
-
 	# state is just a (batched) vector of fixed size state_dim which should be expanded. 
 	# ground_embeddings are batch * max_vars * ground_embedding
 

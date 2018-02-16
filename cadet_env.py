@@ -35,6 +35,8 @@ class CadetEnv:
       self.write_action(-1)
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
+    self.activities = np.zeros(self.qbf.num_vars)
+
     self.write(fname+'\n')
     self.done = False
     return self.read_state_update()     # Initial state
@@ -54,36 +56,45 @@ class CadetEnv:
 
   '''
   def read_state_update(self):
-    var_updates_add = []
-    var_updates_remove = []
+    self.vars_deterministic.fill(0)
+    self.activities.fill(0)
     while True:
       a = self.cadet_proc.stdout.readline()
+      print(a)
       if not a: continue
       if a == 'UNSAT\n':
         a = self.cadet_proc.stdout.readline()     # refutation line
         a = self.cadet_proc.stdout.readline()     # rewards
-        self.rewards = np.asarray(map(float,a.split()[1:]))
+        self.rewards = np.asarray(list(map(float,a.split()[1:])))
         self.done = True
-        return None, None, True
+        return None, None, None, None, True
+      elif a == 'SAT\n':
+        ipdb.set_trace()
+        a = self.cadet_proc.stdout.readline()     # rewards
+        self.rewards = np.asarray(list(map(float,a.split()[1:])))
+        self.done = True
+        return None, None, None, None, True
 
       elif a[0] == 'u':
         update = int(a[3:])-1     # Here we go from 1-based to 0-based
         if a[1] == '+':
-          var_updates_add.append(update)
+          self.vars_deterministic[update] = 1
         else:
-          var_updates_remove.append(update)
+          self.vars_deterministic[update] = -1
       elif a[0] == 's':
         state = np.array([float(x) for x in a[2:].split(',')])
         break
+      elif a[0] == 'a':
+        b = a[2:].split(',')
+        update = int(b[0])-1
+        activity = float(b[1])
+        self.activities[update] = activity
       else:        
         print('Got unprocessed line: %s' % a[:-1])
-      
-    if var_updates_add:
-      self.vars_deterministic[np.asarray(var_updates_add)] = 1
-    if var_updates_remove:
-      self.vars_deterministic[np.asarray(var_updates_remove)] = 0
-    # return state, np.where(self.vars_deterministic==0)[0], self.done
-    return state, np.asarray(var_updates_add), np.asarray(var_updates_remove), self.done
+        if a.startswith('Error'):
+          return
+          
+    return state, np.where(self.vars_deterministic>0), np.where(self.vars_deterministic<0), self.activities, self.done
 
   def step(self, action):
     assert(not self.done)

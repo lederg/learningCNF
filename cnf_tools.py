@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-#
-# USAGE: ./randomCNF <number_of_ground_variables> <number_of_files_to_generate>
-#
 
 import os
+import re
 from subprocess import Popen, PIPE, STDOUT
 
 MAX_CLAUSES_PER_VARIABLE = 35
@@ -21,47 +19,89 @@ def clause_to_string(c):
 def sign(x):
     return x and (1, -1)[x < 0]
 
-def write_to_file(maxvar, clause_list, filename):
+def write_to_file(maxvar, clause_list, filename, universals=set()):
     textfile = open(filename, "w")
     textfile.write('p cnf {} {}\n'.format(maxvar,len(clause_list)))
+    
+    if len(universals) > 0:
+        textfile.write('a')
+        for u in universals:
+            textfile.write(' {}'.format(u))
+        textfile.write(' 0\n')
+        textfile.write('e')
+        for v in range(1,maxvar+1):
+            if v not in universals:
+                textfile.write(' {}'.format(v))
+        textfile.write(' 0\n')
     # textfile.write('p cnf ' + str(maxvar) + ' ' + str(len(clause_list)) + '\n')
     for c in clause_list:
         textfile.write(clause_to_string(c))
     textfile.close()
 
-    # sat2 = subprocess.Popen("picosat {}".format(filename),
-    #                         shell=True,
-    #                         stdout=subprocess.PIPE,
-    #                         stderr=subprocess.STDOUT)
-    # sat2.communicate()[0]
-    # print('  ' + str(sat2.returncode))
+def extract_num_conflicts(s):
+    res = re.findall(' Conflicts: (\d+)', str(s))
+    if len(res) == 1:
+        return int(res[0])
+    else:
+        print('  ERROR: {}'.format(s))
+        return 0;
+    
+# def extract_num_vars(s):
+#     res = re.findall('Maximal variable index: (\d+)', str(s))
+#     assert(len(res) == 1)
+#     return int(res[0])
 
-def is_sat(maxvar,clauses):
+def eval_formula(maxvar,clauses,universals=set()):
     # print(str(maxvar))
     # print(str(clauses))
-    p = Popen(['picosat'],stdout=PIPE,stdin=PIPE)
+    tool = './../cadet/dev/cadet' if len(universals) > 0 else 'picosat'
+    p = Popen([tool,'-v','1','--cegar'],stdout=PIPE,stdin=PIPE)
     p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clauses))))
+    if len(universals) > 0:
+        p.stdin.write(str.encode('a'))
+        for u in universals:
+            p.stdin.write(str.encode(' {}'.format(u)))
+        p.stdin.write(str.encode(' 0\n'))
+        p.stdin.write(str.encode('e'))
+        for v in range(1,maxvar+1):
+            if v not in universals:
+                p.stdin.write(str.encode(' {}'.format(v)))
+        p.stdin.write(str.encode(' 0\n'))
     for c in clauses:
         p.stdin.write(str.encode(clause_to_string(c)))
     stdout, stderr = p.communicate()
     # print('  ' + str(p.returncode))
     # print('  ' + str(stdout))
     # print('  ' + str(stderr))
+    
+    # print('  Maxvar: ' + str(maxvar))
+    # print('  Conflicts: ' + str(extract_num_conflicts(stdout)))
+    
     p.stdin.close()
-    return p.returncode == 10
+    return (p.returncode, extract_num_conflicts(stdout))
+    
+def is_sat(maxvar,clauses,universals=set()):
+    (returncode,_) = eval_formula(maxvar,clauses,universals)
+    return returncode == 10
 
 def dimacs_to_clauselist(dimacs):
     clauses = []
     assert(MAX_CLAUSES_PER_VARIABLE >= 8) # otherwise code below might not work
-
+    maxvar = 0
     for line in dimacs:
         lits = line.split()[0:-1]
         if is_number(lits[0]):
             lits = list(map(int,lits))
             clauses.append(lits)
+        elif lits[0] == b'p': # header
+            assert(lits[1] == b'cnf')
+            assert(is_number(lits[2]))
+            maxvar = int(lits[2])
+            assert(maxvar != 0)
         else:
-            assert(lits[0] == b'p' or lits[0] == b'c') # must be header or comment in dimacs format
-    return clauses
+             assert(lits[0] == b'c') # must be comment in dimacs format
+    assert (maxvar != 0)
+    return maxvar, clauses
 
 # def normalizeCNF_string(cnf):
 #     occs = {}

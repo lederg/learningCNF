@@ -112,7 +112,7 @@ def cadet_main(settings):
       r, s = handle_episode(fname)
       r[-1] += ts_bonus(s)
       time_steps_this_batch += s
-      rewards.append(discount(r))
+      rewards.append(discount(r, settings['gamma']))
       ep_logprobs, ep_entropy = zip(*policy.saved_log_probs)
       logprobs.append(ep_logprobs)
       entropies.append(ep_entropy)

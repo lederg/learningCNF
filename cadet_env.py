@@ -1,5 +1,7 @@
 from subprocess import Popen, PIPE, STDOUT
+import select
 import ipdb
+import time
 from qbf_data import *
 
 def require_init(f, *args, **kwargs): 
@@ -16,13 +18,15 @@ class CadetEnv:
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.cadet_proc = Popen([self.cadet_binary,  '--rl', '--cegar'], stdout=PIPE, stdin=PIPE, stderr=PIPE, universal_newlines=True)
+    self.poll_obj = select.poll()
+    self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
     self.qbf = QbfBase(**kwargs)
     self.done = True      
 
 
   def eat_initial_output(self):
-    self.cadet_proc.stdout.readline()
-    self.cadet_proc.stdout.readline()
+    self.read_line_with_timeout()
+    self.read_line_with_timeout()
 
 
   def write(self, val):    
@@ -42,6 +46,26 @@ class CadetEnv:
     return self.read_state_update()     # Initial state
 
 
+  def read_line_with_timeout(self, timeout=10.):
+    return self.cadet_proc.stdout.readline()
+    entry = time.time()
+    curr = entry
+    line = ''
+    while curr < entry + timeout:
+      p = self.poll_obj.poll(0) 
+      if p:
+        c = self.cadet_proc.stdout.read(1)
+        if c == '\n':
+          # ipdb.set_trace()
+          return line
+        line += c
+      else:
+        # print('Poll negative..')
+        pass
+      curr = time.time()
+
+    return None
+
   # This is where we go from 0-based to 1-based
   def write_action(self, a):
     self.write('%d\n' % (a+1))
@@ -59,18 +83,18 @@ class CadetEnv:
     self.vars_deterministic.fill(0)
     self.activities.fill(0)
     while True:
-      a = self.cadet_proc.stdout.readline()
+      a = self.read_line_with_timeout()
       print(a)
       if not a: continue
       if a == 'UNSAT\n':
-        a = self.cadet_proc.stdout.readline()     # refutation line
-        a = self.cadet_proc.stdout.readline()     # rewards
+        a = self.read_line_with_timeout()     # refutation line
+        a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
         self.done = True
         return None, None, None, None, True
       elif a == 'SAT\n':
         ipdb.set_trace()
-        a = self.cadet_proc.stdout.readline()     # rewards
+        a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
         self.done = True
         return None, None, None, None, True
@@ -90,7 +114,7 @@ class CadetEnv:
         activity = float(b[1])
         self.activities[update] = activity
       else:        
-        print('Got unprocessed line: %s' % a[:-1])
+        print('Got unprocessed line: %s' % a)
         if a.startswith('Error'):
           return
           

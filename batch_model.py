@@ -174,8 +174,9 @@ class FactoredInnerIteration(nn.Module):
 			pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)			
 			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
 				pos_cmat = kwargs['cmat_pos']
-				neg_cmat = kwargs['cmat_neg']												
-				c = torch.mm(pos_cmat,pos_vars) + torch.mm(neg_cmat,neg_vars)
+				neg_cmat = kwargs['cmat_neg']
+				# c = torch.mm(pos_cmat,pos_vars) + torch.mm(neg_cmat,neg_vars)
+				c = torch.mm(pos_cmat,pos_vars) + torch.matmul(neg_cmat,neg_vars)
 				c = c.view(bsize,-1,self.embedding_dim)				
 			else:				
 				pos_cmat = c_mat.clamp(0,1).float()

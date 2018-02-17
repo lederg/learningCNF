@@ -15,12 +15,14 @@ _use_shared_memory = False
 
 MAX_VARIABLES = 50
 MAX_CLAUSES = 500
-GROUND_DIM = 5
+GROUND_DIM = 7
 IDX_VAR_UNIVERSAL = 0
 IDX_VAR_EXISTENTIAL = 1
 IDX_VAR_MISSING = 2
 IDX_VAR_DETERMINIZED = 3
 IDX_VAR_ACTIVITY = 4
+IDX_VAR_POLARITY_POS = 5
+IDX_VAR_POLARITY_NEG = 6
 
 class QbfBase(object):    
     def __init__(self, qcnf = None, **kwargs):

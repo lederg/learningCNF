@@ -69,6 +69,9 @@ def main(argv):
                 
                 assert((len(universals) > 0) == qbf)
                 (returncode, conflicts) = eval_formula(maxvar,clauses,universals)
+                if returncode not in [10,20]:
+                    print('Warning: unexpected return code: {}; ignoring this formula'.format(returncode))
+                    continue
                 if candidate_universals == None or candidate_conflicts < conflicts:
                     candidate_universals = universals
                     candidate_conflicts = conflicts
@@ -78,7 +81,7 @@ def main(argv):
                 if candidate_returncode == 10:
                     result_string = 'SAT'  
                     num_sat += 1
-                else:
+                else: # candidate_returncode == 20:
                     result_string = 'UNSAT'
                     num_unsat += 1
                 print('  best candidate has {} universals, is {}, and has {} conflicts'.format(len(candidate_universals),result_string,candidate_conflicts))

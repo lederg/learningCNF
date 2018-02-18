@@ -30,20 +30,22 @@ def select_action(state, ground_embs, **kwargs):
     dist = probs.data.numpy()[0]
     choices = range(len(dist))
     action = np.random.choice(choices, p=dist)
+    aug_action = np.where(np.where(dist>0)[0]==action)    # without the 0 probabilities
   except:
     print('Problem in np.random')
     ipdb.set_trace()
-  logprob = probs.log()[0][action]
+  a = probs[probs>0]
+  logprob = a.log()[aug_action]
+  # ipdb.set_trace()
   # m = Categorical(probs)  
   # action = m.sample()
   # actions_history.append(action)
-  a = probs[probs>0]
   entropy = -(a*a.log()).sum()  
   return action.data[0], logprob, entropy.view(1,)
   # return action.data[0], m.log_prob(action), entropy.view(1,)
 
-  # We return a ground embedding of (self.num_vars,4), where embedding is 0 - universal, 1 - existential, 2 - pad, 
-  # 3 - determinized, 4 - activity
+  # We return a ground embedding of (self.num_vars,7), where embedding is 0 - universal, 1 - existential, 2 - pad, 
+  # 3 - determinized, 4 - activity, [5,6] - pos/neg determinization
   # 3 is obviously empty here
 
 def get_base_ground(qbf):
@@ -108,15 +110,15 @@ def ts_bonus(s):
   return b/float(s)
 
 def cadet_main(settings):
-  rewards = []
-  time_steps_this_batch = 0
-  logprobs = []
-  entropies = []
   ds = QbfDataset(dirname='data/dataset1/')
   all_episode_files = ds.get_files_list()
   total_envs = len(all_episode_files)
 
   for iter in range(400):
+    rewards = []
+    time_steps_this_batch = 0
+    logprobs = []
+    entropies = []
     time_steps_this_batch = 0
     while time_steps_this_batch < settings['min_timesteps_per_batch']:
       fname = all_episode_files[random.randint(0,total_envs-1)]
@@ -125,6 +127,7 @@ def cadet_main(settings):
       s = len(r)
       r[-1] += ts_bonus(s)
       time_steps_this_batch += s
+      # ipdb.set_trace()
       rewards.extend(discount(r, settings['gamma']))
       ep_logprobs, ep_entropy = zip(*log_probs_and_entropy)
       logprobs.extend(ep_logprobs)
@@ -137,7 +140,7 @@ def cadet_main(settings):
     returns = (returns - returns.mean()) / (returns.std() + np.finfo(np.float32).eps)
     loss = (-Variable(returns)*logprobs - 0.0001*batch_entropy).mean()
     optimizer.zero_grad()
-    ipdb.set_trace()
+    # ipdb.set_trace()
     loss.backward()
     # tutils.clip_grad_norm(policy.parameters(), 40)
     optimizer.step()

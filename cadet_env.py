@@ -96,6 +96,11 @@ class CadetEnv:
       elif a == 'SAT\n':
         a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
+        if np.isnan(self.rewards).any():
+          if np.isnan(self.rewards[:-1]).any():
+            ipdb.set_trace()
+          else:
+            self.rewards[-1]=1.
         self.done = True
         return None, None, None, None, None, True
 

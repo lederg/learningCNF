@@ -82,15 +82,20 @@ class CadetEnv:
   def read_state_update(self):
     self.vars_deterministic.fill(0)
     self.activities.fill(0)
+    clauses = []
     while True:
       decision = None
       a = self.read_line_with_timeout()
-      print(a)
-      if not a: continue
+      if not a or a == '\n': continue
       if a == 'UNSAT\n':
         a = self.read_line_with_timeout()     # refutation line
         a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
+        if np.isnan(self.rewards).any():
+          if np.isnan(self.rewards[:-1]).any():
+            ipdb.set_trace()
+          else:
+            self.rewards[-1]=1.
         self.done = True
         return None, None, None, None, None, True
       elif a == 'SAT\n':
@@ -102,7 +107,7 @@ class CadetEnv:
           else:
             self.rewards[-1]=1.
         self.done = True
-        return None, None, None, None, None, True
+        return None, None, None, None, None, None, True
 
       elif a[0] == 'u':
         update = int(a[3:])-1     # Here we go from 1-based to 0-based
@@ -121,12 +126,14 @@ class CadetEnv:
         update = int(b[0])-1
         activity = float(b[1])
         self.activities[update] = activity
-      else:        
+      elif a[0] == 'c':
+        clauses.append([int(x) for x in a[2:].split()])
+      else:
         print('Got unprocessed line: %s' % a)
         if a.startswith('Error'):
           return
           
-    return state, np.where(self.vars_deterministic>0), np.where(self.vars_deterministic<0), self.activities, decision, self.done
+    return state, np.where(self.vars_deterministic>0), np.where(self.vars_deterministic<0), self.activities, decision, clauses, self.done
 
   def step(self, action):
     assert(not self.done)

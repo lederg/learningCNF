@@ -15,7 +15,7 @@ def cfg():
 	# 'base_model = 'saved_models/run_bigsat_50_4_nc2_bs40_ed4_iters8__1508199570_epoch200.model'
 	base_model = None
 	# base_mode = BaseMode.ALL
-	max_iters = 12
+	max_iters = 7
 	batch_size = 1			# for RL
 	# batch_size = 64
 	val_size = 100 
@@ -29,8 +29,8 @@ def cfg():
 	# 'classifier_type = 'BatchEqClassifier'
 	classifier_type = 'TopLevelClassifier'
 	combinator_type = 'SymmetricSumCombine'	    
-	ground_combinator_type = 'DummyGroundCombinator'	    
-	# 'ground_combinator_type = 'GroundCombinator'	
+	# ground_combinator_type = 'DummyGroundCombinator'
+	ground_combinator_type = 'GroundCombinator'	
 	encoder_type = 'BatchEncoder'	    
 	# 'embedder_type = 'TopVarEmbedder'	    
 	embedder_type = 'GraphEmbedder'	    
@@ -42,7 +42,7 @@ def cfg():
 	use_ground = True
 	moving_ground = False 
 	split = False
-	# 'cuda = True 
+	# cuda = True 
 	cuda = False
 	reset_on_save = False
 	run_task='train'
@@ -53,6 +53,8 @@ def cfg():
 	policy_dim1 = 100
 	policy_dim2 = 50
 	min_timesteps_per_batch = 400
+	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
+
 
 # Localization
 

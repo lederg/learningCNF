@@ -11,7 +11,7 @@ import pdb
 from settings import *
 
 class GroundCombinator(nn.Module):
-	def __init__(self, ground_dim, embedding_dim, hidden_dim=80):
+	def __init__(self, ground_dim, embedding_dim, hidden_dim=20):
 		super(GroundCombinator, self).__init__()        
 		self.layer1 = nn.Linear(embedding_dim+ground_dim,hidden_dim)
 		self.layer2 = nn.Linear(hidden_dim,embedding_dim)
@@ -48,7 +48,7 @@ class BatchInnerIteration(nn.Module):
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.comb_type = eval(self.settings['combinator_type'])
 		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
-		self.get_ground_embeddings = get_ground_embeddings
+		self.get_ground_embeddings = get_ground_embeddings		
 		self.embedding_dim = embedding_dim
 		self.max_variables = max_variables		
 		self.permute = permute
@@ -118,6 +118,7 @@ class FactoredInnerIteration(nn.Module):
 		self.comb_type = eval(self.settings['combinator_type'])
 		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
 		self.get_ground_embeddings = get_ground_embeddings
+		self.ground_dim = self.settings['ground_dim']
 		self.embedding_dim = embedding_dim
 		self.max_variables = max_variables				
 		self.num_ground_variables = num_ground_variables	
@@ -209,8 +210,9 @@ class FactoredInnerIteration(nn.Module):
 			nv = torch.bmm(v_mat.float(),vars_all)	
 			
 		# pdb.set_trace()
-		v_emb = F.tanh(nv + self.vb.squeeze())
-		v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))		
+		v_emb = F.tanh(nv + self.vb.squeeze())		
+		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
+		# v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))		
 		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	
 		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
 		if (rc != rc).data.any():			# We won't stand for NaN

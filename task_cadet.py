@@ -66,26 +66,46 @@ def get_base_ground(qbf):
     rc[j][val] = True
   return rc
 
+
+# indices/vals are tensors, clause is a tuple of nparrays, pos/neg
+
+def add_clause(sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg, clause, last_clause):
+  rc_pos, rc_neg, rc_val_pos, rc_val_neg = sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg
+  if clause[0].size:
+    a = np.full((clause[0].size,2),last_clause)
+    a[:,1] = clause[0]
+    rc_pos = torch.cat([rc_pos,torch.from_numpy(a)])
+    rc_val_pos = torch.cat([rc_val_pos,torch.ones(clause[0].size)])
+
+  if clause[1].size:
+    a = np.full((clause[1].size,2),last_clause)
+    a[:,1] = clause[1]
+    rc_neg = torch.cat([rc_neg,torch.from_numpy(a)])
+    rc_val_neg = torch.cat([rc_val_neg,torch.ones(clause[1].size)])
+
+  return rc_pos, rc_neg, rc_val_pos, rc_val_neg
+
 def handle_episode(fname):
 
   # Set up ground_embeddings and adjacency matrices
   state, vars_add, vars_remove, activities, _, _ , _ = env.reset(fname)
   assert(len(state)==settings['state_dim'])
   qbf = env.qbf
+  curr_num_clauses = qbf.num_clauses
   ground_embs = get_base_ground(qbf)
   ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True
   ground_embs[:,IDX_VAR_ACTIVITY] = activities
 
 
-  a = qbf.as_np_dict()
+  a = qbf.as_np_dict()  
   rc_i = a['sp_indices']
   rc_v = a['sp_vals']
   sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
   sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
   sp_val_pos = torch.ones(len(sp_ind_pos))
   sp_val_neg = torch.ones(len(sp_ind_neg))
-  cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([qbf.num_clauses,qbf.num_vars])),requires_grad=False)
-  cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([qbf.num_clauses,qbf.num_vars])),requires_grad=False)
+  cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([curr_num_clauses,qbf.num_vars])),requires_grad=False)
+  cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([curr_num_clauses,qbf.num_vars])),requires_grad=False)
 
   if settings['cuda']:
     cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
@@ -104,7 +124,7 @@ def handle_episode(fname):
       print('Chose an invalid action!')
       ipdb.set_trace()
     try:
-      state, vars_add, vars_remove, activities, decision, done = env.step(action)
+      state, vars_add, vars_remove, activities, decision, clause, done = env.step(action)
     except Exception as e:
       print(e)
       ipdb.set_trace()
@@ -112,7 +132,13 @@ def handle_episode(fname):
       # print('Finished. Rewards are:')
       # print(env.rewards)
       # print(discount(env.rewards, settings['gamma']))
-      return env.rewards, transitions if self['batch_backwards'] else logprobs
+      return env.rewards, transitions if settings['batch_backwards'] else logprobs
+    if clause:
+      sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg = add_clause(sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg, 
+                                                        clause, curr_num_clauses)
+      curr_num_clauses += 1
+      cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([curr_num_clauses,qbf.num_vars])))
+      cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([curr_num_clauses,qbf.num_vars])))
     if decision:
       ground_embs[decision[0]][IDX_VAR_POLARITY_POS+1-decision[1]] = True
     if len(vars_add):
@@ -144,7 +170,7 @@ def cadet_main(settings):
       fname = all_episode_files[random.randint(0,total_envs-1)]
       r, meta_data = handle_episode(fname)      
       s = len(r)
-      r[-1] += ts_bonus(s)
+      # r[-1] += ts_bonus(s)
       time_steps_this_batch += s
       total_steps += s
       reporter.add_stat(int(os.path.split(fname)[1].split('_')[0]),s,sum(r))
@@ -166,7 +192,7 @@ def cadet_main(settings):
       states, ground_embs, cmat_pos, cmat_neg, actions = zip(*transition_data)
       ipdb.set_trace()
     else:
-      logprobs, entropy = zip(*transition_data)
+      logprobs, entropies = zip(*transition_data)
     returns = torch.Tensor(rewards)
     batch_entropy = torch.cat(entropies)
     logprobs = torch.cat(logprobs)

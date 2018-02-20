@@ -82,7 +82,7 @@ class CadetEnv:
   def read_state_update(self):
     self.vars_deterministic.fill(0)
     self.activities.fill(0)
-    clauses = []
+    clause = None
     while True:
       decision = None
       a = self.read_line_with_timeout()
@@ -97,7 +97,7 @@ class CadetEnv:
           else:
             self.rewards[-1]=1.
         self.done = True
-        return None, None, None, None, None, True
+        return None, None, None, None, None, None, True
       elif a == 'SAT\n':
         a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
@@ -127,13 +127,14 @@ class CadetEnv:
         activity = float(b[1])
         self.activities[update] = activity
       elif a[0] == 'c':
-        clauses.append([int(x) for x in a[2:].split()])
+        b = [int(x) for x in a[2:].split()]
+        clause = (np.array([abs(x)-1 for x in b if x > 0]), np.array([abs(x)-1 for x in b if x < 0]))
       else:
         print('Got unprocessed line: %s' % a)
         if a.startswith('Error'):
           return
           
-    return state, np.where(self.vars_deterministic>0), np.where(self.vars_deterministic<0), self.activities, decision, clauses, self.done
+    return state, np.where(self.vars_deterministic>0), np.where(self.vars_deterministic<0), self.activities, decision, clause, self.done
 
   def step(self, action):
     assert(not self.done)

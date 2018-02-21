@@ -159,7 +159,7 @@ def cadet_main(settings):
   all_episode_files = ds.get_files_list()
   total_envs = len(all_episode_files)
   total_steps = 0
-  for iter in range(400):
+  for iter in range(2000):
     rewards = []
     time_steps_this_batch = 0
     transition_data = []
@@ -190,6 +190,8 @@ def cadet_main(settings):
     begin_time = time.time()
     if settings['batch_backwards']:
       states, ground_embs, cmat_pos, cmat_neg, actions = zip(*transition_data)
+      states = torch.from_numpy(np.stack(states))
+
       ipdb.set_trace()
     else:
       logprobs, entropies = zip(*transition_data)

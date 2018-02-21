@@ -17,7 +17,7 @@ class CadetEnv:
   def __init__(self, cadet_binary, debug=False, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
-    self.cadet_proc = Popen([self.cadet_binary,  '--rl', '--cegar'], stdout=PIPE, stdin=PIPE, stderr=PIPE, universal_newlines=True)
+    self.cadet_proc = Popen([self.cadet_binary,  '--rl', '--cegar'], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
     self.poll_obj = select.poll()
     self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
     self.qbf = QbfBase(**kwargs)

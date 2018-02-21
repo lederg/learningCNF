@@ -9,7 +9,7 @@ import numpy as np
 import ipdb
 # import pdb
 from qbf_data import *
-from batch_model import FactoredInnerIteration, GroundCombinator, DummyGroundCombinator, GraphEmbedder
+from batch_model import FactoredInnerIteration, GraphEmbedder
 from settings import *
 
 INVALID_BIAS = -1000
@@ -68,34 +68,16 @@ class QbfEncoder(nn.Module):
 		self.embedding_dim = self.settings['embedding_dim']		
 		self.expand_dim_const = Variable(self.settings.zeros(1), requires_grad=False)
 		self.max_iters = self.settings['max_iters']
-		self.inner_iteration = FactoredInnerIteration(self.get_ground_embeddings, **kwargs)			
+		self.inner_iteration = FactoredInnerIteration(None, **kwargs)			
 		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
 		nn_init.normal(self.forward_pos_neg)		
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
-		nn_init.normal(self.backwards_pos_neg)
-		self.ground_annotations = None
-		
-	def fix_annotations(self):
-		if self.settings['cuda']:
-			self.ground_annotations = self.ground_annotations.cuda()			
-		else:
-			self.ground_annotations = self.ground_annotations.cpu()
-			
+		nn_init.normal(self.backwards_pos_neg)		
+					
 	def expand_ground_to_state(self,v):
 		dconst = self.expand_dim_const.expand(len(v),self.embedding_dim - self.ground_dim)
 		return torch.cat([v,dconst],dim=1)
-
-	def get_ground_embeddings(self):		
-		return self.ground_annotations.view(1,-1).transpose(0,1)
-
-	def get_block_matrix(self, blocks, indices):		
-		rc = []
-		for a in indices:
-			rc.append(torch.cat([torch.cat([blocks[x] for x in i],dim=1) for i in a.long()]))
-
-		return torch.stack(rc)
-
-
+	
 # This should probably be factored into a base class, its basically the same as for BatchEncoder
 
 # ground_embeddings are (batch,maxvars,ground_dim)

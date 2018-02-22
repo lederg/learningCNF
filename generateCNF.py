@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 #
 # USAGE to generate SAT formulas: 
-#   ./generateCNF.py sat <number_of_ground_variables> <number_of_files_to_generate>
+#   ./generateCNF.py sat <number_of_ground_variables> <number_of_files_to_generate> <target_number_of_conflicts>
 #
 # USAGE to generate QBF formulas: 
-#   ./generateCNF.py QBF <number_of_ground_variables> <number_of_files_to_generate>
+#   ./generateCNF.py qbf <number_of_ground_variables> <number_of_files_to_generate> <target_number_of_conflicts>
 #
 import os
 import sys
@@ -27,11 +27,13 @@ def randomQBF():
 
 def main(argv):
     
-    assert(len(sys.argv) == 4)
+    assert(len(sys.argv) == 5)
     assert(sys.argv[1] == 'sat' or sys.argv[1] == 'qbf')
     assert(is_number(sys.argv[2]))
     assert(is_number(sys.argv[3]))
+    assert(is_number(sys.argv[4]))
     
+    target_number_of_conflicts = int(sys.argv[4])
     qbf = sys.argv[1] == 'qbf'
     
     if not os.path.exists('data/'):
@@ -70,14 +72,24 @@ def main(argv):
                 assert((len(universals) > 0) == qbf)
                 (returncode, conflicts) = eval_formula(maxvar,clauses,universals)
                 if returncode not in [10,20]:
-                    print('Warning: unexpected return code: {}; ignoring this formula'.format(returncode))
+                    errfiledir = '{}/err{}_{}.{}'.format(directory, 
+                                                         str(num_generated), 
+                                                         result_string, 
+                                                         file_extension)
+                    print('Warning: unexpected return code: {}; \
+                           writing formula to {} and ignoring it'.format(returncode, errfiledir))
+                    write_to_file(
+                        maxvar,
+                        clauses,
+                        errfiledir,
+                        universals)
                     continue
                 if candidate_universals == None or candidate_conflicts < conflicts:
                     candidate_universals = universals
                     candidate_conflicts = conflicts
                     candidate_returncode = returncode
             
-            if candidate_conflicts != None and candidate_conflicts > randint(0,10):
+            if candidate_conflicts != None and candidate_conflicts > randint(0,target_number_of_conflicts):
                 if candidate_returncode == 10:
                     result_string = 'SAT'  
                     num_sat += 1

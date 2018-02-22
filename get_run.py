@@ -6,7 +6,8 @@ from pprint import pprint
 
 def print_experiment(name):
     with MongoClient() as client:
-        db = client['graph_exp']
+        db = client['reinforce']
+        # db = client['graph_exp']
         runs = db['runs']
         k = re.compile(name)
         rc = runs.find({'experiment.name': k})

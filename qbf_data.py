@@ -24,6 +24,21 @@ IDX_VAR_ACTIVITY = 4
 IDX_VAR_POLARITY_POS = 5
 IDX_VAR_POLARITY_NEG = 6
 
+# external utility function to filter small formulas
+
+def filter_dir(dirname, bound):
+    a = [join(dirname, f) for f in listdir(dirname)]    
+    rc = []
+    for fname in a:
+        if fname.endswith('qdimacs'):
+            with open(fname,'r') as f:
+                l = int(f.readline().split()[2])
+                if l <= bound: rc.append(fname)
+
+
+    return rc
+
+
 class QbfBase(object):    
     def __init__(self, qcnf = None, **kwargs):
         self.sparse = kwargs['sparse'] if 'sparse' in kwargs else False

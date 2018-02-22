@@ -27,13 +27,19 @@ env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
 
 actions_history = []
 
-def select_action(state, ground_embs, **kwargs):
+def select_action(state, ground_embs, testing=False, **kwargs):
   state = Variable(torch.from_numpy(state).float().unsqueeze(0))
   ground_embs = Variable(torch.from_numpy(ground_embs).unsqueeze(0).float())
   if settings['cuda']:
     state, ground_embs = state.cuda(), ground_embs.cuda()
   probs = policy(state, ground_embs, batch_size=1, **kwargs)
-  # ipdb.set_trace()
+  a = probs[probs>0]    # A technical workaround, we can't do log 0
+  entropy = -(a*a.log()).sum()  
+  if testing:
+    tmp_probs = probs.squeeze()
+    action = tmp_probs.max(0)[1].data.numpy()   # argmax when testing
+    logprob = tmp_probs[action[0]].log()    
+    return action.data[0], logprob, entropy.view(1,)
   try:
     if settings['cuda']:
       dist = probs.data.cpu().numpy()[0]
@@ -47,12 +53,10 @@ def select_action(state, ground_embs, **kwargs):
   except:
     print('Problem in np.random')
     ipdb.set_trace()
-  a = probs[probs>0]
   logprob = a.log()[aug_action[0][0]]
   # m = Categorical(probs)  
   # action = m.sample()
   # actions_history.append(action)
-  entropy = -(a*a.log()).sum()  
   return action.data[0], logprob, entropy.view(1,)
   # return action.data[0], m.log_prob(action), entropy.view(1,)
 
@@ -85,7 +89,7 @@ def add_clause(sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg, clause, last_clau
 
   return rc_pos, rc_neg, rc_val_pos, rc_val_neg
 
-def handle_episode(fname):
+def handle_episode(fname, **kwargs):
 
   # Set up ground_embeddings and adjacency matrices
   state, vars_add, vars_remove, activities, _, _ , _ = env.reset(fname)
@@ -113,8 +117,9 @@ def handle_episode(fname):
   transitions = []
 
   for t in range(5000):  # Don't infinite loop while learning
-    # Could cache ground_embs here, as a Variable
-    action , logprob, ent = select_action(state, ground_embs, cmat_pos=cmat_pos, cmat_neg=cmat_neg)
+    # Could cache ground_embs here, as a Variable    
+    action , logprob, ent = select_action(state, ground_embs, cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
+
     if settings['batch_backwards']:
       transitions.append((state, ground_embs, cmat_pos, cmat_neg, action))
     else:
@@ -139,6 +144,8 @@ def handle_episode(fname):
       curr_num_clauses += 1
       cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([curr_num_clauses,qbf.num_vars])))
       cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([curr_num_clauses,qbf.num_vars])))
+      if settings['cuda']:
+        cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
     if decision:
       ground_embs[decision[0]][IDX_VAR_POLARITY_POS+1-decision[1]] = True
     if len(vars_add):
@@ -154,8 +161,8 @@ def ts_bonus(s):
   b = 5.
   return b/float(s)
 
-def cadet_main(settings):
-  ds = QbfDataset(dirname='data/dataset1/')
+def cadet_main():
+  ds = QbfDataset(dirname='data/small_qbf/')
   all_episode_files = ds.get_files_list()
   total_envs = len(all_episode_files)
   total_steps = 0
@@ -186,6 +193,10 @@ def cadet_main(settings):
     print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, end_time-begin_time))
     if not (iter % 10):
       reporter.report_stats()
+      print('Testing all episodes:')
+      for fname in all_episode_files:
+        r, _ = handle_episode(fname,testing=True)
+        print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
 
     begin_time = time.time()
     if settings['batch_backwards']:
@@ -201,7 +212,7 @@ def cadet_main(settings):
     if settings['cuda']:
       returns = returns.cuda()
     returns = (returns - returns.mean()) / (returns.std() + np.finfo(np.float32).eps)
-    loss = (-Variable(returns)*logprobs - 0.0001*batch_entropy).mean()
+    loss = (-Variable(returns)*logprobs - 0.000000001*batch_entropy).mean()
     optimizer.zero_grad()
     loss.backward()
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads

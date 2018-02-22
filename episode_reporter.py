@@ -1,4 +1,5 @@
 import numpy as np
+from tensorboard_logger import configure, log_value
 import ipdb
 
 class EpisodeReporter(object):

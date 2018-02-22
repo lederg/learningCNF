@@ -26,9 +26,9 @@ class Policy(nn.Module):
 		self.graph_embedder = GraphEmbedder(settings=self.settings)
 		self.encoder = QbfEncoder(**self.settings.hyperparameters)
 		self.linear1 = nn.Linear(self.state_dim+self.embedding_dim+self.ground_dim, self.policy_dim1)
-		# self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
+		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
 		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([INVALID_BIAS]))
-		self.action_score = nn.Linear(self.policy_dim1,1)
+		self.action_score = nn.Linear(self.policy_dim2,1)
 		self.activation = F.relu
 		self.saved_log_probs = []
 	
@@ -51,8 +51,8 @@ class Policy(nn.Module):
 		reshaped_state = state.view(self.batch_size,1,self.state_dim).expand(self.batch_size,size[1],self.state_dim)
 		inputs = torch.cat([reshaped_state, vs,ground_embeddings],dim=2).view(-1,self.state_dim+self.embedding_dim+self.ground_dim)
 
-		# rc = F.softmax(self.action_scores(self.activation(self.linear2(self.activation(self.linear1(inputs))))), dim=0)
-		outputs = self.action_score(self.activation(self.linear1(inputs))).view(self.batch_size,-1)		
+		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs))))).view(self.batch_size,-1)
+		# outputs = self.action_score(self.activation(self.linear1(inputs))).view(self.batch_size,-1)		
 		valid_outputs = outputs + (1-(1-ground_embeddings[:,:,2])*(1-ground_embeddings[:,:,3]))*self.invalid_bias
 		rc = F.softmax(valid_outputs)
 		return rc

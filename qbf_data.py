@@ -1,4 +1,5 @@
 from cnf_parser import *
+from utils import *
 import numpy as np
 from functools import partial
 from torch.utils.data import Dataset
@@ -15,14 +16,14 @@ _use_shared_memory = False
 
 MAX_VARIABLES = 50
 MAX_CLAUSES = 500
-GROUND_DIM = 7
+GROUND_DIM = 6          # config.ground_dim duplicates this. 
 IDX_VAR_UNIVERSAL = 0
 IDX_VAR_EXISTENTIAL = 1
-IDX_VAR_MISSING = 2
-IDX_VAR_DETERMINIZED = 3
-IDX_VAR_ACTIVITY = 4
-IDX_VAR_POLARITY_POS = 5
-IDX_VAR_POLARITY_NEG = 6
+# IDX_VAR_MISSING = 2
+IDX_VAR_DETERMINIZED = 2
+IDX_VAR_ACTIVITY = 3
+IDX_VAR_POLARITY_POS = 4
+IDX_VAR_POLARITY_NEG = 5
 
 # external utility function to filter small formulas
 
@@ -41,8 +42,9 @@ def filter_dir(dirname, bound):
 
 class QbfBase(object):    
     def __init__(self, qcnf = None, **kwargs):
-        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else False
+        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
         self.qcnf = qcnf
+        # self.get_base_embeddings = lru_cache(max_size=16)(self.get_base_embeddings)
         if 'max_variables' in kwargs:
             self._max_vars = kwargs['max_variables']
         if 'max_clauses' in kwargs:
@@ -64,6 +66,12 @@ class QbfBase(object):
     @property
     def num_vars(self):
         return self.qcnf['maxvar']
+
+    @property
+    def num_existential(self):
+        a = self.var_types        
+        return len(a[a>0])
+
     @property
     def num_clauses(self):
         return self.qcnf['num_clauses']
@@ -86,7 +94,7 @@ class QbfBase(object):
     @property 
     def var_types(self):        
         a = self.qcnf['cvars']
-        rc = np.zeros(self.num_vars)+2
+        rc = np.zeros(self.num_vars)
         for k in a.keys():
             rc[k-1] = 0 if a[k]['universal'] else 1
         return rc.astype(int)
@@ -124,6 +132,13 @@ class QbfBase(object):
                 t = (abs(j)-1)*sign(j)
                 rc[i][t]=sign(j)
         return rc
+    
+    def get_base_embeddings(self):
+        embs = np.zeros([self.num_vars,GROUND_DIM])
+        for i in (IDX_VAR_UNIVERSAL, IDX_VAR_EXISTENTIAL):
+            embs[:,i][np.where(self.var_types==i)]=1
+        return embs
+
 
 
     def as_tensor_dict(self):
@@ -154,6 +169,8 @@ class QbfBase(object):
         rc['var_types'] = self.var_types
         rc['num_vars'] = self.num_vars
         rc['num_clauses'] = self.num_clauses
+        rc['ground'] = self.get_base_embeddings()
+        rc['label'] = 0 if 'UNSAT' in self.qcnf['fname'] else 1
                 
         return rc
 
@@ -191,7 +208,6 @@ class QbfDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        print('getting idx %d' % idx)
         return self.samples[idx][0].as_np_dict()
 
 def qbf_collate(batch):
@@ -206,11 +222,12 @@ def qbf_collate(batch):
     rc_v = np.concatenate([b['sp_vals'] for b in batch], 0)
 
     # make var_types into ground embeddings
-    embs = np.zeros([len(batch),v_size,GROUND_DIM])
+    all_embs = []
     for i,b in enumerate(batch):
-        for j, val in enumerate(b['var_types']):
-            embs[i][j][val] = True
-        embs[i,b['num_vars']:,IDX_VAR_MISSING] = True
+        embs = b['ground']
+        l = len(embs)
+        embs = np.concatenate([embs,np.zeros([v_size-l,GROUND_DIM])])
+        all_embs.append(embs)    
 
     # break into pos/neg
     sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
@@ -221,6 +238,8 @@ def qbf_collate(batch):
 
     rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([c_size*len(batch),v_size*len(batch)]))
     rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([c_size*len(batch),v_size*len(batch)]))
-    rc['ground'] = torch.from_numpy(embs)
+    rc['ground'] = torch.from_numpy(np.stack(all_embs))
+    rc['label'] = torch.Tensor([x['label'] for x in batch]).long()
+
     return rc
 

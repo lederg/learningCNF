@@ -17,7 +17,7 @@ class GroundCombinator(nn.Module):
 		self.layer2 = nn.Linear(hidden_dim,embedding_dim)
 
 	def forward(self, ground,state):
-		return self.layer2(F.relu(self.layer1(torch.cat([ground,state],dim=1))))
+		return self.layer2(F.relu(self.layer1(torch.cat([ground.float(),state],dim=1))))
 		
 class DummyGroundCombinator(nn.Module):
 	def __init__(self, *args, **kwargs):
@@ -77,7 +77,7 @@ class BatchInnerIteration(nn.Module):
 		self.clause_bias = torch.cat([self.cb]*self.settings['max_clauses'])
 		
 
-	def gru(self, av, prev_emb):
+	def gru(self, av, prev_emb):					
 		z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
 		r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
 		h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
@@ -112,19 +112,15 @@ class BatchInnerIteration(nn.Module):
 
 
 class FactoredInnerIteration(nn.Module):
-	def __init__(self, get_ground_embeddings, embedding_dim, max_variables, num_ground_variables, **kwargs):
+	def __init__(self, **kwargs):
 		super(FactoredInnerIteration, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
-		self.comb_type = eval(self.settings['combinator_type'])
 		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
-		self.get_ground_embeddings = get_ground_embeddings
 		self.ground_dim = self.settings['ground_dim']
-		self.embedding_dim = embedding_dim
-		self.max_variables = max_variables				
-		self.num_ground_variables = num_ground_variables	
-		self.extra_embedding = nn.Embedding(1, embedding_dim, max_norm=1.)				
-		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],embedding_dim)
-		self.cuda = kwargs['cuda']		
+		self.embedding_dim = self.settings['embedding_dim']
+		self.extra_embedding = nn.Embedding(1, self.embedding_dim, max_norm=1.)				
+		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],self.embedding_dim)
+		self.cuda = self.settings['cuda']		
 		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		nn_init.normal(self.vb)
@@ -209,10 +205,9 @@ class FactoredInnerIteration(nn.Module):
 			vars_all = torch.mm(v_block[0],cv).t().contiguous().view(org_size[0],-1,self.embedding_dim)
 			nv = torch.bmm(v_mat.float(),vars_all)	
 			
-		# pdb.set_trace()
+		# ipdb.set_trace()
 		v_emb = F.tanh(nv + self.vb.squeeze())		
 		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
-		# v_emb = self.ground_combiner(ground_vars,v_emb.view(-1,self.embedding_dim))		
 		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	
 		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
 		if (rc != rc).data.any():			# We won't stand for NaN
@@ -280,7 +275,7 @@ class BatchEncoder(nn.Module):
 				exp_annotations = torch.cat([base_annotations[-1].unsqueeze(0)]*self.max_variables)				
 			self.ground_annotations = self.expand_ground_to_state(exp_annotations)
 
-		self.inner_iteration = FactoredInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
+		self.inner_iteration = FactoredInnerIteration(**kwargs)
 		# self.inner_iteration2 = BatchInnerIteration(self.get_ground_embeddings, embedding_dim, num_ground_variables=num_ground_variables, **kwargs)
 	
 		self.zero_block = Variable(self.settings.zeros([1,self.embedding_dim,self.embedding_dim]), requires_grad=False)
@@ -418,8 +413,8 @@ class TopLevelClassifier(nn.Module):
 		super(TopLevelClassifier, self).__init__()        
 		self.num_classes = num_classes
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
-		self.embedding_dim = self.settings['embedding_dim']
-		self.max_variables = self.settings['max_variables']
+		# self.embedding_dim = self.settings['embedding_dim']
+		# self.max_variables = self.settings['max_variables']
 		if encoder:
 			self.encoder = encoder
 			self.encoder.fix_annotations()

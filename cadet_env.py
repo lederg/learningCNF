@@ -40,6 +40,7 @@ class CadetEnv:
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
     self.activities = np.zeros(self.qbf.num_vars)
+    self.max_rewards = self.qbf.num_existential
 
     self.write(fname+'\n')
     self.done = False

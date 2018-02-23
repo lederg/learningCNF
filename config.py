@@ -5,7 +5,7 @@ def cfg():
 	exp_time = int(time.time())
 	state_dim = 35
 	embedding_dim = 30
-	ground_dim = 7
+	ground_dim = 6
 	max_variables = 200 
 	max_clauses = 600
 	num_ground_variables = 3 	
@@ -16,7 +16,7 @@ def cfg():
 	base_model = None
 	# base_mode = BaseMode.ALL
 	max_iters = 7
-	batch_size = 1			# for RL
+	batch_size = 16			# for RL
 	# batch_size = 64
 	val_size = 100 
 	threshold = 10
@@ -31,7 +31,8 @@ def cfg():
 	combinator_type = 'SymmetricSumCombine'	    
 	# ground_combinator_type = 'DummyGroundCombinator'
 	ground_combinator_type = 'GroundCombinator'	
-	encoder_type = 'BatchEncoder'	    
+	# encoder_type = 'BatchEncoder'	    
+	encoder_type = 'QbfEncoder'	    
 	# 'embedder_type = 'TopVarEmbedder'	    
 	embedder_type = 'GraphEmbedder'	    
 	# 'negate_type = 'minus'

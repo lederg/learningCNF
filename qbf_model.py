@@ -40,7 +40,7 @@ class QbfEncoder(nn.Module):
 		super(QbfEncoder, self).__init__() 
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.debug = False
-		self.ground_dim = GROUND_DIM
+		self.ground_dim = self.settings['ground_dim']
 		# self.batch_size = 1
 		self.batch_size = self.settings['batch_size']
 		self.embedding_dim = self.settings['embedding_dim']		

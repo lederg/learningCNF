@@ -2,6 +2,7 @@
 
 import os
 import re
+import ipdb
 from subprocess import Popen, PIPE, STDOUT
 
 MAX_CLAUSES_PER_VARIABLE = 100
@@ -54,7 +55,8 @@ def extract_num_conflicts(s):
 def eval_formula(maxvar,clauses,universals=set()):
     # print(str(maxvar))
     # print(str(clauses))
-    tool = './../cadet/dev/cadet' if len(universals) > 0 else 'picosat'
+    # ipdb.set_trace()
+    tool = './cadet' if len(universals) > 0 else 'picosat'
     p = Popen([tool,'-v','1','--cegar','--cegar_soft_conflict_limit'],stdout=PIPE,stdin=PIPE)
     p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clauses))))
     if len(universals) > 0:

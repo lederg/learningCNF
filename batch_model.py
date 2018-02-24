@@ -12,7 +12,7 @@ from settings import *
 
 class GroundCombinator(nn.Module):
 	def __init__(self, ground_dim, embedding_dim, hidden_dim=20):
-		super(GroundCombinator, self).__init__()        
+		super(GroundCombinator, self).__init__()
 		self.layer1 = nn.Linear(embedding_dim+ground_dim,hidden_dim)
 		self.layer2 = nn.Linear(hidden_dim,embedding_dim)
 
@@ -205,7 +205,6 @@ class FactoredInnerIteration(nn.Module):
 			vars_all = torch.mm(v_block[0],cv).t().contiguous().view(org_size[0],-1,self.embedding_dim)
 			nv = torch.bmm(v_mat.float(),vars_all)	
 			
-		# ipdb.set_trace()
 		v_emb = F.tanh(nv + self.vb.squeeze())		
 		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
 		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	

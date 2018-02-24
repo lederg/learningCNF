@@ -4,8 +4,8 @@ import ipdb
 def cfg():	
 	exp_time = int(time.time())
 	state_dim = 35
-	embedding_dim = 30
-	ground_dim = 6
+	embedding_dim = 4
+	ground_dim = 2
 	max_variables = 200 
 	max_clauses = 600
 	num_ground_variables = 3 	
@@ -16,8 +16,7 @@ def cfg():
 	base_model = None
 	# base_mode = BaseMode.ALL
 	max_iters = 7
-	batch_size = 16			# for RL
-	# batch_size = 64
+	batch_size = 64
 	val_size = 100 
 	threshold = 10
 	init_lr = 0.001
@@ -29,8 +28,8 @@ def cfg():
 	# 'classifier_type = 'BatchEqClassifier'
 	classifier_type = 'TopLevelClassifier'
 	combinator_type = 'SymmetricSumCombine'	    
-	# ground_combinator_type = 'DummyGroundCombinator'
-	ground_combinator_type = 'GroundCombinator'	
+	ground_combinator_type = 'DummyGroundCombinator'
+	# ground_combinator_type = 'GroundCombinator'	
 	# encoder_type = 'BatchEncoder'	    
 	encoder_type = 'QbfEncoder'	    
 	# 'embedder_type = 'TopVarEmbedder'	    
@@ -43,8 +42,8 @@ def cfg():
 	use_ground = True
 	moving_ground = False 
 	split = False
-	# cuda = True 
-	cuda = False
+	cuda = True 
+	# cuda = False
 	reset_on_save = False
 	run_task='train'
 

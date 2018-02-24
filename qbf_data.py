@@ -139,7 +139,9 @@ class QbfBase(object):
             embs[:,i][np.where(self.var_types==i)]=1
         return embs
 
-
+    @property
+    def label(self):
+        return 0 if 'UNSAT' in self.qcnf['fname'].upper() else 1
 
     def as_tensor_dict(self):
         rc = {'sparse': torch.Tensor([int(self.sparse)])}
@@ -170,7 +172,7 @@ class QbfBase(object):
         rc['num_vars'] = self.num_vars
         rc['num_clauses'] = self.num_clauses
         rc['ground'] = self.get_base_embeddings()
-        rc['label'] = 0 if 'UNSAT' in self.qcnf['fname'] else 1
+        rc['label'] = self.label
                 
         return rc
 
@@ -179,7 +181,7 @@ f2qbf = lambda x: QbfBase.from_qdimacs(x)
 
 class QbfDataset(Dataset):
     def __init__(self,dirname=None, fnames=None, max_variables=MAX_VARIABLES, max_clauses=MAX_CLAUSES):
-        self.samples = []
+        self.samples = ([], [])     # UNSAT, SAT
         self.max_vars = max_variables
         self.max_clauses = max_clauses
         if dirname:            
@@ -191,24 +193,54 @@ class QbfDataset(Dataset):
         self.load_files([join(directory, f) for f in listdir(directory)])
 
     def load_files(self, files):
-        rc = zip(map(f2qbf,files),files)
-        rc = [x for x in rc if x[0] and x[0].num_vars <= self.max_vars and x[0].num_clauses < self.max_clauses\
-                                                             and x[0].num_clauses > 0 and x[0].num_vars > 0]
-        self.samples += rc
+        rc = map(f2qbf,files)
+        rc = [x for x in rc if x and x.num_vars <= self.max_vars and x.num_clauses < self.max_clauses\
+                                                             and x.num_clauses > 0 and x.num_vars > 0]
+        for x in rc:            
+            self.samples[x.label].append(x)
+        try:
+            del self.__weights_vector
+        except:
+            pass
         return len(rc)
+
+    @property
+    def num_sat(self):
+        return len(self.samples[1])
+
+    @property
+    def num_unsat(self):
+        return len(self.samples[0])
+
+    @property
+    def weights_vector(self):
+        try:
+            return self.__weights_vector
+        except:
+            pass
+
+        rc = []
+        a =[[1/x]*x for x in [self.num_unsat, self.num_sat]]
+        a = np.concatenate(a) / 2
+        self.__weights_vector = a
+        return a
+
+
 
     def load_file(self,fname):
         self.load_files([fname])
 
     def get_files_list(self):
-        _, rc = zip(*self.samples)
-        return rc
+        return [x.qcnf['fname'] for x in samples[0]] + [x.qcnf['fname'] for x in samples[1]]        
 
     def __len__(self):
-        return len(self.samples)
+        return self.num_unsat + self.num_sat
 
     def __getitem__(self, idx):
-        return self.samples[idx][0].as_np_dict()
+        if idx < self.num_unsat:
+            return self.samples[0][idx].as_np_dict()
+        else:
+            return self.samples[1][idx-self.num_unsat].as_np_dict()
 
 def qbf_collate(batch):
     rc = {}

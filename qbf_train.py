@@ -26,7 +26,7 @@ def train(ds, model, optimizer=None, iters=None, ds_validate=None):
   if optimizer is None:
     optimizer = optim.SGD(model.parameters(), lr=settings['init_lr'], momentum=0.9)
 
-  sampler = torch.utils.data.sampler.RandomSampler(ds)
+  sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
   trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, collate_fn = qbf_collate)
 
   get_step = lambda x,y: x*len(trainloader)+y
@@ -34,13 +34,14 @@ def train(ds, model, optimizer=None, iters=None, ds_validate=None):
   current_time = time.time()
 
   for epoch in range(start_epoch,NUM_EPOCHS):
+    running_loss = 0.
+    total_correct = 0.
+    utils.exp_lr_scheduler(optimizer, epoch, init_lr=settings['init_lr'], lr_decay_epoch=settings['decay_num_epochs'],decay_rate=settings['decay_lr'])
     for i, data in enumerate(trainloader, 0):
       labels = Variable(data['label'])
       cmat_pos = Variable(data['sp_v2c_pos'])
       cmat_neg = Variable(data['sp_v2c_neg'])
-      ground = Variable(data['ground']).float()
-      running_loss = 0.
-      total_correct = 0.
+      ground = Variable(data['ground']).float()[:,:,:2]
       effective_bs = len(ground)
       if  effective_bs != settings['batch_size']:
         print('Trainer gave us shorter batch!!')
@@ -48,7 +49,7 @@ def train(ds, model, optimizer=None, iters=None, ds_validate=None):
         labels = labels.cuda()
         ground, cmat_pos, cmat_neg = ground.cuda(), cmat_pos.cuda(), cmat_neg.cuda()
 
-      print('iteration %d beginning...' % i)
+      # print('iteration %d beginning...' % i)
       # forward + backward + optimize
 
       optimizer.zero_grad()
@@ -64,12 +65,14 @@ def train(ds, model, optimizer=None, iters=None, ds_validate=None):
       running_loss += loss.data[0]
       correct = outputs.max(dim=1)[1]==labels
       num_correct = torch.nonzero(correct.data).size()
+      total_correct += num_correct[0]
 
 
-      if i % PRINT_LOSS_EVERY == PRINT_LOSS_EVERY-1:                
+      if i % PRINT_LOSS_EVERY == PRINT_LOSS_EVERY-1:        
         new_time = time.time()                
         print('Average time per mini-batch, %f' % ((new_time-current_time) / PRINT_LOSS_EVERY))
         current_time = new_time
+        # ipdb.set_trace()
         print('[%d, %5d] loss: %.3f' %
               (epoch + 1, i + 1, running_loss / PRINT_LOSS_EVERY))
         running_loss = 0.0

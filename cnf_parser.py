@@ -100,6 +100,10 @@ def qdimacs_to_cnf(filename, zero_based=False):
                 lits = [int(x) for x in words[:-1]]            
                 clauses.append(simplify_clause(lits))
 
+    if not cvars:           # No var declarations, we'll assume its a regular cnf, everything is existential
+        for x in range(1,maxvar+1):
+            cvars[x] = {'universal': False, 'clauses': []}
+
     for c in clauses:
         for lit in c:
             cvars[abs(lit)]['clauses'].append(c)

@@ -10,6 +10,7 @@ import os
 import sys
 from cnf_tools import *
 from random import randint
+import time
 
 def randomCNF():
     ground_vars_num = sys.argv[2]
@@ -38,7 +39,7 @@ def main(argv):
     
     if not os.path.exists('data/'):
         os.makedirs('data/')
-    directory = 'data/random{}_{}/'.format('QBF' if qbf else 'CNF',sys.argv[2])
+    directory = 'data/random{}_{}_{:0.0f}/'.format('QBF' if qbf else 'CNF',sys.argv[2], time.time())
     if not os.path.exists(directory):
         os.makedirs(directory)
     

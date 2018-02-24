@@ -14,13 +14,13 @@ settings = CnfSettings()
 
 qbf_dirs = ['randomQBF_8_1519436028', 'randomQBF_8_1519436021', 'randomQBF_8_1519435293', 'randomQBF_8_1519435289', 
 						'randomQBF_8_1519434573', 'randomQBF_8_1519434567', 'randomQBF_8_1519433507', 
-						'randomQBF_8_1519433461', 'randomQBF_8', 'dataset1']
+						'randomQBF_8_1519433461', 'randomQBF_8']
 
 sat_dirs = ['train_big_10/sat', 'train_big_10/unsat']
 
 def qbf_train_main():
 	ds = QbfDataset()
-	for dname in sat_dirs:
+	for dname in qbf_dirs:
 		ds.load_dir('data/{}/'.format(dname))
 	model = QbfClassifier()
 	if settings['cuda']:

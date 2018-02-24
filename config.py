@@ -4,7 +4,7 @@ import ipdb
 def cfg():	
 	exp_time = int(time.time())
 	state_dim = 35
-	embedding_dim = 4
+	embedding_dim = 7
 	ground_dim = 2
 	max_variables = 200 
 	max_clauses = 600

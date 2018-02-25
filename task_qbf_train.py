@@ -20,7 +20,7 @@ sat_dirs = ['train_big_10/sat', 'train_big_10/unsat']
 
 def qbf_train_main():
 	ds = QbfDataset()
-	for dname in qbf_dirs:
+	for dname in sat_dirs:
 		ds.load_dir('data/{}/'.format(dname))
 	model = QbfClassifier()
 	if settings['cuda']:

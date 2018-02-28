@@ -16,7 +16,7 @@ from settings import *
 INVALID_BIAS = -1000
 
 class Policy(nn.Module):
-	def __init__(self, **kwargs):
+	def __init__(self, encoder=None, **kwargs):
 		super(Policy, self).__init__()
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()				
 		self.state_dim = self.settings['state_dim']
@@ -25,7 +25,11 @@ class Policy(nn.Module):
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']		
 		self.graph_embedder = GraphEmbedder(settings=self.settings)
-		self.encoder = QbfEncoder(**self.settings.hyperparameters)
+		if encoder:
+			print('Bootstraping Policy from existing encoder')
+			self.encoder = encoder
+		else:
+			self.encoder = QbfEncoder(**self.settings.hyperparameters)
 		self.linear1 = nn.Linear(self.state_dim+self.embedding_dim+self.ground_dim, self.policy_dim1)
 		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
 		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([INVALID_BIAS]))
@@ -38,10 +42,9 @@ class Policy(nn.Module):
 
 	# kwargs includes 'input', 'cmat_pos', 'cmat_neg', the latter two already in the correct format.
 
-	def forward(self, state, ground_embeddings, **kwargs):		
-		if 'batch_size' in kwargs:
-			self.batch_size=kwargs['batch_size']
+	def forward(self, state, ground_embeddings, **kwargs):				
 		size = ground_embeddings.size()
+		self.batch_size=size[0]
 		if 'vs' in kwargs.keys():
 			vs = kwargs['vs']		
 		else:			

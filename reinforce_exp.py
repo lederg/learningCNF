@@ -9,6 +9,7 @@ ex.add_config(settings.hyperparameters)
 
 @ex.automain
 def main():	
+	settings.hyperparameters['name'] = ex.current_run.experiment_info['name']
 	from task_cadet import cadet_main
 	cadet_main()
 

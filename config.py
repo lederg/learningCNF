@@ -2,21 +2,22 @@ import time
 import ipdb
 
 def cfg():	
+	name = 'DEF_NAME'
 	exp_time = int(time.time())
 	state_dim = 35
-	embedding_dim = 6
-	ground_dim = 2
+	embedding_dim = 20
+	ground_dim = 6
 	max_variables = 200 
 	max_clauses = 600
-	num_ground_variables = 3 	
+	num_ground_variables = 0
 	data_dir = 'data/'
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
-	# 'base_model = 'saved_models/run_bigsat_50_4_nc2_bs40_ed4_iters8__1508199570_epoch200.model'
-	base_model = None
+	base_model = 'run_qbf_base2_bs64_ed20_iters7__1519766803_epoch50.model'
+	# base_model = None
 	# base_mode = BaseMode.ALL
 	max_iters = 7
-	batch_size = 64
+	batch_size = 64 
 	val_size = 100 
 	threshold = 10
 	init_lr = 0.001
@@ -28,8 +29,8 @@ def cfg():
 	# 'classifier_type = 'BatchEqClassifier'
 	classifier_type = 'TopLevelClassifier'
 	combinator_type = 'SymmetricSumCombine'	    
-	ground_combinator_type = 'DummyGroundCombinator'
-	# ground_combinator_type = 'GroundCombinator'	
+	# ground_combinator_type = 'DummyGroundCombinator'
+	ground_combinator_type = 'GroundCombinator'	
 	# encoder_type = 'BatchEncoder'	    
 	encoder_type = 'QbfEncoder'	    
 	# 'embedder_type = 'TopVarEmbedder'	    
@@ -39,11 +40,11 @@ def cfg():
 	sparse = True
 	# sparse = False
 	gru_bias = False
-	use_ground = True
+	use_ground = False
 	moving_ground = False 
 	split = False
-	cuda = True 
-	# cuda = False
+	# cuda = True 
+	cuda = False
 	reset_on_save = False
 	run_task='train'
 

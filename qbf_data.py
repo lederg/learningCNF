@@ -14,7 +14,7 @@ import ipdb
 
 _use_shared_memory = False
 
-MAX_VARIABLES = 50
+MAX_VARIABLES = 100
 MAX_CLAUSES = 500
 GROUND_DIM = 6          # config.ground_dim duplicates this. 
 IDX_VAR_UNIVERSAL = 0
@@ -44,6 +44,7 @@ class QbfBase(object):
     def __init__(self, qcnf = None, **kwargs):
         self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
         self.qcnf = qcnf
+        self.extra_clauses = []
         # self.get_base_embeddings = lru_cache(max_size=16)(self.get_base_embeddings)
         if 'max_variables' in kwargs:
             self._max_vars = kwargs['max_variables']
@@ -74,7 +75,7 @@ class QbfBase(object):
 
     @property
     def num_clauses(self):
-        return self.qcnf['num_clauses']
+        return len(self.qcnf['clauses'])
     @property
     def max_vars(self):
         try:
@@ -138,6 +139,9 @@ class QbfBase(object):
         for i in (IDX_VAR_UNIVERSAL, IDX_VAR_EXISTENTIAL):
             embs[:,i][np.where(self.var_types==i)]=1
         return embs
+
+    def add_clause(self,clause):
+        self.qcnf['clauses'].append(clause)
 
     @property
     def label(self):
@@ -231,7 +235,7 @@ class QbfDataset(Dataset):
         self.load_files([fname])
 
     def get_files_list(self):
-        return [x.qcnf['fname'] for x in samples[0]] + [x.qcnf['fname'] for x in samples[1]]        
+        return [x.qcnf['fname'] for x in self.samples[0]] + [x.qcnf['fname'] for x in self.samples[1]]        
 
     def __len__(self):
         return self.num_unsat + self.num_sat

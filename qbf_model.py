@@ -20,7 +20,7 @@ class QbfClassifier(nn.Module):
 		# self.max_variables = self.settings['max_variables']
 		if encoder:
 			self.encoder = encoder
-			self.encoder.fix_annotations()
+			# self.encoder.fix_annotations()
 		else:
 			self.encoder = QbfEncoder(**kwargs)
 		if embedder:

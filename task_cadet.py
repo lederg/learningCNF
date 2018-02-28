@@ -9,6 +9,7 @@ from settings import *
 from cadet_env import *
 from rl_model import *
 from qbf_data import *
+from qbf_model import QbfClassifier
 from utils import *
 from episode_reporter import EpisodeReporter
 import torch.nn.utils as tutils
@@ -18,21 +19,21 @@ CADET_BINARY = './cadet'
 all_episode_files = ['data/mvs.qdimacs']
 
 settings = CnfSettings()
-policy = Policy()
-if settings['cuda']:
-  policy = policy.cuda()
+
 reporter = EpisodeReporter()
-optimizer = optim.Adam(policy.parameters(), lr=1e-2)
 env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
 
+inference_time = []
 actions_history = []
 
-def select_action(state, ground_embs, testing=False, **kwargs):
+def select_action(state, ground_embs, model=None, testing=False, **kwargs):
   state = Variable(torch.from_numpy(state).float().unsqueeze(0))
   ground_embs = Variable(torch.from_numpy(ground_embs).unsqueeze(0).float())
   if settings['cuda']:
     state, ground_embs = state.cuda(), ground_embs.cuda()
-  probs = policy(state, ground_embs, batch_size=1, **kwargs)
+  begin_time = time.time()
+  probs = model(state, ground_embs, **kwargs)
+  inference_time.append(time.time() - begin_time)
   a = probs[probs>0]    # A technical workaround, we can't do log 0
   entropy = -(a*a.log()).sum()  
   if testing:
@@ -71,23 +72,36 @@ def get_base_ground(qbf):
   return rc
 
 
+
+def get_input_from_qbf(qbf):
+  a = qbf.as_np_dict()  
+  rc_i = a['sp_indices']
+  rc_v = a['sp_vals']
+  sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
+  sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
+  sp_val_pos = torch.ones(len(sp_ind_pos))
+  sp_val_neg = torch.ones(len(sp_ind_neg))
+  cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([qbf.num_clauses,qbf.num_vars])),requires_grad=False)
+  cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([qbf.num_clauses,qbf.num_vars])),requires_grad=False)  
+  return cmat_pos, cmat_neg
+
 # indices/vals are tensors, clause is a tuple of nparrays, pos/neg
 
-def add_clause(sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg, clause, last_clause):
-  rc_pos, rc_neg, rc_val_pos, rc_val_neg = sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg
-  if clause[0].size:
-    a = np.full((clause[0].size,2),last_clause)
-    a[:,1] = clause[0]
-    rc_pos = torch.cat([rc_pos,torch.from_numpy(a)])
-    rc_val_pos = torch.cat([rc_val_pos,torch.ones(clause[0].size)])
+# def add_clause(sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg, clause, last_clause):
+#   rc_pos, rc_neg, rc_val_pos, rc_val_neg = sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg
+#   if clause[0].size:
+#     a = np.full((clause[0].size,2),last_clause)
+#     a[:,1] = clause[0]
+#     rc_pos = torch.cat([rc_pos,torch.from_numpy(a)])
+#     rc_val_pos = torch.cat([rc_val_pos,torch.ones(clause[0].size)])
 
-  if clause[1].size:
-    a = np.full((clause[1].size,2),last_clause)
-    a[:,1] = clause[1]
-    rc_neg = torch.cat([rc_neg,torch.from_numpy(a)])
-    rc_val_neg = torch.cat([rc_val_neg,torch.ones(clause[1].size)])
+#   if clause[1].size:
+#     a = np.full((clause[1].size,2),last_clause)
+#     a[:,1] = clause[1]
+#     rc_neg = torch.cat([rc_neg,torch.from_numpy(a)])
+#     rc_val_neg = torch.cat([rc_val_neg,torch.ones(clause[1].size)])
 
-  return rc_pos, rc_neg, rc_val_pos, rc_val_neg
+#   return rc_pos, rc_neg, rc_val_pos, rc_val_neg
 
 def handle_episode(fname, **kwargs):
 
@@ -102,14 +116,15 @@ def handle_episode(fname, **kwargs):
 
 
   a = qbf.as_np_dict()  
-  rc_i = a['sp_indices']
-  rc_v = a['sp_vals']
-  sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
-  sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
-  sp_val_pos = torch.ones(len(sp_ind_pos))
-  sp_val_neg = torch.ones(len(sp_ind_neg))
-  cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([curr_num_clauses,qbf.num_vars])),requires_grad=False)
-  cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([curr_num_clauses,qbf.num_vars])),requires_grad=False)
+  cmat_pos, cmat_neg = get_input_from_qbf(qbf)
+  # rc_i = a['sp_indices']
+  # rc_v = a['sp_vals']
+  # sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
+  # sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
+  # sp_val_pos = torch.ones(len(sp_ind_pos))
+  # sp_val_neg = torch.ones(len(sp_ind_neg))
+  # cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([curr_num_clauses,qbf.num_vars])),requires_grad=False)
+  # cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([curr_num_clauses,qbf.num_vars])),requires_grad=False)
 
   if settings['cuda']:
     cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
@@ -129,7 +144,7 @@ def handle_episode(fname, **kwargs):
       print('Chose an invalid action!')
       ipdb.set_trace()
     try:
-      state, vars_add, vars_remove, activities, decision, clause, done = env.step(action)
+      state, vars_add, vars_remove, activities, decision, clause, done = env.step(action)      
     except Exception as e:
       print(e)
       ipdb.set_trace()
@@ -139,11 +154,7 @@ def handle_episode(fname, **kwargs):
       # print(discount(env.rewards, settings['gamma']))
       return env.rewards, transitions if settings['batch_backwards'] else logprobs
     if clause:
-      sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg = add_clause(sp_ind_pos, sp_ind_neg, sp_val_pos, sp_val_neg, 
-                                                        clause, curr_num_clauses)
-      curr_num_clauses += 1
-      cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([curr_num_clauses,qbf.num_vars])))
-      cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([curr_num_clauses,qbf.num_vars])))
+      cmat_pos, cmat_neg = get_input_from_qbf(qbf)
       if settings['cuda']:
         cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
     if decision:
@@ -162,7 +173,20 @@ def ts_bonus(s):
   return b/float(s)
 
 def cadet_main():
-  ds = QbfDataset(dirname='data/small_qbf/')
+  base_model = settings['base_model']
+  if base_model:    
+    model = QbfClassifier()
+    model.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
+    encoder=model.encoder
+  else:
+    encoder=None
+  policy = Policy(encoder=encoder)
+  if settings['cuda']:
+    policy = policy.cuda()
+  optimizer = optim.Adam(policy.parameters(), lr=1e-2)
+  # ds = QbfDataset(dirname='data/small_qbf/')
+  ds = QbfDataset(dirname='data/single_qbf/')
+  # ds = QbfDataset(dirname='data/large_qbf/')
   all_episode_files = ds.get_files_list()
   total_envs = len(all_episode_files)
   total_steps = 0
@@ -175,7 +199,7 @@ def cadet_main():
     begin_time = time.time()
     while time_steps_this_batch < settings['min_timesteps_per_batch']:
       fname = all_episode_files[random.randint(0,total_envs-1)]
-      r, meta_data = handle_episode(fname)      
+      r, meta_data = handle_episode(fname, model=policy)
       s = len(r)
       # r[-1] += ts_bonus(s)
       time_steps_this_batch += s
@@ -188,16 +212,16 @@ def cadet_main():
       transition_data.extend(meta_data)
       # print('Finished episode for file %s in %d steps' % (fname, s))
 
-
-    end_time = time.time()
-    print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, end_time-begin_time))
+    
+    print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, sum(inference_time)))    
     if not (iter % 10):
       reporter.report_stats()
       print('Testing all episodes:')
       for fname in all_episode_files:
-        r, _ = handle_episode(fname,testing=True)
+        r, _ = handle_episode(fname, model=policy, testing=True)
         print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
 
+    inference_time.clear()
     begin_time = time.time()
     if settings['batch_backwards']:
       states, ground_embs, cmat_pos, cmat_neg, actions = zip(*transition_data)
@@ -212,7 +236,7 @@ def cadet_main():
     if settings['cuda']:
       returns = returns.cuda()
     returns = (returns - returns.mean()) / (returns.std() + np.finfo(np.float32).eps)
-    loss = (-Variable(returns)*logprobs - 0.000000001*batch_entropy).mean()
+    loss = (-Variable(returns)*logprobs - 0.0*batch_entropy).mean()
     optimizer.zero_grad()
     loss.backward()
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads

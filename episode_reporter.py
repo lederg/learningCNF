@@ -26,6 +26,7 @@ class EpisodeReporter(object):
 
 		print('Data for the 10 most common envs:')
 		for vals in totals[:10]:
-			print('Env %d appeared %d times, with mean/std %f/%f:' % (vals[0], vals[1], np.mean(vals[2]), np.std(vals[2])))
-			print(vals[2])
+			s = vals[2][-100:]
+			print('Env %d appeared %d times, with moving (100) mean/std %f/%f:' % (vals[0], vals[1], np.mean(s), np.std(s)))
+			print(s)
 			print('\n\n')

@@ -129,6 +129,7 @@ class CadetEnv:
         self.activities[update] = activity
       elif a[0] == 'c':
         b = [int(x) for x in a[2:].split()]
+        self.qbf.add_clause(b)
         clause = (np.array([abs(x)-1 for x in b if x > 0]), np.array([abs(x)-1 for x in b if x < 0]))
       else:
         print('Got unprocessed line: %s' % a)

@@ -14,7 +14,7 @@ def require_init(f, *args, **kwargs):
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     
 class CadetEnv:
-  def __init__(self, cadet_binary, debug=False, **kwargs):
+  def __init__(self, cadet_binary, debug=False, greedy_rewards=False, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.cadet_proc = Popen([self.cadet_binary,  '--rl', '--cegar'], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
@@ -22,6 +22,8 @@ class CadetEnv:
     self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
     self.qbf = QbfBase(**kwargs)
     self.done = True      
+    self.greedy_rewards = greedy_rewards
+    
 
 
   def eat_initial_output(self):
@@ -39,8 +41,11 @@ class CadetEnv:
       self.write_action(-1)
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
+    self.total_vars_deterministic = np.zeros(self.qbf.num_vars)    
     self.activities = np.zeros(self.qbf.num_vars)
     self.max_rewards = self.qbf.num_existential
+    self.timestep = 0
+    self.running_reward = []
 
     self.write(fname+'\n')
     self.done = False
@@ -86,8 +91,12 @@ class CadetEnv:
     clause = None
     while True:
       decision = None
+      pos_vars = np.where(self.vars_deterministic>0)[0]
+      neg_vars = np.where(self.vars_deterministic<0)[0]      
       a = self.read_line_with_timeout()
       if not a or a == '\n': continue
+      if self.debug:
+        print(a)
       if a == 'UNSAT\n':
         a = self.read_line_with_timeout()     # refutation line
         a = self.read_line_with_timeout()     # rewards
@@ -98,24 +107,28 @@ class CadetEnv:
           else:
             self.rewards[-1]=1.
         self.done = True
-        return None, None, None, None, None, None, True
+        state = None
+        break
       elif a == 'SAT\n':
         a = self.read_line_with_timeout()     # rewards
-        self.rewards = np.asarray(list(map(float,a.split()[1:])))
+        self.rewards = np.asarray(list(map(float,a.split()[1:])))                
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():
             ipdb.set_trace()
           else:
             self.rewards[-1]=1.
         self.done = True
-        return None, None, None, None, None, None, True
+        state = None
+        break
 
       elif a[0] == 'u':
         update = int(a[3:])-1     # Here we go from 1-based to 0-based
         if a[1] == '+':
           self.vars_deterministic[update] = 1
+          self.total_vars_deterministic[update] = 1
         else:
           self.vars_deterministic[update] = -1
+          self.total_vars_deterministic[update] = 0
       elif a[0] == 'd':
         decision = [int(x) for x in a[2:].split(',')]
         decision[0] -= 1
@@ -135,11 +148,20 @@ class CadetEnv:
         print('Got unprocessed line: %s' % a)
         if a.startswith('Error'):
           return
-          
-    return state, np.where(self.vars_deterministic>0), np.where(self.vars_deterministic<0), self.activities, decision, clause, self.done
+
+    if self.timestep > 0:      
+      new_reward = np.count_nonzero(self.total_vars_deterministic) - self.last_total_determinized
+      self.running_reward.append(new_reward)
+    self.last_total_determinized = np.count_nonzero(self.total_vars_deterministic)
+    if sum(self.running_reward) < 0:
+      ipdb.set_trace()
+    if self.done and self.greedy_rewards:
+      self.rewards = self.rewards*100 + np.asarray(self.running_reward)
+    return state, pos_vars, neg_vars, self.activities, decision, clause, self.done
 
   def step(self, action):
     assert(not self.done)
     self.write_action(action)
+    self.timestep += 1
     return self.read_state_update()
             

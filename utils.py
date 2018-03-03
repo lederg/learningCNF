@@ -8,6 +8,12 @@ import sys
 from pprint import pprint
 import functools
 import weakref
+from enum import Enum
+
+class BaseMode(Enum):
+    ALL = 1
+    EMBEDDING = 2
+
 
 def memoized_method(*lru_args, **lru_kwargs):
     def decorator(func):
@@ -32,6 +38,16 @@ class Singleton(type):
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
     
+
+def convert_var(v, reverse=False):
+    s = sign(v)
+    val = abs(v)
+
+def log_name(settings):
+    return 'run_%s_bs%d_ed%d_iters%d__%s' % (settings['name'], 
+        settings['batch_size'], settings['embedding_dim'], 
+        settings['max_iters'], settings['exp_time'])
+
 
 def normalize(input, p=2, dim=1, eps=1e-20):
     return input / input.norm(p, dim).clamp(min=eps).expand_as(input)

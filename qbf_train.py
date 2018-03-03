@@ -23,14 +23,6 @@ SAVE_EVERY = 5
 
 criterion = nn.CrossEntropyLoss()
 
-def log_name(settings):
-    from qbf_exp import ex    
-    return 'run_%s_bs%d_ed%d_iters%d__%s' % (settings['name'], 
-        settings['batch_size'], settings['embedding_dim'], 
-        settings['max_iters'], settings['exp_time'])
-
-
-
 def train(ds, model, optimizer=None, iters=None, ds_validate=None, do_log=True):
   settings = CnfSettings()
   if optimizer is None:

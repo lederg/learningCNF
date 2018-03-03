@@ -1,11 +1,12 @@
 import time
 import ipdb
+from utils import BaseMode
 
 def cfg():	
 	name = 'DEF_NAME'
 	exp_time = int(time.time())
 	state_dim = 35
-	embedding_dim = 20
+	embedding_dim = 40
 	ground_dim = 6
 	max_variables = 200 
 	max_clauses = 600
@@ -13,9 +14,13 @@ def cfg():
 	data_dir = 'data/'
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
-	base_model = 'run_qbf_base2_bs64_ed20_iters7__1519766803_epoch50.model'
-	# base_model = None
+	# base_model = 'run_qbf_base3_bs64_ed30_iters7__1519801625_epoch15.model'
+	# base_model = 'run_qbf_base4_bs64_ed40_iters7__1519842678_epoch200.model'
+	# base_model = 'run_rl_env718_bs64_ed30_iters7__1519807551_iter200.model'
+	# base_model = 'run_rl_env718_test2_bs64_ed30_iters7__1519810118_iter100.model'
+	base_model = None
 	# base_mode = BaseMode.ALL
+	base_mode = BaseMode.EMBEDDING
 	max_iters = 7
 	batch_size = 64 
 	val_size = 100 
@@ -55,7 +60,7 @@ def cfg():
 	policy_dim2 = 50
 	min_timesteps_per_batch = 400
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
-
+	greedy_rewards = True
 
 # Localization
 

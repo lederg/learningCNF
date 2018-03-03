@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import utils
 import numpy as np
+from collections import namedtuple
 import ipdb
 # import pdb
 from qbf_data import *
@@ -14,6 +15,7 @@ from qbf_model import QbfEncoder
 from settings import *
 
 INVALID_BIAS = -1000
+SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
 
 class Policy(nn.Module):
 	def __init__(self, encoder=None, **kwargs):
@@ -25,6 +27,7 @@ class Policy(nn.Module):
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']		
 		self.graph_embedder = GraphEmbedder(settings=self.settings)
+		# self.value_score = nn.Linear(self.state_dim+self.embedding_dim,1)
 		if encoder:
 			print('Bootstraping Policy from existing encoder')
 			self.encoder = encoder
@@ -47,15 +50,16 @@ class Policy(nn.Module):
 		self.batch_size=size[0]
 		if 'vs' in kwargs.keys():
 			vs = kwargs['vs']		
-		else:			
-			# vs = self.encoder(**a).view(self.settings['batch_size'],self.max_variables,self.embedding_dim)		
+		else:						
 			rc = self.encoder(ground_embeddings,**kwargs)
 			vs = rc.view(self.batch_size,-1,self.embedding_dim)
 			# vs = rc.view(-1,self.embedding_dim)
 		reshaped_state = state.view(self.batch_size,1,self.state_dim).expand(self.batch_size,size[1],self.state_dim)
 		inputs = torch.cat([reshaped_state, vs,ground_embeddings],dim=2).view(-1,self.state_dim+self.embedding_dim+self.ground_dim)
-
+		# graph_embedding = self.graph_embedder(vs,batch_size=len(vs))
+		# value = self.value_score(torch.cat([state,graph_embedding]))
 		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs))))).view(self.batch_size,-1)
+		# outputs = outputs-value		# Advantage
 		# outputs = self.action_score(self.activation(self.linear1(inputs))).view(self.batch_size,-1)		
 		missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])
 		valid_outputs = outputs + (1-(1-missing)*(1-ground_embeddings[:,:,IDX_VAR_DETERMINIZED]))*self.invalid_bias

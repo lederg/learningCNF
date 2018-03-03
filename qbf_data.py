@@ -74,6 +74,10 @@ class QbfBase(object):
         return len(a[a>0])
 
     @property
+    def num_universal(self):
+        return self.num_vars - self.num_existential
+
+    @property
     def num_clauses(self):
         return len(self.qcnf['clauses'])
     @property
@@ -184,20 +188,25 @@ class QbfBase(object):
 f2qbf = lambda x: QbfBase.from_qdimacs(x)
 
 class QbfDataset(Dataset):
-    def __init__(self,dirname=None, fnames=None, max_variables=MAX_VARIABLES, max_clauses=MAX_CLAUSES):
+    def __init__(self, fnames=None, max_variables=MAX_VARIABLES, max_clauses=MAX_CLAUSES):
         self.samples = ([], [])     # UNSAT, SAT
         self.max_vars = max_variables
-        self.max_clauses = max_clauses
-        if dirname:            
-            self.load_dir(dirname)
-        elif fnames:
-            self.load_files(fnames)
+        self.max_clauses = max_clauses        
+        if fnames:
+            if type(fnames) is list:
+                self.load_files(fnames)
+            else:
+                self.load_files([fnames])
 
     def load_dir(self, directory):
         self.load_files([join(directory, f) for f in listdir(directory)])
 
     def load_files(self, files):
-        rc = map(f2qbf,files)
+        only_files = [x for x in files if os.path.isfile(x)]
+        only_dirs = [x for x in files if os.path.isdir(x)]
+        for x in only_dirs:
+            self.load_dir(x)
+        rc = map(f2qbf,only_files)
         rc = [x for x in rc if x and x.num_vars <= self.max_vars and x.num_clauses < self.max_clauses\
                                                              and x.num_clauses > 0 and x.num_vars > 0]
         for x in rc:            
@@ -229,10 +238,11 @@ class QbfDataset(Dataset):
         self.__weights_vector = a
         return a
 
-
-
     def load_file(self,fname):
-        self.load_files([fname])
+        if os.path.isdir(fname):
+            self.load_dir(fname)
+        else:
+            self.load_files([fname])
 
     def get_files_list(self):
         return [x.qcnf['fname'] for x in self.samples[0]] + [x.qcnf['fname'] for x in self.samples[1]]        

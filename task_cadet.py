@@ -15,6 +15,9 @@ from episode_reporter import EpisodeReporter
 import torch.nn.utils as tutils
 
 CADET_BINARY = './cadet'
+SAVE_EVERY = 10
+INVALID_ACTION_REWARDS = -3
+
 
 all_episode_files = ['data/mvs.qdimacs']
 
@@ -142,7 +145,9 @@ def handle_episode(fname, **kwargs):
     # print('Chose action %d' % action)
     if ground_embs[action][IDX_VAR_DETERMINIZED]:
       print('Chose an invalid action!')
-      ipdb.set_trace()
+      rewards = np.zeros(max(len(transitions),len(logprobs))) # stupid hack
+      rewards[-1] = INVALID_ACTION_REWARDS
+      return rewards, transitions if settings['batch_backwards'] else logprobs
     try:
       state, vars_add, vars_remove, activities, decision, clause, done = env.step(action)      
     except Exception as e:
@@ -172,25 +177,34 @@ def ts_bonus(s):
   b = 5.
   return b/float(s)
 
-def cadet_main():
+def create_policy():
   base_model = settings['base_model']
-  if base_model:    
-    model = QbfClassifier()
-    model.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
-    encoder=model.encoder
+  if base_model:
+    if settings['base_mode'] == BaseMode.ALL:
+      policy = Policy()
+      policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
+    else:
+      model = QbfClassifier()
+      model.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
+      encoder=model.encoder
+      policy = Policy(encoder=encoder)
   else:
-    encoder=None
-  policy = Policy(encoder=encoder)
+    policy = Policy()
   if settings['cuda']:
     policy = policy.cuda()
+
+  return policy
+
+def cadet_main():
+  policy = create_policy()
   optimizer = optim.Adam(policy.parameters(), lr=1e-2)
   # ds = QbfDataset(dirname='data/small_qbf/')
-  ds = QbfDataset(dirname='data/single_qbf/')
+  ds = QbfDataset(fnames='data/single_qbf/718_SAT.qdimacs')
   # ds = QbfDataset(dirname='data/large_qbf/')
   all_episode_files = ds.get_files_list()
   total_envs = len(all_episode_files)
   total_steps = 0
-  for iter in range(2000):
+  for i in range(3000):
     rewards = []
     time_steps_this_batch = 0
     transition_data = []
@@ -214,7 +228,7 @@ def cadet_main():
 
     
     print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, sum(inference_time)))    
-    if not (iter % 10):
+    if not (i % 10):
       reporter.report_stats()
       print('Testing all episodes:')
       for fname in all_episode_files:
@@ -245,6 +259,8 @@ def cadet_main():
     optimizer.step()
     end_time = time.time()
     print('Backward computation done in %f seconds' % (end_time-begin_time))
+    if i % SAVE_EVERY == 0:
+      torch.save(policy.state_dict(),'%s/%s_iter%d.model' % (settings['model_dir'],utils.log_name(settings), i))
     
 
 

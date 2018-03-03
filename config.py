@@ -19,8 +19,8 @@ def cfg():
 	# base_model = 'run_rl_env718_bs64_ed30_iters7__1519807551_iter200.model'
 	# base_model = 'run_rl_env718_test2_bs64_ed30_iters7__1519810118_iter100.model'
 	base_model = None
-	# base_mode = BaseMode.ALL
-	base_mode = BaseMode.EMBEDDING
+	base_mode = BaseMode.ALL
+	# base_mode = BaseMode.EMBEDDING
 	max_iters = 7
 	batch_size = 64 
 	val_size = 100 
@@ -60,8 +60,9 @@ def cfg():
 	policy_dim2 = 50
 	min_timesteps_per_batch = 400
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
-	greedy_rewards = True
-
+	greedy_rewards = False
+	rl_log_dir = 'runs_cadet'
+	rl_train_data = 'data/single_qbf/718_SAT.qdimacs'
 # Localization
 
 	max_edges = 20

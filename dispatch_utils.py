@@ -19,12 +19,12 @@ def dict_to_args(d, as_string=True):
 		rc = " ".join(rc)
 	return rc
 
-def get_mongo_addr(machine, sfx):
+def get_mongo_addr(machine):
 	rc = subprocess.run(['docker-machine', 'ip', machine], stdout=subprocess.PIPE)
 	assert(rc.returncode == 0)
 	ip = rc.stdout.strip().decode()
 
-	return ip+sfx
+	return ip
 
 def machine_exists(name):
 	bla = subprocess.run(['docker-machine', 'inspect', name], stdout=subprocess.PIPE)

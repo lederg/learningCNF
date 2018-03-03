@@ -23,7 +23,7 @@ all_episode_files = ['data/mvs.qdimacs']
 
 settings = CnfSettings()
 
-reporter = EpisodeReporter()
+reporter = EpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)))
 env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
 
 inference_time = []
@@ -198,9 +198,8 @@ def create_policy():
 def cadet_main():
   policy = create_policy()
   optimizer = optim.Adam(policy.parameters(), lr=1e-2)
-  # ds = QbfDataset(dirname='data/small_qbf/')
-  ds = QbfDataset(fnames='data/single_qbf/718_SAT.qdimacs')
-  # ds = QbfDataset(dirname='data/large_qbf/')
+  ds = QbfDataset(fnames=settings['rl_train_data'])
+  # ds = QbfDataset(fnames='data/single_qbf/718_SAT.qdimacs')
   all_episode_files = ds.get_files_list()
   total_envs = len(all_episode_files)
   total_steps = 0
@@ -218,7 +217,7 @@ def cadet_main():
       # r[-1] += ts_bonus(s)
       time_steps_this_batch += s
       total_steps += s
-      reporter.add_stat(int(os.path.split(fname)[1].split('_')[0]),s,sum(r))
+      reporter.add_stat(int(os.path.split(fname)[1].split('_')[0]),s,sum(r), total_steps)
       # ipdb.set_trace()
       rewards.extend(discount(r, settings['gamma']))
       if np.isnan(rewards).any():

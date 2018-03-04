@@ -1,7 +1,11 @@
 import time
 import ipdb
 from utils import BaseMode
+from sacred import Experiment
 
+ex = Experiment('REINFORCE')
+
+@ex.config
 def cfg():	
 	name = 'DEF_NAME'
 	exp_time = int(time.time())
@@ -73,5 +77,5 @@ def cfg():
 	DS_VALIDATION_FILE = 'expressions-synthetic/split/%s-validationset.json' % dataset
 	DS_TEST_FILE = 'expressions-synthetic/split/%s-testset.json' % dataset
 
-	return vars()
+	# return vars()
 

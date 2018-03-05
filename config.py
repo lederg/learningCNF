@@ -66,7 +66,8 @@ def cfg():
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
 	greedy_rewards = False
 	rl_log_dir = 'runs_cadet'
-	rl_train_data = 'data/single_qbf/718_SAT.qdimacs'
+	rl_train_data = 'data/single_qbf/'
+	rl_log_envs = [718, 998]
 # Localization
 
 	max_edges = 20

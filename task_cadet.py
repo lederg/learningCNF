@@ -198,6 +198,7 @@ def create_policy():
 def cadet_main():
   policy = create_policy()
   optimizer = optim.Adam(policy.parameters(), lr=1e-2)
+  reporter.log_env(settings['rl_log_envs'])
   ds = QbfDataset(fnames=settings['rl_train_data'])
   # ds = QbfDataset(fnames='data/single_qbf/718_SAT.qdimacs')
   all_episode_files = ds.get_files_list()

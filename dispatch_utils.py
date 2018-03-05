@@ -1,6 +1,8 @@
+import ipdb
 import subprocess
 import time
 
+DEF_INSTANCE = 'c5.large'
 
 def args_to_dict(args):
 	if isinstance(args,str):
@@ -31,11 +33,14 @@ def machine_exists(name):
 	return bla.returncode == 0
 
 def machine_name(name):
-  return str(name)+str(time.time())[-4:]
+	sanitized_name = ['-' if x == '_' else x for x in name]
+	return ''.join(sanitized_name)+'-'+str(time.time())[-4:]
 
-def provision_machine(name):
+def provision_machine(name, instance_type=None):
+	if not instance_type:
+		instance_type = DEF_INSTANCE
 	if not machine_exists(name):
-		rc = subprocess.run(['./provision.sh', name])
+		rc = subprocess.run(['./provision.sh', name, instance_type])
 	else:
 		print('Machine %s already exists!')	
 	assert(machine_exists(name))

@@ -13,6 +13,9 @@ class EpisodeReporter(object):
 
 
 	def log_env(self, id):
+		if type(id) is list:
+			for x in id:
+				self.log_env(x)
 		self.ids_to_log.append(id)
 
 	def add_stat(self, env_id, steps, reward, total_steps):
@@ -41,6 +44,9 @@ class EpisodeReporter(object):
 			print('\n\n')
 
 		for id in self.ids_to_log:
-			stats = self.stats_dict[id][-DEF_WINDOW:]
+			try:
+				stats = self.stats_dict[id][-DEF_WINDOW:]
+			except:
+				continue
 			steps, rewards = zip(*stats)
 			log_value('env {} reward'.format(id), np.mean(steps), self.total_steps)

@@ -56,6 +56,7 @@ def cfg():
 	cuda = False
 	reset_on_save = False
 	run_task='train'
+	do_not_run=False
 
 # RL
 
@@ -68,6 +69,7 @@ def cfg():
 	rl_log_dir = 'runs_cadet'
 	rl_train_data = 'data/single_qbf/'
 	rl_log_envs = [718, 998]
+	rl_log_all = True
 # Localization
 
 	max_edges = 20

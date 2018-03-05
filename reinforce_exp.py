@@ -13,5 +13,6 @@ def main():
 	settings.hyperparameters['name'] = ex.current_run.experiment_info['name']
 	# print(settings.hyperparameters)
 	from task_cadet import cadet_main
-	cadet_main()
+	if not settings['do_not_run']:
+		cadet_main()
 

@@ -2,6 +2,7 @@ import argparse
 import ipdb
 import subprocess
 import json
+import asyncio
 
 from dispatch_utils import *
 
@@ -26,13 +27,14 @@ def main():
 	parser.add_argument('-c', '--command', type=str, default='reinforce_exp.py', help='Command to run (eg: qbf_exp.py)')	
 	parser.add_argument('-t', '--instance-type', type=str, help='instance type (eg: t2.xlarge)')	
 	parser.add_argument('-m', '--machine', type=str, help='machine name (eg: exp_dqn)')	
+	parser.add_argument('-n', '--num', type=int, default=1, help='Number of concurrent experiments')	
 	parser.add_argument('--rm', action='store_true', default=False, help='Delete after experiment is done')	
 	args = parser.parse_args()
 
 	if args.name is None:
 		print('Name is NOT optional')
 		exit()
-	machine_name = args.machine if args.machine else machine_name(args.name)
+	base_mname = args.machine if args.machine else machine_name(args.name)
 	params = args.params
 
 # override params, cmdargs > json file > def_params > params defined in source code.
@@ -57,22 +59,48 @@ def main():
 		mongo_addr += EXP_QBF_SFX
 	elif args.command == 'reinforce_exp.py':
 		mongo_addr += EXP_RL_SFX
-	a = ['%s=%s' % i for i in def_params.items()]
-	a.insert(0, 'with')
-	a.insert(0, '--name %s' % str(args.name))
-	a.insert(0, '-m %s' % mongo_addr)
-	a.insert(0, '%s' % args.command)
+	else: 
+		mongo_addr += 'unknown'
 
+	all_params = ['%s=%s' % i for i in def_params.items()]
+	loop = asyncio.get_event_loop()
+	all_executions = []
 
-	if not machine_exists(machine_name):
-		print('Provisioning machine %s...' % machine_name)
-		provision_machine(machine_name,args.instance_type)
-	print('Running experiment %s on machine %s...' % (args.command,machine_name))
-	execute_machine(machine_name," ".join(a))
+	for i in range(args.num):
+		a = all_params.copy()
+		a.insert(0, 'with')
+		a.insert(0, '--name %s-%d' % (str(args.name),i))
+		a.insert(0, '-m %s' % mongo_addr)
+		a.insert(0, '%s' % args.command)
+
+		mname = base_mname+'-{}'.format(i)
+		p = async_dispatch_chain(mname,a, args.instance_type, args.rm)
+		all_executions.append(p)
+	loop.run_until_complete(asyncio.gather(*all_executions))
+	loop.close()
+	# else:
+	# 	execute_machine(mname," ".join(a))
 	print('Experiment finished')
-	if args.rm:
-		print('Removing machine %s ...' % machine_name)
-		remove_machine(machine_name)
+	# if args.rm:
+	# 	print('Removing machine %s ...' % mname)
+	# 	remove_machine(mname)
 
+
+async def async_dispatch_chain(mname, params, instance_type, rm):
+	if not machine_exists(mname):
+		print('Provisioning machine %s...' % mname)
+		rc = await async_provision_machine(mname,instance_type)		
+		print('Running experiment %s on machine %s...' % (params[0],mname))
+		p = await async_execute_machine(mname," ".join(params))
+		if rm:
+			print('Waiting for experiment {} to be executed (rm)'.format(mname))
+			rc = await p.wait()
+			print('Removing machine %s ...' % mname)
+			await async_remove_machine(mname)
+		else:
+			print('Waiting for experiment {} to be executed'.format(mname))
+			await p
+			print('Experiment {} finished!'.format(mname))
+			
 if __name__=='__main__':
 	main()

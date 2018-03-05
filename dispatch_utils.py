@@ -1,6 +1,7 @@
 import ipdb
 import subprocess
 import time
+import asyncio
 
 DEF_INSTANCE = 'c5.large'
 
@@ -45,11 +46,33 @@ def provision_machine(name, instance_type=None):
 		print('Machine %s already exists!')	
 	assert(machine_exists(name))
 
+async def async_provision_machine(name, instance_type=None):
+	if not instance_type:
+		instance_type = DEF_INSTANCE
+	if not machine_exists(name):
+		rc = await asyncio.create_subprocess_exec('./provision.sh', name, instance_type)
+		await rc.communicate()
+		return True
+	else:
+		print('Machine %s already exists!')	
+
 def remove_machine(name):
 	rc = subprocess.run(['docker-machine', 'rm', '-y', name])
 	assert(not machine_exists(name))
 
+async def async_remove_machine(name):
+	process = await asyncio.create_subprocess_exec('docker-machine', 'rm', '-y', name)
+	await process.communicate()
+	return True
+
 def execute_machine(name, args):
 	assert(machine_exists(name))
 	rc = subprocess.run(['./start-container.sh', name, args])
+
+async def async_execute_machine(name, args):
+	assert(machine_exists(name))
+	process = await asyncio.create_subprocess_exec(
+        './start-container.sh', name, args)
+	await process.wait()
+	
 	

@@ -213,12 +213,16 @@ def cadet_main():
     begin_time = time.time()
     while time_steps_this_batch < settings['min_timesteps_per_batch']:
       fname = all_episode_files[random.randint(0,total_envs-1)]
+      env_id = int(os.path.split(fname)[1].split('_')[0])
+      if settings['rl_log_all']:
+        reporter.log_env(env_id)
+
       r, meta_data = handle_episode(fname, model=policy)
       s = len(r)
       # r[-1] += ts_bonus(s)
       time_steps_this_batch += s
       total_steps += s
-      reporter.add_stat(int(os.path.split(fname)[1].split('_')[0]),s,sum(r), total_steps)
+      reporter.add_stat(env_id,s,sum(r), total_steps)
       # ipdb.set_trace()
       rewards.extend(discount(r, settings['gamma']))
       if np.isnan(rewards).any():

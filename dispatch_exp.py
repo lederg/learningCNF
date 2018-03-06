@@ -62,8 +62,6 @@ def main():
 			for (i,v) in d.items():
 				def_params[i]=v
 
-
-
 	for k in params:
 		a, b = k.split('=')
 		def_params[a]=b
@@ -83,7 +81,8 @@ def main():
 
 	for i in range(args.num):
 		a = all_params.copy()
-		a.insert(0, 'with')
+		if all_params:
+			a.insert(0, 'with')
 		a.insert(0, '--name %s-%d' % (str(args.name),i))
 		a.insert(0, '-m %s' % mongo_addr)
 		a.insert(0, '%s' % args.command)

@@ -4,6 +4,9 @@ import ipdb
 import time
 from qbf_data import *
 
+MAX_EPISODE_LENGTH = 100
+
+
 def require_init(f, *args, **kwargs): 
   def inner(instance, *args, **kwargs):
     assert(instance.cadet_proc != None)
@@ -155,13 +158,21 @@ class CadetEnv:
     self.last_total_determinized = np.count_nonzero(self.total_vars_deterministic)
     if sum(self.running_reward) < 0:
       ipdb.set_trace()
-    if self.done and self.greedy_rewards:
-      self.rewards = self.rewards*100 + np.asarray(self.running_reward)
+    if self.greedy_rewards and self.done:
+        self.rewards = self.rewards*100 + np.asarray(self.running_reward)
+
     return state, pos_vars, neg_vars, self.activities, decision, clause, self.done
 
   def step(self, action):
     assert(not self.done)
-    self.write_action(action)
     self.timestep += 1
+    if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:
+      self.write_action(-1)            # Force quit, get rewards
+      a = self.read_line_with_timeout()
+      self.done = True
+      rewards = np.asarray(list(map(float,a.split()[1:])))*100 + np.asarray(self.running_reward)
+      self.rewards = np.concatenate([rewards, [-1.385e-03]])    # Average action
+      return None, None, None, None, None, None, True
+    self.write_action(action)
     return self.read_state_update()
             

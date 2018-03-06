@@ -65,7 +65,7 @@ def cfg():
 	policy_dim2 = 50
 	min_timesteps_per_batch = 400
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
-	greedy_rewards = False
+	greedy_rewards = True
 	rl_log_dir = 'runs_cadet'
 	rl_train_data = 'data/single_qbf/718_SAT.qdimacs'
 	rl_log_envs = [718]

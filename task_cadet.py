@@ -222,8 +222,9 @@ def cadet_main():
       # r[-1] += ts_bonus(s)
       time_steps_this_batch += s
       total_steps += s
-      reporter.add_stat(env_id,s,sum(r), total_steps)
-      # ipdb.set_trace()
+      _, b = zip(*meta_data)      
+      ent = torch.cat(b).mean().data[0]
+      reporter.add_stat(env_id,s,sum(r), ent, total_steps)
       rewards.extend(discount(r, settings['gamma']))
       if np.isnan(rewards).any():
         ipdb.set_trace()

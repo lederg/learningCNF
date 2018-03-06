@@ -18,12 +18,15 @@ class EpisodeReporter(object):
 				self.log_env(x)
 		self.ids_to_log.append(id)
 
-	def add_stat(self, env_id, steps, reward, total_steps):
+	def add_stat(self, env_id, steps, reward, entropy, total_steps):
 		self.stats.append([env_id,steps,reward])
 		if not env_id in self.stats_dict.keys():
 			self.stats_dict[env_id] = []
-		self.stats_dict[env_id].append((steps, reward))
+
+		# Add entropy as well			
+		self.stats_dict[env_id].append((steps, reward, entropy))
 		self.total_steps = total_steps
+
 
 	def __len__(self):
 		return len(self.stats)
@@ -48,5 +51,7 @@ class EpisodeReporter(object):
 				stats = self.stats_dict[id][-DEF_WINDOW:]
 			except:
 				continue
-			steps, rewards = zip(*stats)
-			log_value('env {} reward'.format(id), np.mean(steps), self.total_steps)
+			steps, rewards, entropy = zip(*stats)
+			log_value('env {} #steps'.format(id), np.mean(steps), self.total_steps)
+			log_value('env {} entropy'.format(id), np.mean(entropy), self.total_steps)
+			log_value('env {} rewards'.format(id), np.mean(rewards), self.total_steps)

@@ -1,8 +1,10 @@
 import argparse
+import functools
 import ipdb
 import subprocess
 import json
 import asyncio
+import signal
 
 from dispatch_utils import *
 
@@ -17,6 +19,20 @@ MONGO_SFX = ':27017:'
 EXP_CNF_SFX = 'graph_exp'
 EXP_QBF_SFX = 'qbf_exp'
 EXP_RL_SFX = 'rl_exp'
+
+all_machines = []
+
+loop = asyncio.get_event_loop()
+
+def cleanup_handler(signame):
+	print('Got ctrl-c, cleaning up synchronously')
+	loop.run_until_complete(loop.shutdown_asyncgens())
+	loop.stop()
+	loop.close()
+	for mname in all_machines:
+		remove_machine(mname)
+
+	exit()
 
 def main():
 	parser = argparse.ArgumentParser(description='Process some params.')
@@ -62,8 +78,7 @@ def main():
 	else: 
 		mongo_addr += 'unknown'
 
-	all_params = ['%s=%s' % i for i in def_params.items()]
-	loop = asyncio.get_event_loop()
+	all_params = ['%s=%s' % i for i in def_params.items()]	
 	all_executions = []
 
 	for i in range(args.num):
@@ -76,6 +91,9 @@ def main():
 		mname = base_mname+'-{}'.format(i)
 		p = async_dispatch_chain(mname,a, args.instance_type, args.rm)
 		all_executions.append(p)
+
+	for signame in ('SIGINT', 'SIGTERM'):
+		loop.add_signal_handler(getattr(signal, signame), functools.partial(cleanup_handler, signame))
 	loop.run_until_complete(asyncio.gather(*all_executions))
 	loop.close()
 	# else:
@@ -87,20 +105,19 @@ def main():
 
 
 async def async_dispatch_chain(mname, params, instance_type, rm):
+	all_machines.append(mname)
 	if not machine_exists(mname):
 		print('Provisioning machine %s...' % mname)
-		rc = await async_provision_machine(mname,instance_type)		
-		print('Running experiment %s on machine %s...' % (params[0],mname))
-		p = await async_execute_machine(mname," ".join(params))
-		if rm:
-			print('Waiting for experiment {} to be executed (rm)'.format(mname))
-			rc = await p.wait()
-			print('Removing machine %s ...' % mname)
-			await async_remove_machine(mname)
-		else:
-			print('Waiting for experiment {} to be executed'.format(mname))
-			await p
-			print('Experiment {} finished!'.format(mname))
-			
+		rc = await async_provision_machine(mname,instance_type)				
+	else:
+		print('Machine already exists, hmm...')
+	print('Running experiment %s on machine %s...' % (params[0],mname))
+	p = await async_execute_machine(mname," ".join(params))
+	print('Experiment {} finished!'.format(mname))
+	if rm:
+		print('Removing machine %s ...' % mname)
+		await async_remove_machine(mname)
+		print('Removed machine %s ...' % mname)
+
 if __name__=='__main__':
 	main()

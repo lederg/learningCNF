@@ -62,8 +62,7 @@ def remove_machine(name):
 
 async def async_remove_machine(name):
 	process = await asyncio.create_subprocess_exec('docker-machine', 'rm', '-y', name)
-	await process.communicate()
-	return True
+	await process.wait()
 
 def execute_machine(name, args):
 	assert(machine_exists(name))
@@ -74,5 +73,6 @@ async def async_execute_machine(name, args):
 	process = await asyncio.create_subprocess_exec(
         './start-container.sh', name, args)
 	await process.wait()
+	# return True
 	
 	

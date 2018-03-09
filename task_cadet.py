@@ -11,7 +11,7 @@ from rl_model import *
 from qbf_data import *
 from qbf_model import QbfClassifier
 from utils import *
-from episode_reporter import EpisodeReporter
+from episode_reporter import *
 import torch.nn.utils as tutils
 
 CADET_BINARY = './cadet'
@@ -23,7 +23,7 @@ all_episode_files = ['data/mvs.qdimacs']
 
 settings = CnfSettings()
 
-reporter = EpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)))
+reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)))
 env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
 
 inference_time = []
@@ -35,7 +35,8 @@ def select_action(state, ground_embs, model=None, testing=False, **kwargs):
   if settings['cuda']:
     state, ground_embs = state.cuda(), ground_embs.cuda()
   begin_time = time.time()
-  probs = model(state, ground_embs, **kwargs)
+  logits = model(state, ground_embs, **kwargs)
+  probs = F.softmax(logits)
   inference_time.append(time.time() - begin_time)
   a = probs[probs>0]    # A technical workaround, we can't do log 0
   entropy = -(a*a.log()).sum()  
@@ -109,7 +110,7 @@ def get_input_from_qbf(qbf):
 def handle_episode(fname, **kwargs):
 
   # Set up ground_embeddings and adjacency matrices
-  state, vars_add, vars_remove, activities, _, _ , _ = env.reset(fname)
+  state, vars_add, vars_remove, activities, _, _ , _, _ = env.reset(fname)
   assert(len(state)==settings['state_dim'])
   qbf = env.qbf
   curr_num_clauses = qbf.num_clauses
@@ -149,7 +150,7 @@ def handle_episode(fname, **kwargs):
       rewards[-1] = INVALID_ACTION_REWARDS
       return rewards, transitions if settings['batch_backwards'] else logprobs
     try:
-      state, vars_add, vars_remove, activities, decision, clause, done = env.step(action)      
+      state, vars_add, vars_remove, activities, decision, clause, _, done = env.step(action)      
     except Exception as e:
       print(e)
       ipdb.set_trace()
@@ -197,7 +198,9 @@ def create_policy():
 
 def cadet_main():
   policy = create_policy()
-  optimizer = optim.Adam(policy.parameters(), lr=1e-2)
+  # optimizer = optim.Adam(policy.parameters(), lr=1e-2)
+  # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
+  optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])
   ds = QbfDataset(fnames=settings['rl_train_data'])
   # ds = QbfDataset(fnames='data/single_qbf/718_SAT.qdimacs')

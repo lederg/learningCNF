@@ -58,7 +58,7 @@ def cfg():
 	run_task='train'
 	do_not_run=False
 
-# RL
+# RL - PG
 
 	gamma=0.99
 	policy_dim1 = 100
@@ -67,9 +67,23 @@ def cfg():
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
 	greedy_rewards = True
 	rl_log_dir = 'runs_cadet'
-	rl_train_data = 'data/single_qbf/718_SAT.qdimacs'
+	rl_train_data = 'data/single_qbf/'
+	# rl_train_data = 'data/single_qbf/718_SAT.qdimacs'
 	rl_log_envs = [718]
 	rl_log_all = False
+	# rl_clip_episode_at = 100
+
+# RL - DQN
+
+	EPS_START = 0.9
+	EPS_END = 0.05
+	EPS_DECAY = 2000
+	learning_starts = 500
+	learning_freq=4
+	target_update_freq=7000
+	grad_norm_clipping=10
+
+
 # Localization
 
 	max_edges = 20

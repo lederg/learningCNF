@@ -4,19 +4,24 @@ import ipdb
 
 DEF_WINDOW = 100
 
-class EpisodeReporter(object):
-	def __init__(self, fname):
+class AbstractReporter(object):
+	def __init__(self, fname, tensorboard=False):
 		self.stats = []
 		self.stats_dict = {}
-		self.ids_to_log = []
-		configure(fname, flush_secs=5)
+		self.ids_to_log = set()
+		self.tensorboard = tensorboard
+		if tensorboard:
+			configure(fname, flush_secs=5)
+	
 
 
+class PGEpisodeReporter(AbstractReporter):	
 	def log_env(self, id):
 		if type(id) is list:
 			for x in id:
 				self.log_env(x)
-		self.ids_to_log.append(id)
+		else:
+			self.ids_to_log.add(id)
 
 	def add_stat(self, env_id, steps, reward, entropy, total_steps):
 		self.stats.append([env_id,steps,reward])
@@ -46,6 +51,9 @@ class EpisodeReporter(object):
 			print(s)
 			print('\n\n')
 
+		if not self.tensorboard:
+			return
+
 		for id in self.ids_to_log:
 			try:
 				stats = self.stats_dict[id][-DEF_WINDOW:]
@@ -54,4 +62,53 @@ class EpisodeReporter(object):
 			steps, rewards, entropy = zip(*stats)
 			log_value('env {} #steps'.format(id), np.mean(steps), self.total_steps)
 			log_value('env {} entropy'.format(id), np.mean(entropy), self.total_steps)
+			log_value('env {} rewards'.format(id), np.mean(rewards), self.total_steps)
+
+
+
+class DqnEpisodeReporter(AbstractReporter):	
+	def log_env(self, id):
+		if type(id) is list:
+			for x in id:
+				self.log_env(x)
+		else:
+			self.ids_to_log.add(id)
+
+	def add_stat(self, env_id, steps, reward, total_steps):
+		self.stats.append([env_id,steps,reward])
+		if not env_id in self.stats_dict.keys():
+			self.stats_dict[env_id] = []
+
+		# Add entropy as well			
+		self.stats_dict[env_id].append((steps, reward))
+		self.total_steps = total_steps
+
+
+	def __len__(self):
+		return len(self.stats)
+
+
+	def report_stats(self):
+		_, steps, rewards = zip(*self.stats)
+		print('Total episodes so far: %d' % len(steps))
+		print('Total steps so far: %d' % sum(steps))
+		print('Total rewards so far: %f' % sum(rewards))
+		totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
+
+		print('Data for the 10 most common envs:')
+		for vals in totals[:10]:
+			s = vals[2][-DEF_WINDOW:]
+			print('Env %d appeared %d times, with moving (100) mean/std %f/%f:' % (vals[0], vals[1], np.mean(s), np.std(s)))
+			print(s)
+			print('\n\n')
+
+		if not self.tensorboard:
+			return
+		for id in self.ids_to_log:
+			try:
+				stats = self.stats_dict[id][-DEF_WINDOW:]
+			except:
+				continue
+			steps, rewards, entropy = zip(*stats)
+			log_value('env {} #steps'.format(id), np.mean(steps), self.total_steps)
 			log_value('env {} rewards'.format(id), np.mean(rewards), self.total_steps)

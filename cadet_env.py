@@ -2,10 +2,11 @@ from subprocess import Popen, PIPE, STDOUT
 import select
 import ipdb
 import time
+from settings import *
 from qbf_data import *
 
-MAX_EPISODE_LENGTH = 100
-
+MAX_EPISODE_LENGTH = 200
+DQN_DEF_COST = -0.2
 
 def require_init(f, *args, **kwargs): 
   def inner(instance, *args, **kwargs):
@@ -92,8 +93,9 @@ class CadetEnv:
     self.vars_deterministic.fill(0)
     self.activities.fill(0)
     clause = None
+    reward = None
+    decision = None
     while True:
-      decision = None
       pos_vars = np.where(self.vars_deterministic>0)[0]
       neg_vars = np.where(self.vars_deterministic<0)[0]      
       a = self.read_line_with_timeout()
@@ -155,13 +157,18 @@ class CadetEnv:
     if self.timestep > 0:      
       new_reward = np.count_nonzero(self.total_vars_deterministic) - self.last_total_determinized
       self.running_reward.append(new_reward)
+      reward = 100 if self.done else DQN_DEF_COST 
+      if self.greedy_rewards:
+        reward += self.running_reward[-1]
     self.last_total_determinized = np.count_nonzero(self.total_vars_deterministic)
     if sum(self.running_reward) < 0:
       ipdb.set_trace()
     if self.greedy_rewards and self.done:
         self.rewards = self.rewards*100 + np.asarray(self.running_reward)
 
-    return state, pos_vars, neg_vars, self.activities, decision, clause, self.done
+    # on-line rewards, for Q-learning
+
+    return state, pos_vars, neg_vars, self.activities, decision, clause, reward, self.done
 
   def step(self, action):
     assert(not self.done)
@@ -172,7 +179,7 @@ class CadetEnv:
       self.done = True
       rewards = np.asarray(list(map(float,a.split()[1:])))*100 + np.asarray(self.running_reward)
       self.rewards = np.concatenate([rewards, [-1.385e-03]])    # Average action
-      return None, None, None, None, None, None, True
+      return None, None, None, None, None, None, DQN_DEF_COST, True
     self.write_action(action)
     return self.read_state_update()
             

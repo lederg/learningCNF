@@ -43,9 +43,13 @@ class Policy(nn.Module):
 	# state is just a (batched) vector of fixed size state_dim which should be expanded. 
 	# ground_embeddings are batch * max_vars * ground_embedding
 
-	# kwargs includes 'input', 'cmat_pos', 'cmat_neg', the latter two already in the correct format.
+	# cmat_net and cmat_pos are already "batched" into a single matrix
 
-	def forward(self, state, ground_embeddings, **kwargs):				
+	def forward(self, obs, **kwargs):
+		state = obs.state
+		ground_embeddings = obs.ground
+		kwargs['cmat_pos'] = obs.cmat_pos
+		kwargs['cmat_neg'] = obs.cmat_neg
 		size = ground_embeddings.size()
 		self.batch_size=size[0]
 		if 'vs' in kwargs.keys():
@@ -63,5 +67,6 @@ class Policy(nn.Module):
 		# outputs = self.action_score(self.activation(self.linear1(inputs))).view(self.batch_size,-1)		
 		missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])
 		valid_outputs = outputs + (1-(1-missing)*(1-ground_embeddings[:,:,IDX_VAR_DETERMINIZED]))*self.invalid_bias
-		rc = F.softmax(valid_outputs)
-		return rc
+		return valid_outputs
+		# rc = F.softmax(valid_outputs)
+		# return rc

@@ -15,6 +15,9 @@ class BaseMode(Enum):
     EMBEDDING = 2
 
 
+def copy_model_weights(model1, model2):
+    model2.load_state_dict(model1.state_dict())
+
 def memoized_method(*lru_args, **lru_kwargs):
     def decorator(func):
         @functools.wraps(func)

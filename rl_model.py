@@ -33,9 +33,10 @@ class Policy(nn.Module):
 			self.encoder = encoder
 		else:
 			self.encoder = QbfEncoder(**self.settings.hyperparameters)
+		# self.linear1 = nn.Linear(self.ground_dim, self.policy_dim1)
 		self.linear1 = nn.Linear(self.state_dim+self.embedding_dim+self.ground_dim, self.policy_dim1)
 		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
-		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([INVALID_BIAS]))
+		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([self.settings['invalid_bias']]))
 		self.action_score = nn.Linear(self.policy_dim2,1)
 		self.activation = F.relu
 		self.saved_log_probs = []
@@ -48,25 +49,39 @@ class Policy(nn.Module):
 	def forward(self, obs, **kwargs):
 		state = obs.state
 		ground_embeddings = obs.ground
-		kwargs['cmat_pos'] = obs.cmat_pos
-		kwargs['cmat_neg'] = obs.cmat_neg
+		cmat_pos = obs.cmat_pos		
+		cmat_neg = obs.cmat_neg
+
+		if self.settings['cuda']:
+			cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+			state, ground_embeddings = state.cuda(), ground_embeddings.cuda()			
 		size = ground_embeddings.size()
 		self.batch_size=size[0]
 		if 'vs' in kwargs.keys():
 			vs = kwargs['vs']		
 		else:						
-			rc = self.encoder(ground_embeddings,**kwargs)
+			rc = self.encoder(ground_embeddings, cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
 			vs = rc.view(self.batch_size,-1,self.embedding_dim)
 			# vs = rc.view(-1,self.embedding_dim)
 		reshaped_state = state.view(self.batch_size,1,self.state_dim).expand(self.batch_size,size[1],self.state_dim)
 		inputs = torch.cat([reshaped_state, vs,ground_embeddings],dim=2).view(-1,self.state_dim+self.embedding_dim+self.ground_dim)
+		# inputs = ground_embeddings.view(-1,self.ground_dim)
 		# graph_embedding = self.graph_embedder(vs,batch_size=len(vs))
 		# value = self.value_score(torch.cat([state,graph_embedding]))
 		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs))))).view(self.batch_size,-1)
 		# outputs = outputs-value		# Advantage
 		# outputs = self.action_score(self.activation(self.linear1(inputs))).view(self.batch_size,-1)		
-		missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])
-		valid_outputs = outputs + (1-(1-missing)*(1-ground_embeddings[:,:,IDX_VAR_DETERMINIZED]))*self.invalid_bias
-		return valid_outputs
+
+		if self.settings['pre_bias']:
+			# if len(state) > 5:
+			# 	ipdb.set_trace()
+			missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])
+			valid = (1-(1-missing)*(1-ground_embeddings[:,:,IDX_VAR_DETERMINIZED]))*self.invalid_bias
+			# return valid
+			valid_outputs = outputs + valid
+			return valid_outputs
+		else:
+			return outputs
+
 		# rc = F.softmax(valid_outputs)
 		# return rc

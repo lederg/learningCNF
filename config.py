@@ -10,7 +10,7 @@ def cfg():
 	name = 'DEF_NAME'
 	exp_time = int(time.time())
 	state_dim = 35
-	embedding_dim = 40
+	embedding_dim = 35
 	ground_dim = 6
 	max_variables = 200 
 	max_clauses = 600
@@ -25,11 +25,12 @@ def cfg():
 	base_model = None
 	base_mode = BaseMode.ALL
 	# base_mode = BaseMode.EMBEDDING
-	max_iters = 7
-	batch_size = 64 
+	max_iters = 6
+	batch_size = 128
 	val_size = 100 
 	threshold = 10
-	init_lr = 0.001
+	init_lr = 1e-04
+	# init_lr = 0.001
 	# 'init_lr = 0.0004
 	decay_lr = 0.055
 	decay_num_epochs = 6
@@ -52,8 +53,8 @@ def cfg():
 	use_ground = False
 	moving_ground = False 
 	split = False
-	# cuda = True 
-	cuda = False
+	cuda = True 
+	# cuda = False
 	reset_on_save = False
 	run_task='train'
 	do_not_run=False
@@ -61,29 +62,36 @@ def cfg():
 # RL - PG
 
 	gamma=0.99
+	# policy_dim1 = 20
+	# policy_dim2 = 10
 	policy_dim1 = 100
 	policy_dim2 = 50
 	min_timesteps_per_batch = 400
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
 	greedy_rewards = True
+	# greedy_rewards = True
 	rl_log_dir = 'runs_cadet'
 	rl_train_data = 'data/single_qbf/'
 	# rl_train_data = 'data/single_qbf/718_SAT.qdimacs'
 	rl_log_envs = [718]
-	rl_log_all = False
+	rl_log_all = True
 	# rl_clip_episode_at = 100
 
 # RL - DQN
 
 	EPS_START = 0.9
-	EPS_END = 0.05
+	EPS_END = 0.03
 	EPS_DECAY = 2000
-	learning_starts = 500
+	learning_starts = 50000
+	replay_size = 400000
 	learning_freq=4
-	target_update_freq=7000
-	grad_norm_clipping=10
-
-
+	target_update_freq=3000
+	grad_norm_clipping=2
+	pre_bias = True
+	# pre_bias = False
+	# invalid_bias = -1000
+	invalid_bias = 0
+	report_tensorboard = True
 # Localization
 
 	max_edges = 20

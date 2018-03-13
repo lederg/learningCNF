@@ -7,7 +7,8 @@ from qbf_data import *
 
 MAX_EPISODE_LENGTH = 200
 DQN_DEF_COST = -0.2
-
+# DQN_DEF_COST = 0.
+BINARY_SUCCESS = 50
 def require_init(f, *args, **kwargs): 
   def inner(instance, *args, **kwargs):
     assert(instance.cadet_proc != None)
@@ -41,7 +42,8 @@ class CadetEnv:
 
   def reset(self, fname):
     if not self.done:
-      print('interrupting mid-episode!')
+      if self.debug:
+        print('interrupting mid-episode!')
       self.write_action(-1)
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
@@ -149,7 +151,7 @@ class CadetEnv:
         b = [int(x) for x in a[2:].split()]
         self.qbf.add_clause(b)
         clause = (np.array([abs(x)-1 for x in b if x > 0]), np.array([abs(x)-1 for x in b if x < 0]))
-      else:
+      elif self.debug:
         print('Got unprocessed line: %s' % a)
         if a.startswith('Error'):
           return
@@ -157,7 +159,7 @@ class CadetEnv:
     if self.timestep > 0:      
       new_reward = np.count_nonzero(self.total_vars_deterministic) - self.last_total_determinized
       self.running_reward.append(new_reward)
-      reward = 100 if self.done else DQN_DEF_COST 
+      reward = BINARY_SUCCESS if self.done else DQN_DEF_COST 
       if self.greedy_rewards:
         reward += self.running_reward[-1]
     self.last_total_determinized = np.count_nonzero(self.total_vars_deterministic)

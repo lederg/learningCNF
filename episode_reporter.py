@@ -90,15 +90,17 @@ class DqnEpisodeReporter(AbstractReporter):
 
 	def report_stats(self):
 		_, steps, rewards = zip(*self.stats)
-		print('Total episodes so far: %d' % len(steps))
-		print('Total steps so far: %d' % sum(steps))
-		print('Total rewards so far: %f' % sum(rewards))
+		print('[{}] Total episodes so far: {}'.format(self.total_steps, len(steps)))
+		print('[{}] Total steps so far: {}'.format(self.total_steps, sum(steps)))
+		print('[{}] Total rewards so far: {}'.format(self.total_steps, sum(rewards)))
 		totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
 
 		print('Data for the 10 most common envs:')
 		for vals in totals[:10]:
 			s = vals[2][-DEF_WINDOW:]
-			print('Env %d appeared %d times, with moving (100) mean/std %f/%f:' % (vals[0], vals[1], np.mean(s), np.std(s)))
+			r = vals[3][-DEF_WINDOW:]
+			print('Env %d appeared %d times, with moving (100) mean/std %f/%f:' % (vals[0], vals[1], np.mean(r), np.std(r)))
+			print(r)
 			print(s)
 			print('\n\n')
 
@@ -109,6 +111,6 @@ class DqnEpisodeReporter(AbstractReporter):
 				stats = self.stats_dict[id][-DEF_WINDOW:]
 			except:
 				continue
-			steps, rewards, entropy = zip(*stats)
+			steps, rewards = zip(*stats)
 			log_value('env {} #steps'.format(id), np.mean(steps), self.total_steps)
 			log_value('env {} rewards'.format(id), np.mean(rewards), self.total_steps)

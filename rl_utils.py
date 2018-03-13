@@ -44,8 +44,8 @@ def get_input_from_qbf(qbf, settings=None):
   sp_val_neg = torch.ones(len(sp_ind_neg))
   cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([qbf.num_clauses,qbf.num_vars])))
   cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([qbf.num_clauses,qbf.num_vars])))  
-  if settings['cuda']:
-    cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+  # if settings['cuda']:
+  #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
   return cmat_pos, cmat_neg
 
 
@@ -164,24 +164,24 @@ def collate_observations(batch, settings=None):
   all_embs = []
   i=0
   for b in batch:
-    if b:
+    if b:      
       states.append(b.state)
-      ind_pos.append(b.cmat_pos.data._indices() + settings.LongTensor([i*c_size,i*v_size]).view(2,1))
-      ind_neg.append(b.cmat_neg.data._indices() + settings.LongTensor([i*c_size,i*v_size]).view(2,1))
+      ind_pos.append(b.cmat_pos.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
+      ind_neg.append(b.cmat_neg.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
       val_pos.append(b.cmat_pos.data._values())
       val_neg.append(b.cmat_neg.data._values())
       embs = b.ground.squeeze()
       l = len(embs)
       if l < v_size:
-        embs = torch.cat([embs,settings.zeros([v_size-l,settings['ground_dim']])])
+        embs = torch.cat([embs,torch.zeros([v_size-l,settings['ground_dim']])])
       all_embs.append(embs)
       i += 1    
       # states.append(Variable(settings.zeros([1,settings['state_dim']])))
       # all_embs.append(Variable(settings.zeros([v_size,settings['ground_dim']])))
   cmat_pos = torch.sparse.FloatTensor(torch.cat(ind_pos,1),torch.cat(val_pos),torch.Size([c_size*i,v_size*i]))
   cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_size*i,v_size*i]))
-  if settings['cuda']:
-    cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+  # if settings['cuda']:
+  #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
   return State(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.stack(all_embs))
 
 def collate_transitions(batch, settings=None):  

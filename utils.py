@@ -15,6 +15,10 @@ class BaseMode(Enum):
     EMBEDDING = 2
 
 
+def where(cond, x_1, x_2):
+    cond = cond.float()    
+    return (cond * x_1) + ((1-cond) * x_2)
+
 def copy_model_weights(model1, model2):
     model2.load_state_dict(model1.state_dict())
 

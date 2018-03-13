@@ -117,8 +117,7 @@ class FactoredInnerIteration(nn.Module):
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
 		self.ground_dim = self.settings['ground_dim']
-		self.embedding_dim = self.settings['embedding_dim']
-		self.extra_embedding = nn.Embedding(1, self.embedding_dim, max_norm=1.)				
+		self.embedding_dim = self.settings['embedding_dim']		
 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],self.embedding_dim)
 		self.cuda = self.settings['cuda']		
 		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))

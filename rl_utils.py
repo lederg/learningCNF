@@ -1,16 +1,10 @@
+import ipdb
 import torch
 from torch.autograd import Variable
 from settings import *
 from rl_model import *
-from collections import namedtuple
-
-
-State = namedtuple('State', 
-                    ['state', 'cmat_pos', 'cmat_neg', 'ground'])
-
-Transition = namedtuple('Transition',
-                        ['state', 'action', 'next_state', 'reward'])
-
+from rl_types import *
+from cadet_utils import *
 
 class ReplayMemory(object):
 
@@ -29,45 +23,12 @@ class ReplayMemory(object):
     def sample(self, batch_size):
         return random.sample(self.memory, batch_size)
 
+    def __getitem__(self, idx):
+      return self.memory[idx]
+
     def __len__(self):
         return len(self.memory)
 
-def get_input_from_qbf(qbf, settings=None):
-  if not settings:
-    settings = CnfSettings()
-  a = qbf.as_np_dict()  
-  rc_i = a['sp_indices']
-  rc_v = a['sp_vals']
-  sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
-  sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
-  sp_val_pos = torch.ones(len(sp_ind_pos))
-  sp_val_neg = torch.ones(len(sp_ind_neg))
-  cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([qbf.num_clauses,qbf.num_vars])))
-  cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([qbf.num_clauses,qbf.num_vars])))  
-  # if settings['cuda']:
-  #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
-  return cmat_pos, cmat_neg
-
-
-def create_policy(settings=None, is_clone=False):
-  if not settings:
-    settings = CnfSettings()
-  base_model = settings['base_model']
-  if base_model and not is_clone:
-    if settings['base_mode'] == BaseMode.ALL:
-      policy = Policy()
-      policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
-    else:
-      model = QbfClassifier()
-      model.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
-      encoder=model.encoder
-      policy = Policy(encoder=encoder)
-  else:
-    policy = Policy()
-  if settings['cuda']:
-    policy = policy.cuda()
-
-  return policy
 
 class Schedule(object):
     def value(self, t):
@@ -152,6 +113,8 @@ class LinearSchedule(object):
         return self.initial_p + fraction * (self.final_p - self.initial_p)
 
 def collate_observations(batch, settings=None):
+  if batch.count(None) == len(batch):
+    return State(None, None, None, None)
   if not settings:
     settings = CnfSettings()
   c_size = max([x.cmat_neg.size(0) for x in batch if x])
@@ -191,5 +154,26 @@ def collate_transitions(batch, settings=None):
   obs1 = collate_observations([x.state for x in batch], settings)
   obs2 = collate_observations([x.next_state for x in batch], settings)
   rews = settings.FloatTensor([x.reward for x in batch])
-  actions = settings.LongTensor([x.action for x in batch])
+  actions = settings.LongTensor([int(x.action) for x in batch])
   return Transition(obs1,actions,obs2,rews)
+
+def create_policy(settings=None, is_clone=False):
+  if not settings:
+    settings = CnfSettings()
+  base_model = settings['base_model']
+  if base_model and not is_clone:
+    if settings['base_mode'] == BaseMode.ALL:
+      policy = Policy()
+      policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
+    else:
+      model = QbfClassifier()
+      model.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
+      encoder=model.encoder
+      policy = Policy(encoder=encoder)
+  else:
+    policy = Policy()
+  if settings['cuda']:
+    policy = policy.cuda()
+
+  return policy
+

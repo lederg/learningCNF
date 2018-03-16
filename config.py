@@ -10,7 +10,7 @@ def cfg():
 	name = 'DEF_NAME'
 	exp_time = int(time.time())
 	state_dim = 35
-	embedding_dim = 35
+	embedding_dim = 20
 	ground_dim = 6
 	max_variables = 200 
 	max_clauses = 600
@@ -53,8 +53,8 @@ def cfg():
 	use_ground = False
 	moving_ground = False 
 	split = False
-	cuda = True 
-	# cuda = False
+	# cuda = True 
+	cuda = False
 	reset_on_save = False
 	run_task='train'
 	do_not_run=False
@@ -62,18 +62,18 @@ def cfg():
 # RL - PG
 
 	gamma=0.99
-	# policy_dim1 = 20
-	# policy_dim2 = 10
-	policy_dim1 = 100
-	policy_dim2 = 50
+	policy_dim1 = 20
+	policy_dim2 = 10
+	# policy_dim1 = 100
+	# policy_dim2 = 50
 	min_timesteps_per_batch = 400
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
-	greedy_rewards = True
 	# greedy_rewards = True
+	greedy_rewards = False
 	rl_log_dir = 'runs_cadet'
-	rl_train_data = 'data/single_qbf/'
-	# rl_train_data = 'data/single_qbf/718_SAT.qdimacs'
-	rl_log_envs = [718]
+	# rl_train_data = 'data/single_qbf/'
+	rl_train_data = 'data/single_qbf/616_SAT.qdimacs'
+	rl_log_envs = [616]
 	rl_log_all = True
 	# rl_clip_episode_at = 100
 
@@ -89,9 +89,9 @@ def cfg():
 	grad_norm_clipping=2
 	pre_bias = True
 	# pre_bias = False
-	# invalid_bias = -1000
-	invalid_bias = 0
-	report_tensorboard = True
+	invalid_bias = -1000
+	# invalid_bias = 0
+	report_tensorboard = False
 # Localization
 
 	max_edges = 20

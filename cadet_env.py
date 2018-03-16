@@ -5,10 +5,11 @@ import time
 from settings import *
 from qbf_data import *
 
+DEF_GREEDY_ALPHA = 0.01
 MAX_EPISODE_LENGTH = 200
 DQN_DEF_COST = -0.2
 # DQN_DEF_COST = 0.
-BINARY_SUCCESS = 50
+BINARY_SUCCESS = 1.
 def require_init(f, *args, **kwargs): 
   def inner(instance, *args, **kwargs):
     assert(instance.cadet_proc != None)
@@ -28,6 +29,7 @@ class CadetEnv:
     self.qbf = QbfBase(**kwargs)
     self.done = True      
     self.greedy_rewards = greedy_rewards
+    self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.
     
 
 
@@ -40,11 +42,19 @@ class CadetEnv:
     self.cadet_proc.stdin.write(val)
     self.cadet_proc.stdin.flush()
 
-  def reset(self, fname):
+
+  def terminate(self):
     if not self.done:
       if self.debug:
         print('interrupting mid-episode!')
       self.write_action(-1)
+      a = self.read_line_with_timeout()
+      self.done = True
+      rewards = np.asarray(list(map(float,a.split()[1:])))
+      return rewards
+
+  def reset(self, fname):    
+    self.terminate()
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
     self.total_vars_deterministic = np.zeros(self.qbf.num_vars)    
@@ -112,7 +122,7 @@ class CadetEnv:
           if np.isnan(self.rewards[:-1]).any():
             ipdb.set_trace()
           else:
-            self.rewards[-1]=1.
+            self.rewards[-1]=BINARY_SUCCESS
         self.done = True
         state = None
         break
@@ -123,7 +133,7 @@ class CadetEnv:
           if np.isnan(self.rewards[:-1]).any():
             ipdb.set_trace()
           else:
-            self.rewards[-1]=1.
+            self.rewards[-1]=BINARY_SUCCESS
         self.done = True
         state = None
         break
@@ -157,16 +167,16 @@ class CadetEnv:
           return
 
     if self.timestep > 0:      
-      new_reward = np.count_nonzero(self.total_vars_deterministic) - self.last_total_determinized
-      self.running_reward.append(new_reward)
+      greedy_reward = np.count_nonzero(self.total_vars_deterministic) - self.last_total_determinized
+      self.running_reward.append(greedy_reward)
       reward = BINARY_SUCCESS if self.done else DQN_DEF_COST 
       if self.greedy_rewards:
-        reward += self.running_reward[-1]
+        reward += self.greedy_alpha*self.running_reward[-1]
     self.last_total_determinized = np.count_nonzero(self.total_vars_deterministic)
     if sum(self.running_reward) < 0:
       ipdb.set_trace()
-    if self.greedy_rewards and self.done:
-        self.rewards = self.rewards*100 + np.asarray(self.running_reward)
+    if self.done:
+      self.rewards = self.rewards + self.greedy_alpha*np.asarray(self.running_reward)
 
     # on-line rewards, for Q-learning
 
@@ -175,12 +185,9 @@ class CadetEnv:
   def step(self, action):
     assert(not self.done)
     self.timestep += 1
-    if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:
-      self.write_action(-1)            # Force quit, get rewards
-      a = self.read_line_with_timeout()
-      self.done = True
-      rewards = np.asarray(list(map(float,a.split()[1:])))*100 + np.asarray(self.running_reward)
-      self.rewards = np.concatenate([rewards, [-1.385e-03]])    # Average action
+    if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:      
+      rewards = self.terminate() + self.greedy_alpha*np.asarray(self.running_reward)
+      self.rewards = np.concatenate([rewards, [DQN_DEF_COST]])    # Average action
       return None, None, None, None, None, None, DQN_DEF_COST, True
     self.write_action(action)
     return self.read_state_update()

@@ -7,6 +7,7 @@ import ipdb
 import random
 import time
 import itertools
+import torch.nn.utils as tutils
 
 from settings import *
 from cadet_env import *
@@ -15,12 +16,12 @@ from qbf_data import *
 from qbf_model import QbfClassifier
 from utils import *
 from rl_utils import *
+from cadet_utils import *
 from episode_reporter import *
-import torch.nn.utils as tutils
 
 CADET_BINARY = './cadet'
 SAVE_EVERY = 50000
-INVALID_ACTION_REWARDS = -50
+INVALID_ACTION_REWARDS = -100
 
 
 all_episode_files = ['data/mvs.qdimacs']
@@ -49,66 +50,20 @@ backprop_time = []
 actions_history = []
 
 
-def eps_threshold(t):
-  return settings['EPS_END'] + (settings['EPS_START'] - settings['EPS_END']) * \
-        math.exp(-1. * t / settings['EPS_DECAY'])
-
-def action_allowed(obs, action):
-  return not bool(obs.ground.long().data[0][action][IDX_VAR_DETERMINIZED])
-
-def select_action(obs, model=None, testing=False, **kwargs):    
-
-  if testing or random.random() > exploration.value(total_steps):
-    mychoice = True
-    begin_time = time.time()
+def select_action(obs, exploration, model=None, testing=False, **kwargs):    
+  if testing or random.random() > exploration:
+    is_random = False
     logits = model(obs, **kwargs)
-    end_time = time.time()
-    inference_time.append(end_time-begin_time)
     action = logits.squeeze().max(0)[1].data   # argmax when testing    
-    return action[0]
+    action = action[0]
   else:
-    mychoice = False
+    is_random = True
     # sample randomly n times, so we do get an invalid action now and then
     for _ in range(10):
       action = np.random.randint(obs.ground.size(1))
       if action_allowed(obs,action):
         break
-    return action
-
-  # We return a ground embedding of (self.num_vars,7), where embedding is 0 - universal, 1 - existential, 2 - pad, 
-  # 3 - determinized, 4 - activity, [5,6] - pos/neg determinization
-  # 3 is obviously empty here
-
-def get_base_ground(qbf):
-  rc = np.zeros([qbf.num_vars,GROUND_DIM]).astype(float)
-  for j, val in enumerate(qbf.var_types):
-    rc[j][val] = True
-  return rc
-
-
-
-def new_episode(**kwargs):
-  global time_last_episode
-
-  total_envs = len(all_episode_files)
-  fname = all_episode_files[random.randint(0,total_envs-1)]
-  env_id = int(os.path.split(fname)[1].split('_')[0])
-  # Set up ground_embeddings and adjacency matrices
-  state, vars_add, vars_remove, activities, _, _ , _, _ = env.reset(fname)
-  assert(len(state)==settings['state_dim'])
-  ground_embs = get_base_ground(env.qbf)
-  ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True
-  ground_embs[:,IDX_VAR_ACTIVITY] = activities
-
-  cmat_pos, cmat_neg = get_input_from_qbf(env.qbf, settings)
-  
-  state = Variable(torch.from_numpy(state).float().unsqueeze(0))
-  ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-  # if settings['cuda']:
-  #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
-  #   state, ground_embs = state.cuda(), ground_embs.cuda()
-  rc = State(state,cmat_pos, cmat_neg, ground_embs)
-  return rc, env_id
+  return action, is_random
   
 def dqn_main():
   global policy, optimizer, all_episode_files, total_steps, episode_reward, time_last_episode
@@ -127,48 +82,42 @@ def dqn_main():
 
   for t in itertools.count():            
     if done:
-      last_obs, env_id = new_episode()
+      last_obs, env_id = new_episode(env,all_episode_files)
       cmat_pos, cmat_neg = last_obs.cmat_pos, last_obs.cmat_neg
       if settings['rl_log_all']:
         reporter.log_env(env_id)      
 
-
-    action = select_action(last_obs,policy) 
+    begin_time = time.time()
+    action, is_random = select_action(last_obs, exploration.value(total_steps), policy) 
+    if not is_random:
+      inference_time.append(time.time()-begin_time)
     if not action_allowed(last_obs,action):
       # print('Chose an invalid action!')
       reward = INVALID_ACTION_REWARDS
       done = True    
     else:
       try:
-        state, vars_add, vars_remove, activities, decision, clause, reward, done = env.step(action)
+        env_obs = EnvObservation(*env.step(action))
+        state, vars_add, vars_remove, activities, decision, clause, reward, done = env_obs
+        
       except Exception as e:
         print(e)
         ipdb.set_trace()
 
     total_steps += 1
     episode_reward += reward
+    
     # prepare the next observation
     if not done:
-      if clause:
-        cmat_pos, cmat_neg = get_input_from_qbf(env.qbf, settings)
-      ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
-      if decision:
-        ground_embs[decision[0]][IDX_VAR_POLARITY_POS+1-decision[1]] = True
-      if len(vars_add):
-        ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True
-      if len(vars_remove):
-        ground_embs[:,IDX_VAR_DETERMINIZED][vars_remove] = False
-        ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][vars_remove] = False
-      ground_embs[:,IDX_VAR_ACTIVITY] = activities
-      state = Variable(torch.from_numpy(state).float().unsqueeze(0))
-      ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-      obs = State(state,cmat_pos,cmat_neg,ground_embs)
+      obs = process_observation(env,last_obs,env_obs)
+    
     else:
       s = total_steps - time_last_episode
       reporter.add_stat(env_id,s,episode_reward, total_steps)
       episode_reward = 0
       time_last_episode = total_steps
       obs = None
+    
     memory.push(last_obs,action,obs,reward)
     last_obs = obs
 
@@ -198,8 +147,6 @@ def dqn_main():
       if num_param_updates % settings['target_update_freq'] == 0:
         print('Updating target network (step {})'.format(total_steps))
         copy_model_weights(policy,target_model)
-
-
 
     if not (t % 1000) and t > 0:
       print('[{}] Epsilon is {}'.format(total_steps, exploration.value(total_steps)))

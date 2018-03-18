@@ -56,8 +56,8 @@ def eval_formula(maxvar,clauses,universals=set()):
     # print(str(maxvar))
     # print(str(clauses))
     # ipdb.set_trace()
-    tool = './cadet' if len(universals) > 0 else 'picosat'
-    p = Popen([tool,'-v','1','--cegar','--cegar_soft_conflict_limit'],stdout=PIPE,stdin=PIPE)
+    tool = ['./../cadet/dev/cadet','-v','1', '--debugging','--cegar_soft_conflict_limit', '--sat_by_qbf'] # if len(universals) > 0 else ['picosat']
+    p = Popen(tool,stdout=PIPE,stdin=PIPE)
     p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clauses))))
     if len(universals) > 0:
         p.stdin.write(str.encode('a'))
@@ -100,8 +100,10 @@ def dimacs_to_clauselist(dimacs):
             assert(is_number(lits[2]))
             maxvar = int(lits[2])
             assert(maxvar != 0)
-        else:
-             assert(lits[0] == b'c') # must be comment in dimacs format
+        else: # must be comment in dimacs format
+             if lits[0] != b'c':
+                 print ('Could not read line ' + str(lits))
+                 quit() 
     assert (maxvar != 0)
     return maxvar, clauses
 

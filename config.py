@@ -10,7 +10,7 @@ def cfg():
 	name = 'DEF_NAME'
 	exp_time = int(time.time())
 	state_dim = 35
-	embedding_dim = 20
+	embedding_dim = 40
 	ground_dim = 6
 	max_variables = 200 
 	max_clauses = 600
@@ -25,11 +25,11 @@ def cfg():
 	base_model = None
 	base_mode = BaseMode.ALL
 	# base_mode = BaseMode.EMBEDDING
-	max_iters = 6
+	max_iters = 1
 	batch_size = 128
 	val_size = 100 
 	threshold = 10
-	init_lr = 1e-04
+	init_lr = 1e-03
 	# init_lr = 0.001
 	# 'init_lr = 0.0004
 	decay_lr = 0.055
@@ -62,10 +62,10 @@ def cfg():
 # RL - PG
 
 	gamma=0.99
-	policy_dim1 = 20
-	policy_dim2 = 10
-	# policy_dim1 = 100
-	# policy_dim2 = 50
+	# policy_dim1 = 20
+	# policy_dim2 = 10
+	policy_dim1 = 100
+	policy_dim2 = 50
 	min_timesteps_per_batch = 400
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
 	# greedy_rewards = True
@@ -74,7 +74,7 @@ def cfg():
 	# rl_train_data = 'data/single_qbf/'
 	rl_train_data = 'data/single_qbf/616_SAT.qdimacs'
 	rl_log_envs = [616]
-	rl_log_all = True
+	rl_log_all = False
 	# rl_clip_episode_at = 100
 
 # RL - DQN

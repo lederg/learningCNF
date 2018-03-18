@@ -30,11 +30,12 @@ env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
 inference_time = []
-
+all_logits = []
 
 
 def select_action(obs, model=None, testing=False, **kwargs):    
   logits = model(obs, **kwargs)
+  logprob = None
   if testing:
     action = logits.squeeze().max(0)[1].data   # argmax when testing    
     action = action[0]
@@ -42,12 +43,17 @@ def select_action(obs, model=None, testing=False, **kwargs):
     probs = F.softmax(logits)
     dist = probs.data.cpu().numpy()[0]
     choices = range(len(dist))
-    action = np.random.choice(choices, p=dist)    
-  return action, logits
+    action = np.random.choice(choices, p=dist) 
+
+
+    aug_action = np.where(np.where(dist>0)[0]==action)
+    a = probs[probs>0]
+    logprob = a.log()[aug_action[0][0]]   
+  return action, logits, logprob
 
 
 
-def handle_episode(**kwargs):
+def handle_episode(no_naive=False, **kwargs):
   global total_steps
   episode_memory = ReplayMemory(5000)
 
@@ -58,7 +64,9 @@ def handle_episode(**kwargs):
 
   for t in range(5000):  # Don't infinite loop while learning
     begin_time = time.time()
-    action, logits = select_action(last_obs, **kwargs)
+    action, logits, logprob = select_action(last_obs, **kwargs)
+    if not no_naive:
+      all_logits.append(logprob)
     probs = F.softmax(logits.data)
     a = probs[probs>0].data
     entropy = -(a*a.log()).sum()
@@ -90,10 +98,10 @@ def ts_bonus(s):
   return b/float(s)
 
 def cadet_main():
-  global all_episode_files, total_steps
+  global all_episode_files, total_steps, all_logits
 
   policy = create_policy()
-  optimizer = optim.Adam(policy.parameters(), lr=1e-2)
+  optimizer = optim.Adam(policy.parameters(), lr=1e-3)
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])
@@ -122,7 +130,7 @@ def cadet_main():
       reporter.report_stats()
       print('Testing all episodes:')
       for fname in all_episode_files:
-        _, _ , _= handle_episode(model=policy, testing=True, fname=fname)
+        _, _ , _= handle_episode(model=policy, testing=True, fname=fname, no_naive=True)
         r = env.rewards
         print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
 
@@ -135,12 +143,16 @@ def cadet_main():
     # batch_entropy = torch.cat(entropies)
     batch_entropy = 0.
     logprobs = F.softmax(logits).gather(1,Variable(collated_batch.action).view(-1,1)).log()
+    naive_logprobs = torch.cat(all_logits).view(-1,1)
+    all_logits = []
     if settings['cuda']:
       returns = returns.cuda()
     returns = (returns - returns.mean()) / (returns.std() + np.finfo(np.float32).eps)
-    loss = (-Variable(returns)*logprobs - 0.0*batch_entropy).mean()
+    loss = (-Variable(returns)*logprobs - 0.0*batch_entropy).sum()
+    naive_loss = (-Variable(returns)*naive_logprobs - 0.0*batch_entropy).sum()
+    # ipdb.set_trace()
     optimizer.zero_grad()
-    loss.backward()
+    naive_loss.backward()
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       ipdb.set_trace()
     # tutils.clip_grad_norm(policy.parameters(), 40)

@@ -48,7 +48,7 @@ def process_observation(env, last_obs, env_obs, settings=None):
   if not settings:
     settings = CnfSettings()
 
-  if True or env_obs.clause:
+  if env_obs.clause:
     cmat_pos, cmat_neg = get_input_from_qbf(env.qbf, settings)
   else:
     cmat_pos, cmat_neg = last_obs.cmat_pos, last_obs.cmat_neg

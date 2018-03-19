@@ -25,7 +25,7 @@ all_episode_files = ['data/mvs.qdimacs']
 
 settings = CnfSettings()
 
-reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)))
+reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), tensorboard=settings['report_tensorboard'])
 env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
@@ -33,7 +33,16 @@ inference_time = []
 
 
 
-def select_action(obs, model=None, testing=False, **kwargs):    
+def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, **kwargs):    
+  activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
+  if random_test or (activity_test and not np.any(activities)):
+    choices = np.where(1-obs.ground.data.numpy()[0,:,IDX_VAR_DETERMINIZED])[0]
+    action = np.random.choice(choices)
+    return action, None
+  elif activity_test:    
+    action = np.argmax(activities)
+    return action, None
+
   logits = model(obs, **kwargs)
   
   if testing:
@@ -60,10 +69,11 @@ def handle_episode(**kwargs):
   for t in range(5000):  # Don't infinite loop while learning
     begin_time = time.time()
     action, logits = select_action(last_obs, **kwargs)    
-    probs = F.softmax(logits.data)
-    a = probs[probs>0].data
-    entropy = -(a*a.log()).sum()
-    entropies.append(entropy)
+    if logits is not None:
+      probs = F.softmax(logits.data)
+      a = probs[probs>0].data
+      entropy = -(a*a.log()).sum()
+      entropies.append(entropy)
     inference_time.append(time.time()-begin_time)
     if action_allowed(last_obs,action):
       try:
@@ -84,7 +94,7 @@ def handle_episode(**kwargs):
     obs = process_observation(env,last_obs,env_obs)
     last_obs = obs
 
-  return episode_memory, env_id, np.mean(entropies)
+  return episode_memory, env_id, np.mean(entropies) if entropies else None
 
 def ts_bonus(s):
   b = 5.
@@ -93,8 +103,9 @@ def ts_bonus(s):
 def cadet_main():
   global all_episode_files, total_steps
 
+  random_test_envs()
   policy = create_policy()
-  optimizer = optim.Adam(policy.parameters(), lr=1e-3)
+  optimizer = optim.Adam(policy.parameters(), lr=settings['init_lr'])
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])
@@ -120,7 +131,7 @@ def cadet_main():
     
     print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, sum(inference_time)))
     if not (i % 10) and i>0:
-      reporter.report_stats()
+      reporter.report_stats(total_steps, len(all_episode_files))
       print('Testing all episodes:')
       for fname in all_episode_files:
         _, _ , _= handle_episode(model=policy, testing=True, fname=fname)
@@ -142,6 +153,7 @@ def cadet_main():
     loss = (-Variable(returns)*logprobs - 0.0*batch_entropy).sum()    
     optimizer.zero_grad()
     loss.backward()
+    torch.nn.utils.clip_grad_norm(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       ipdb.set_trace()
     # tutils.clip_grad_norm(policy.parameters(), 40)
@@ -152,4 +164,29 @@ def cadet_main():
       torch.save(policy.state_dict(),'%s/%s_iter%d.model' % (settings['model_dir'],utils.log_name(settings), i))
     
 
+def random_test_one_env(fname, iters=100, **kwargs):
+  s = 0.
+  for _ in range(iters):
+    r, _, _ = handle_episode(fname=fname, **kwargs)
+    if len(r) > 1000:
+      break
+    s += len(r)
+
+  if s/iters < 270:
+    print('For {}, average random steps: {}'.format(fname,s/iters))
+  return s/iters
+
+
+
+def random_test_envs():
+  ds = QbfDataset(fnames=settings['rl_train_data'])
+  all_episode_files = ds.get_files_list()
+  totals_rand = 0.
+  totals_act = 0.
+  for fname in all_episode_files:
+    totals_rand += random_test_one_env(fname, random_test=True)
+  # for fname in all_episode_files:
+  #   totals_act += random_test_one_env(fname, activity_test=True)
+
+  print("random average: {}, activity-based average: {}".format(totals_rand/len(all_episode_files), totals_act/len(all_episode_files)))
 

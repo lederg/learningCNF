@@ -71,10 +71,11 @@ def cfg():
 	# greedy_rewards = True
 	greedy_rewards = False
 	rl_log_dir = 'runs_cadet'
-	# rl_train_data = 'data/single_qbf/'
-	rl_train_data = 'data/single_qbf/616_SAT.qdimacs'
+	# rl_train_data = 'data/candidate_qbf/'
+	rl_train_data = 'data/test2_qbf/'
+	# rl_train_data = 'data/single_qbf/616_SAT.qdimacs'
 	rl_log_envs = [616]
-	rl_log_all = False
+	rl_log_all = True
 	# rl_clip_episode_at = 100
 
 # RL - DQN
@@ -91,7 +92,7 @@ def cfg():
 	# pre_bias = False
 	invalid_bias = -1000
 	# invalid_bias = 0
-	report_tensorboard = False
+	report_tensorboard = True
 # Localization
 
 	max_edges = 20

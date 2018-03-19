@@ -88,7 +88,8 @@ def handle_episode(**kwargs):
       # rewards[-1] = INVALID_ACTION_REWARDS
       done = True
     episode_memory.push(last_obs,action,None, None)
-    total_steps += 1
+    if not 'testing' in kwargs:
+      total_steps += 1
     if done:
       break
     obs = process_observation(env,last_obs,env_obs)
@@ -104,6 +105,7 @@ def cadet_main():
   global all_episode_files, total_steps
 
   random_test_envs()
+  total_steps = 0
   policy = create_policy()
   optimizer = optim.Adam(policy.parameters(), lr=settings['init_lr'])
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
@@ -185,8 +187,9 @@ def random_test_envs():
   totals_act = 0.
   for fname in all_episode_files:
     totals_rand += random_test_one_env(fname, random_test=True)
-  # for fname in all_episode_files:
-  #   totals_act += random_test_one_env(fname, activity_test=True)
+  print("random average: {}".format(totals_rand/len(all_episode_files)))
+  for fname in all_episode_files:
+    totals_act += random_test_one_env(fname, activity_test=True)
 
-  print("random average: {}, activity-based average: {}".format(totals_rand/len(all_episode_files), totals_act/len(all_episode_files)))
+  print("activity-based average: {}".format(totals_act/len(all_episode_files)))
 

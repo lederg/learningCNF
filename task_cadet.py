@@ -149,6 +149,7 @@ def cadet_main():
       returns = returns.cuda()
     returns = (returns - returns.mean()) / (returns.std() + np.finfo(np.float32).eps)
     loss = (-Variable(returns)*logprobs - 0.0*batch_entropy).sum()
+    print('loss is {}'.format(loss.data.numpy()))
     naive_loss = (-Variable(returns)*naive_logprobs - 0.0*batch_entropy).sum()
     # ipdb.set_trace()
     optimizer.zero_grad()

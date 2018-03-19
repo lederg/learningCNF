@@ -30,12 +30,12 @@ env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
 inference_time = []
-all_logits = []
+
 
 
 def select_action(obs, model=None, testing=False, **kwargs):    
   logits = model(obs, **kwargs)
-  logprob = None
+  
   if testing:
     action = logits.squeeze().max(0)[1].data   # argmax when testing    
     action = action[0]
@@ -44,16 +44,11 @@ def select_action(obs, model=None, testing=False, **kwargs):
     dist = probs.data.cpu().numpy()[0]
     choices = range(len(dist))
     action = np.random.choice(choices, p=dist) 
-
-
-    aug_action = np.where(np.where(dist>0)[0]==action)
-    a = probs[probs>0]
-    logprob = a.log()[aug_action[0][0]]   
-  return action, logits, logprob
+  return action, logits
 
 
 
-def handle_episode(no_naive=False, **kwargs):
+def handle_episode(**kwargs):
   global total_steps
   episode_memory = ReplayMemory(5000)
 
@@ -64,9 +59,7 @@ def handle_episode(no_naive=False, **kwargs):
 
   for t in range(5000):  # Don't infinite loop while learning
     begin_time = time.time()
-    action, logits, logprob = select_action(last_obs, **kwargs)
-    if not no_naive:
-      all_logits.append(logprob)
+    action, logits = select_action(last_obs, **kwargs)    
     probs = F.softmax(logits.data)
     a = probs[probs>0].data
     entropy = -(a*a.log()).sum()
@@ -98,7 +91,7 @@ def ts_bonus(s):
   return b/float(s)
 
 def cadet_main():
-  global all_episode_files, total_steps, all_logits
+  global all_episode_files, total_steps
 
   policy = create_policy()
   optimizer = optim.Adam(policy.parameters(), lr=1e-3)
@@ -130,7 +123,7 @@ def cadet_main():
       reporter.report_stats()
       print('Testing all episodes:')
       for fname in all_episode_files:
-        _, _ , _= handle_episode(model=policy, testing=True, fname=fname, no_naive=True)
+        _, _ , _= handle_episode(model=policy, testing=True, fname=fname)
         r = env.rewards
         print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
 
@@ -142,18 +135,13 @@ def cadet_main():
     returns = torch.Tensor(rewards)
     # batch_entropy = torch.cat(entropies)
     batch_entropy = 0.
-    logprobs = F.softmax(logits).gather(1,Variable(collated_batch.action).view(-1,1)).log()
-    naive_logprobs = torch.cat(all_logits).view(-1,1)
-    all_logits = []
+    logprobs = F.softmax(logits).gather(1,Variable(collated_batch.action).view(-1,1)).log().squeeze()        
     if settings['cuda']:
       returns = returns.cuda()
     returns = (returns - returns.mean()) / (returns.std() + np.finfo(np.float32).eps)
-    loss = (-Variable(returns)*logprobs - 0.0*batch_entropy).sum()
-    print('loss is {}'.format(loss.data.numpy()))
-    naive_loss = (-Variable(returns)*naive_logprobs - 0.0*batch_entropy).sum()
-    # ipdb.set_trace()
+    loss = (-Variable(returns)*logprobs - 0.0*batch_entropy).sum()    
     optimizer.zero_grad()
-    naive_loss.backward()
+    loss.backward()
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       ipdb.set_trace()
     # tutils.clip_grad_norm(policy.parameters(), 40)

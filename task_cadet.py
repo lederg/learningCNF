@@ -113,7 +113,7 @@ def cadet_main():
   reporter.log_env(settings['rl_log_envs'])
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()  
-  for i in range(3000):
+  for i in range(5000):
     rewards = []
     time_steps_this_batch = 0
     transition_data = []

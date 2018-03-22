@@ -2,6 +2,7 @@ import os.path
 import torch
 # from torch.distributions import Categorical
 import ipdb
+import pdb
 import random
 import time
 
@@ -26,7 +27,7 @@ all_episode_files = ['data/mvs.qdimacs']
 settings = CnfSettings()
 
 reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), tensorboard=settings['report_tensorboard'])
-env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
+env = CadetEnv(CADET_BINARY, debug=False, **settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
 inference_time = []
@@ -46,8 +47,12 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
   logits = model(obs, **kwargs)
   
   if testing:
-    action = logits.squeeze().max(0)[1].data   # argmax when testing    
+    action = logits.squeeze().max(0)[1].data   # argmax when testing        
     action = action[0]
+    if settings['debug_actions']:
+      print(obs.state)
+      print(logits.squeeze().max(0))
+      print('Got action {}'.format(action))
   else:
     probs = F.softmax(logits)
     dist = probs.data.cpu().numpy()[0]
@@ -139,8 +144,10 @@ def cadet_main():
         _, _ , _= handle_episode(model=policy, testing=True, fname=fname)
         r = env.rewards
         print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
-
     inference_time.clear()
+
+    if settings['do_not_learn']:
+      continue
     begin_time = time.time()
     states, actions, next_states, rewards = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
@@ -163,7 +170,7 @@ def cadet_main():
     end_time = time.time()
     print('Backward computation done in %f seconds' % (end_time-begin_time))
     if i % SAVE_EVERY == 0:
-      torch.save(policy.state_dict(),'%s/%s_iter%d.model' % (settings['model_dir'],utils.log_name(settings), i))
+      torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), total_steps))
     
 
 def random_test_one_env(fname, iters=100, **kwargs):
@@ -171,6 +178,7 @@ def random_test_one_env(fname, iters=100, **kwargs):
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
     if len(r) > 1000:
+      print('{} took {} steps!'.format(fname,len(r)))
       break
     s += len(r)
 
@@ -188,8 +196,8 @@ def random_test_envs():
   for fname in all_episode_files:
     totals_rand += random_test_one_env(fname, random_test=True)
   print("random average: {}".format(totals_rand/len(all_episode_files)))
-  for fname in all_episode_files:
-    totals_act += random_test_one_env(fname, activity_test=True)
+  # for fname in all_episode_files:
+  #   totals_act += random_test_one_env(fname, activity_test=True)
 
-  print("activity-based average: {}".format(totals_act/len(all_episode_files)))
+  # print("activity-based average: {}".format(totals_act/len(all_episode_files)))
 

@@ -22,6 +22,7 @@ def cfg():
 	# base_model = 'run_qbf_base4_bs64_ed40_iters7__1519842678_epoch200.model'
 	# base_model = 'run_rl_env718_bs64_ed30_iters7__1519807551_iter200.model'
 	# base_model = 'run_rl_env718_test2_bs64_ed30_iters7__1519810118_iter100.model'
+	# base_model = 'run_test2_1_bs128_ed40_iters1__1521592635_iter4600.model'
 	base_model = None
 	base_mode = BaseMode.ALL
 	# base_mode = BaseMode.EMBEDDING
@@ -58,6 +59,7 @@ def cfg():
 	reset_on_save = False
 	run_task='train'
 	do_not_run=False
+	do_not_learn = False
 
 # RL - PG
 
@@ -73,10 +75,12 @@ def cfg():
 	rl_log_dir = 'runs_cadet'
 	# rl_train_data = 'data/candidate_qbf/'
 	rl_train_data = 'data/test2_qbf/'
-	# rl_train_data = 'data/single_qbf/616_SAT.qdimacs'
+	# rl_train_data = 'data/single_qbf/'
+	# rl_train_data = 'data/40_envs/'
 	rl_log_envs = [616]
 	rl_log_all = True
 	# rl_clip_episode_at = 100
+	debug_actions = False
 
 # RL - DQN
 

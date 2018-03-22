@@ -23,7 +23,7 @@ class CadetEnv:
   def __init__(self, cadet_binary, debug=False, greedy_rewards=False, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
-    self.cadet_proc = Popen([self.cadet_binary,  '--rl', '--cegar'], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
+    self.cadet_proc = Popen([self.cadet_binary,  '--rl', '--cegar', '--sat_by_qbf'], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
     self.poll_obj = select.poll()
     self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
     self.qbf = QbfBase(**kwargs)
@@ -137,15 +137,26 @@ class CadetEnv:
         self.done = True
         state = None
         break
-
-      elif a[0] == 'u':
+      elif a.startswith('rewards'):
+        self.rewards = np.asarray(list(map(float,a.split()[1:])))                
+        if np.isnan(self.rewards).any():
+          if np.isnan(self.rewards[:-1]).any():
+            ipdb.set_trace()
+          else:
+            self.rewards[-1]=BINARY_SUCCESS
+        self.done = True
+        state = None
+        break
+      elif a[0] == 'u' and a[1] != 'c':   # New cadet has 'uc'
         update = int(a[3:])-1     # Here we go from 1-based to 0-based
         if a[1] == '+':
           self.vars_deterministic[update] = 1
           self.total_vars_deterministic[update] = 1
-        else:
+        elif a[1] == '-':
           self.vars_deterministic[update] = -1
           self.total_vars_deterministic[update] = 0
+      elif a.startswith('delete_clause'):
+        continue
       elif a[0] == 'd':
         decision = [int(x) for x in a[2:].split(',')]
         decision[0] -= 1
@@ -158,7 +169,13 @@ class CadetEnv:
         activity = float(b[1])
         self.activities[update] = activity
       elif a[0] == 'c':
-        b = [int(x) for x in a[2:].split()]
+        if a.startswith('clause'):      # new cadet version
+          b = [int(x) for x in a.split()[4:]]
+        elif a.startswith('conflict'):
+          continue
+        else:
+          b = [int(x) for x in a[2:].split()]
+        # ipdb.set_trace()
         self.qbf.add_clause(b)
         clause = (np.array([abs(x)-1 for x in b if x > 0]), np.array([abs(x)-1 for x in b if x < 0]))
       elif self.debug:

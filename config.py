@@ -84,7 +84,7 @@ def cfg():
 	debug_actions = False
 	debug = False
 	use_old_rewards = True
-
+	cadet_binary = './cadet'
 # RL - DQN
 
 	EPS_START = 0.9

@@ -20,7 +20,7 @@ def require_init(f, *args, **kwargs):
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     
 class CadetEnv:
-  def __init__(self, cadet_binary, debug=False, greedy_rewards=False, use_old_rewards = False, **kwargs):
+  def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, use_old_rewards = False, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)

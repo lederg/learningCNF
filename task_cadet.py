@@ -17,7 +17,6 @@ from cadet_utils import *
 from episode_reporter import *
 import torch.nn.utils as tutils
 
-CADET_BINARY = './cadet'
 SAVE_EVERY = 10
 INVALID_ACTION_REWARDS = -100
 
@@ -27,7 +26,7 @@ all_episode_files = ['data/mvs.qdimacs']
 settings = CnfSettings()
 
 reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), tensorboard=settings['report_tensorboard'])
-env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
+env = CadetEnv(**settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
 inference_time = []

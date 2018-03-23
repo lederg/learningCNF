@@ -83,8 +83,9 @@ def cfg():
 	# rl_clip_episode_at = 100
 	debug_actions = False
 	debug = False
-	use_old_rewards = True
+	use_old_rewards = False					#  Must be false if using old cadet
 	cadet_binary = './cadet'
+	# cadet_binary = './old_cadet' 			
 # RL - DQN
 
 	EPS_START = 0.9

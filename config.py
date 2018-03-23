@@ -74,6 +74,7 @@ def cfg():
 	greedy_rewards = False
 	rl_log_dir = 'runs_cadet'
 	# rl_train_data = 'data/candidate_qbf/'
+	# rl_train_data = 'data/test2_qbf/299_UNSAT.qdimacs'
 	rl_train_data = 'data/test2_qbf/'
 	# rl_train_data = 'data/single_qbf/'
 	# rl_train_data = 'data/40_envs/'
@@ -81,6 +82,8 @@ def cfg():
 	rl_log_all = True
 	# rl_clip_episode_at = 100
 	debug_actions = False
+	debug = False
+	use_old_rewards = True
 
 # RL - DQN
 

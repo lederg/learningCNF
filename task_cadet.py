@@ -27,7 +27,7 @@ all_episode_files = ['data/mvs.qdimacs']
 settings = CnfSettings()
 
 reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), tensorboard=settings['report_tensorboard'])
-env = CadetEnv(CADET_BINARY, debug=False, **settings.hyperparameters)
+env = CadetEnv(CADET_BINARY, **settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
 inference_time = []
@@ -173,7 +173,7 @@ def cadet_main():
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), total_steps))
     
 
-def random_test_one_env(fname, iters=100, **kwargs):
+def random_test_one_env(fname, iters=100, threshold=100000, **kwargs):
   s = 0.
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
@@ -182,7 +182,7 @@ def random_test_one_env(fname, iters=100, **kwargs):
       break
     s += len(r)
 
-  if s/iters < 270:
+  if s/iters < threshold:
     print('For {}, average random steps: {}'.format(fname,s/iters))
   return s/iters
 

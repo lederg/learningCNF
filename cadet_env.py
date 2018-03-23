@@ -20,16 +20,21 @@ def require_init(f, *args, **kwargs):
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     
 class CadetEnv:
-  def __init__(self, cadet_binary, debug=False, greedy_rewards=False, **kwargs):
+  def __init__(self, cadet_binary, debug=False, greedy_rewards=False, use_old_rewards = False, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
-    self.cadet_proc = Popen([self.cadet_binary,  '--rl', '--cegar', '--sat_by_qbf'], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
-    self.poll_obj = select.poll()
-    self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
     self.qbf = QbfBase(**kwargs)
-    self.done = True      
     self.greedy_rewards = greedy_rewards
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.
+    cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
+    if use_old_rewards:
+      # if self.debug:
+      print('Using old rewards!')
+      cadet_params.append('--rl_advanced_rewards')
+    self.cadet_proc = Popen([self.cadet_binary,  *cadet_params], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
+    self.poll_obj = select.poll()
+    self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
+    self.done = True      
     
 
 
@@ -55,6 +60,8 @@ class CadetEnv:
 
   def reset(self, fname):    
     self.terminate()
+    # if fname == 'data/test2_qbf/299_UNSAT.qdimacs':
+    #   ipdb.set_trace()
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
     self.total_vars_deterministic = np.zeros(self.qbf.num_vars)    
@@ -137,7 +144,7 @@ class CadetEnv:
         self.done = True
         state = None
         break
-      elif a.startswith('rewards'):
+      elif a.startswith('SATrewards') or a.startswith('UNSATrewards'):
         self.rewards = np.asarray(list(map(float,a.split()[1:])))                
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():

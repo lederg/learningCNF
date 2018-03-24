@@ -108,7 +108,8 @@ def ts_bonus(s):
 def cadet_main():
   global all_episode_files, total_steps
 
-  random_test_envs()
+  if settings['do_test']:
+    random_test_envs()
   total_steps = 0
   policy = create_policy()
   optimizer = optim.Adam(policy.parameters(), lr=settings['init_lr'])
@@ -151,18 +152,31 @@ def cadet_main():
     states, actions, next_states, rewards = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
     logits = policy(collated_batch.state)
+    probs = F.softmax(logits)
+    thres = 1e-4
+
+    zero_probs = Variable(settings.zeros(probs.size()))
+    fake_probs = zero_probs + 100
+    aug_probs = torch.stack([fake_probs, probs])
+    index_probs = (probs>thres).long().unsqueeze(0)
+    aug_logprobs = torch.stack([zero_probs,aug_probs.gather(0,index_probs).squeeze().log()])
+    all_logprobs = aug_logprobs.gather(0,index_probs).squeeze()
+
+    # ipdb.set_trace()
     returns = torch.Tensor(rewards)
-    # batch_entropy = torch.cat(entropies)
-    batch_entropy = 0.
-    logprobs = F.softmax(logits).gather(1,Variable(collated_batch.action).view(-1,1)).log().squeeze()        
+    logprobs = all_logprobs.gather(1,Variable(collated_batch.action).view(-1,1)).squeeze()        
+    # logprobs = F.softmax(logits).gather(1,Variable(collated_batch.action).view(-1,1)).log().squeeze()        
+    entropies = (-probs*all_logprobs).sum(1)
     if settings['cuda']:
       returns = returns.cuda()
     returns = (returns - returns.mean()) / (returns.std() + np.finfo(np.float32).eps)
-    loss = (-Variable(returns)*logprobs - 0.0*batch_entropy).sum()    
+    # loss = (-Variable(returns)*logprobs).sum()    
+    loss = (-Variable(returns)*logprobs - settings['entropy_alpha']*entropies).sum()    
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
+      print('NaN in grads!')
       ipdb.set_trace()
     # tutils.clip_grad_norm(policy.parameters(), 40)
     optimizer.step()

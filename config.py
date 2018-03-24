@@ -64,6 +64,7 @@ def cfg():
 # RL - PG
 
 	gamma=0.99
+	entropy_alpha = 0.006
 	# policy_dim1 = 20
 	# policy_dim2 = 10
 	policy_dim1 = 100
@@ -75,7 +76,8 @@ def cfg():
 	rl_log_dir = 'runs_cadet'
 	# rl_train_data = 'data/candidate_qbf/'
 	# rl_train_data = 'data/test2_qbf/299_UNSAT.qdimacs'
-	rl_train_data = 'data/test2_qbf/'
+	rl_train_data = 'data/test3_qbf/'
+	# rl_train_data = 'data/test2_qbf/'
 	# rl_train_data = 'data/single_qbf/'
 	# rl_train_data = 'data/40_envs/'
 	rl_log_envs = [616]
@@ -86,6 +88,7 @@ def cfg():
 	use_old_rewards = False					#  Must be false if using old cadet
 	cadet_binary = './cadet'
 	# cadet_binary = './old_cadet' 			
+	do_test = True
 # RL - DQN
 
 	EPS_START = 0.9

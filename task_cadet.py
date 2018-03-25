@@ -91,9 +91,7 @@ def handle_episode(**kwargs):
       # rewards = np.zeros(len(episode_memory)+1) # stupid hack
       # rewards[-1] = INVALID_ACTION_REWARDS
       done = True
-    episode_memory.push(last_obs,action,None, None)
-    if not 'testing' in kwargs:
-      total_steps += 1
+    episode_memory.push(last_obs,action,None, None)    
     if done:
       break
     obs = process_observation(env,last_obs,env_obs)
@@ -127,10 +125,11 @@ def cadet_main():
     begin_time = time.time()
     while time_steps_this_batch < settings['min_timesteps_per_batch']:      
       episode, env_id, entropy = handle_episode(model=policy)
+      s = len(episode)
+      total_steps += s
+      time_steps_this_batch += s      
       if settings['rl_log_all']:
         reporter.log_env(env_id)      
-      s = len(episode)
-      time_steps_this_batch += s      
       # episode is a list of half-empty Tranitions - (obs, action, None, None), we want to turn it to (obs,action,None, None)
       reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
       r = discount(env.rewards, settings['gamma'])
@@ -201,13 +200,13 @@ def random_test_one_env(fname, iters=100, threshold=100000, **kwargs):
 
 
 
-def random_test_envs():
-  ds = QbfDataset(fnames=settings['rl_train_data'])
+def random_test_envs(fnames=settings['rl_train_data']):
+  ds = QbfDataset(fnames=fnames)
   all_episode_files = ds.get_files_list()
   totals_rand = 0.
   totals_act = 0.
   for fname in all_episode_files:
-    totals_rand += random_test_one_env(fname, random_test=True)
+    totals_rand += random_test_one_env(fname, threshold=27, random_test=True)
   print("random average: {}".format(totals_rand/len(all_episode_files)))
   # for fname in all_episode_files:
   #   totals_act += random_test_one_env(fname, activity_test=True)

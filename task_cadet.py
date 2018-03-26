@@ -189,6 +189,8 @@ def cadet_main():
         print('Testing envs:')
         val_average = test_envs(fnames=settings['rl_validation_data'], model=policy)
         log_value('Validation', val_average, total_steps)
+        test_average = test_envs(fnames=settings['rl_test_data'], model=policy)
+        log_value('Test', test_average, total_steps)
 
   
 def test_one_env(fname, iters=100, threshold=100000, **kwargs):

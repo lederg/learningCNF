@@ -5,6 +5,7 @@ import ipdb
 import pdb
 import random
 import time
+from tensorboard_logger import configure, log_value
 
 from settings import *
 from cadet_env import *
@@ -17,9 +18,9 @@ from cadet_utils import *
 from episode_reporter import *
 import torch.nn.utils as tutils
 
-SAVE_EVERY = 10
+SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -100
-
+TEST_EVERY = 100
 
 all_episode_files = ['data/mvs.qdimacs']
 
@@ -107,7 +108,7 @@ def cadet_main():
   global all_episode_files, total_steps
 
   if settings['do_test']:
-    random_test_envs()
+    test_envs(random_test=True)
   total_steps = 0
   policy = create_policy()
   optimizer = optim.Adam(policy.parameters(), lr=settings['init_lr'])
@@ -116,7 +117,7 @@ def cadet_main():
   reporter.log_env(settings['rl_log_envs'])
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()  
-  for i in range(5000):
+  for i in range(10000):
     rewards = []
     time_steps_this_batch = 0
     transition_data = []
@@ -181,11 +182,16 @@ def cadet_main():
     optimizer.step()
     end_time = time.time()
     print('Backward computation done in %f seconds' % (end_time-begin_time))
-    if i % SAVE_EVERY == 0:
+    if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), total_steps))
-    
+    if i % TEST_EVERY == 0 and i>0:
+      if settings['rl_validation_data']:
+        print('Testing envs:')
+        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy)
+        log_value('Validation', val_average, total_steps)
 
-def random_test_one_env(fname, iters=100, threshold=100000, **kwargs):
+  
+def test_one_env(fname, iters=100, threshold=100000, **kwargs):
   s = 0.
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
@@ -195,21 +201,16 @@ def random_test_one_env(fname, iters=100, threshold=100000, **kwargs):
     s += len(r)
 
   if s/iters < threshold:
-    print('For {}, average random steps: {}'.format(fname,s/iters))
+    print('For {}, average steps: {}'.format(fname,s/iters))
   return s/iters
 
-
-
-def random_test_envs(fnames=settings['rl_train_data']):
+def test_envs(fnames=settings['rl_train_data'], **kwargs):
   ds = QbfDataset(fnames=fnames)
   all_episode_files = ds.get_files_list()
-  totals_rand = 0.
+  totals = 0.
   totals_act = 0.
   for fname in all_episode_files:
-    totals_rand += random_test_one_env(fname, threshold=27, random_test=True)
-  print("random average: {}".format(totals_rand/len(all_episode_files)))
-  # for fname in all_episode_files:
-  #   totals_act += random_test_one_env(fname, activity_test=True)
-
-  # print("activity-based average: {}".format(totals_act/len(all_episode_files)))
-
+    print('Starting {}'.format(fname))
+    totals += test_one_env(fname, **kwargs)
+  print("Total average: {}".format(totals/len(all_episode_files)))
+  return totals/len(all_episode_files)

@@ -10,6 +10,7 @@ class AbstractReporter(object):
 		self.stats_dict = {}
 		self.ids_to_log = set()
 		self.tensorboard = tensorboard
+		self.log_value = log_value
 		if tensorboard:
 			configure(fname, flush_secs=5)
 	

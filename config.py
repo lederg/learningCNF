@@ -10,7 +10,7 @@ def cfg():
 	name = 'DEF_NAME'
 	exp_time = int(time.time())
 	state_dim = 35
-	embedding_dim = 40
+	embedding_dim = 20
 	ground_dim = 6
 	max_variables = 200 
 	max_clauses = 600
@@ -65,10 +65,10 @@ def cfg():
 
 	gamma=0.99
 	entropy_alpha = 0.00
-	# policy_dim1 = 20
-	# policy_dim2 = 10
-	policy_dim1 = 100
-	policy_dim2 = 50
+	policy_dim1 = 30
+	policy_dim2 = 15
+	# policy_dim1 = 100
+	# policy_dim2 = 50
 	min_timesteps_per_batch = 400
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
 	# greedy_rewards = True
@@ -80,6 +80,8 @@ def cfg():
 	# rl_train_data = 'data/test2_qbf/'
 	# rl_train_data = 'data/single_qbf/'
 	# rl_train_data = 'data/40_envs/'
+	rl_validation_data = 'data/generalize_qbf/'
+	rl_test_data = 'data/generalize2_qbf/'
 	rl_log_envs = [616]
 	rl_log_all = True
 	# rl_clip_episode_at = 100

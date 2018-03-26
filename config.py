@@ -81,7 +81,7 @@ def cfg():
 	# rl_train_data = 'data/single_qbf/'
 	# rl_train_data = 'data/40_envs/'
 	rl_validation_data = 'data/generalize_qbf/'
-	rl_test_data = 'data/generalize2_qbf/'
+	rl_test_data = 'data/generalize_qbf2/'
 	rl_log_envs = [616]
 	rl_log_all = True
 	# rl_clip_episode_at = 100

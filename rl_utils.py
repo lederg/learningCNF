@@ -177,3 +177,18 @@ def create_policy(settings=None, is_clone=False):
 
   return policy
 
+def safe_logprobs(probs, settings=None, thres=1e-4):
+  if not settings:
+    settings = CnfSettings()  
+  zero_probs = Variable(settings.zeros(probs.size()))
+  fake_probs = zero_probs + 100
+  aug_probs = torch.stack([fake_probs, probs])
+  index_probs = (probs>thres).long().unsqueeze(0)
+  aug_logprobs = torch.stack([zero_probs,aug_probs.gather(0,index_probs).squeeze().log()])
+  all_logprobs = aug_logprobs.gather(0,index_probs).squeeze()
+  return all_logprobs
+
+def compute_kl(logits, old_logits):
+  # ipdb.set_trace()
+  totals = F.softmax(old_logits) * (safe_logprobs(F.softmax(old_logits)) - safe_logprobs(F.softmax(logits)))
+  return totals.sum(1).data

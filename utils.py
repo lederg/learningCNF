@@ -74,14 +74,17 @@ def permute_seq(inp):
     return list(p[i])
 
 
+def set_lr(optimizer, lr):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
 def exp_lr_scheduler(optimizer, epoch, init_lr=0.001, lr_decay_epoch=7, decay_rate=0.1):
     """Decay learning rate by a factor of 0.1 every lr_decay_epoch epochs."""
     lr = init_lr * ((1-decay_rate)**(epoch // lr_decay_epoch))
 
     if epoch % lr_decay_epoch == 0 and epoch > 0:
         print('LR is set to {}'.format(lr))
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
+        set_lr(optimizer,lr)
 
     return optimizer
 
@@ -103,3 +106,5 @@ def dict_product(dicts):
      {'character': 'b', 'number': 2}]
     """
     return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
+
+    

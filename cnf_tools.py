@@ -69,8 +69,12 @@ def eval_formula(maxvar,clauses,universals=set(), repetitions=1):
     decisions = []
 
     for _ in range(repetitions):
-        tool = ['./../cadet/dev/cadet','-v','1', '--debugging',
-                '--cegar_soft_conflict_limit', '--sat_by_qbf', '--random_decisions'] 
+        tool = ['./../cadet/dev/cadet','-v','1', 
+                '--debugging',
+                '--cegar_soft_conflict_limit', 
+                '--sat_by_qbf', 
+                '--random_decisions', 
+                '--fresh_seed'] 
         p = Popen(tool,stdout=PIPE,stdin=PIPE)
         p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clauses))))
         if len(universals) > 0:
@@ -99,6 +103,7 @@ def eval_formula(maxvar,clauses,universals=set(), repetitions=1):
         p.stdin.close()
 
     assert all(x == returncodes[0] for x in returncodes)
+    print (str(decisions))
     return (returncodes[0], np.mean(conflicts), np.mean(decisions))
     
 def is_sat(maxvar,clauses,universals=set()):

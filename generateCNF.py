@@ -58,6 +58,9 @@ def parse_cmdline():
     p.add_argument('-n', '--number', dest='num_generated', action='store',
                    nargs='?', default=1, type=int, metavar='N',
                    help='Number of files to be generated.')
+    p.add_argument('-r', '--repetitions', dest='repetitions', action='store',
+                   nargs='?', default=1, type=int, metavar='R',
+                   help='Number of runs of CADET to compute average decisions.')
     p.add_argument('--prefix', dest='file_prefix', action='store',
                    nargs='?', default='', type=str, metavar='P',
                    help='Prefix given to all files.')
@@ -110,7 +113,10 @@ def main(argv):
                 universals.add(candidate)
                 assert(len(universals) > 0)
 
-            (returncode, _, decisions) = eval_formula(maxvar, clauses, universals, repetitions=20)
+            (returncode, _, decisions) = eval_formula(maxvar,
+                                                      clauses,
+                                                      universals,
+                                                      args.repetitions)
             if returncode not in [10, 20]:
                 errfiledir = '{}/err{}_{}.{}'.format(args.directory,
                                                      str(num_generated),

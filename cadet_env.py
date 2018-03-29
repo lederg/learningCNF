@@ -34,6 +34,8 @@ class CadetEnv:
     if fresh_seed:
       print('Using fresh seed!')
       cadet_params.append('--fresh_seed')
+    # cadet_params.append('-v')
+    # cadet_params.append('1')    
 
     self.cadet_proc = Popen([self.cadet_binary,  *cadet_params], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
     self.poll_obj = select.poll()
@@ -64,6 +66,8 @@ class CadetEnv:
 
   def reset(self, fname):    
     self.terminate()
+    if self.debug:
+      print('Starting Env {}'.format(fname))
     # if fname == 'data/test2_qbf/299_UNSAT.qdimacs':
     #   ipdb.set_trace()
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
@@ -125,7 +129,7 @@ class CadetEnv:
       if not a or a == '\n': continue
       if self.debug:
         print(a)
-      if a == 'UNSAT\n':
+      if False and a == 'UNSAT\n':
         if self.cadet_binary != './cadet':
           a = self.read_line_with_timeout()     # refutation line
         a = self.read_line_with_timeout()     # rewards
@@ -138,7 +142,8 @@ class CadetEnv:
         self.done = True
         state = None
         break
-      elif a == 'SAT\n':
+      elif False and a == 'SAT\n':
+        ipdb.set_trace()
         a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))                
         if np.isnan(self.rewards).any():
@@ -149,7 +154,7 @@ class CadetEnv:
         self.done = True
         state = None
         break
-      elif a.startswith('SATrewards') or a.startswith('UNSATrewards'):
+      elif a.startswith('rewards') or a.startswith('SATrewards') or a.startswith('UNSATrewards'):
         self.rewards = np.asarray(list(map(float,a.split()[1:])))                
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():

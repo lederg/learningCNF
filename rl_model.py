@@ -27,7 +27,7 @@ class Policy(nn.Module):
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']		
 		self.graph_embedder = GraphEmbedder(settings=self.settings)
-		# self.value_score = nn.Linear(self.state_dim+self.embedding_dim,1)
+		self.value_score = nn.Linear(self.state_dim+self.embedding_dim,1)
 		if encoder:
 			print('Bootstraping Policy from existing encoder')
 			self.encoder = encoder
@@ -69,8 +69,9 @@ class Policy(nn.Module):
 		inputs = torch.cat([reshaped_state, vs,ground_embeddings],dim=2).view(-1,self.state_dim+self.embedding_dim+self.ground_dim)
 		# inputs = torch.cat([reshaped_state, ground_embeddings],dim=2).view(-1,self.state_dim+self.ground_dim)
 		# inputs = ground_embeddings.view(-1,self.ground_dim)
-		# graph_embedding = self.graph_embedder(vs,batch_size=len(vs))
-		# value = self.value_score(torch.cat([state,graph_embedding]))
+		graph_embedding = self.graph_embedder(vs,batch_size=len(vs))
+		# ipdb.set_trace()
+		value = self.value_score(torch.cat([state,graph_embedding],dim=1))
 		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs))))).view(self.batch_size,-1)
 		# outputs = outputs-value		# Advantage
 		# outputs = self.action_score(self.activation(self.linear1(inputs))).view(self.batch_size,-1)		
@@ -78,11 +79,8 @@ class Policy(nn.Module):
 		if self.settings['pre_bias']:
 			missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])
 			valid = (1-(1-missing)*(1-ground_embeddings[:,:,IDX_VAR_DETERMINIZED]))*self.invalid_bias
-			# return valid
-			valid_outputs = outputs + valid
-			return valid_outputs
-		else:
-			return outputs
+			outputs = outputs + valid
+		return outputs, value
 
 		# rc = F.softmax(valid_outputs)
 		# return rc

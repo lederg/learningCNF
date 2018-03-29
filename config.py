@@ -30,7 +30,7 @@ def cfg():
 	batch_size = 128
 	val_size = 100 
 	threshold = 10
-	init_lr = 1e-03
+	init_lr = 0.0006
 	# init_lr = 0.001
 	# 'init_lr = 0.0004
 	decay_lr = 0.055

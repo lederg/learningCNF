@@ -403,7 +403,7 @@ class GraphEmbedder(nn.Module):
 			batch_size = self.settings['batch_size']
 		embeddings = embeddings.view(-1,self.embedding_dim)
 		per_var = F.sigmoid(self.i_mat(embeddings)) * F.tanh(self.j_mat(embeddings))
-		out = F.tanh(torch.sum(per_var.view(batch_size,-1,self.embedding_dim),dim=1)).squeeze()
+		out = F.tanh(torch.sum(per_var.view(batch_size,-1,self.embedding_dim),dim=1))
 		return out
 
 class TopLevelClassifier(nn.Module):

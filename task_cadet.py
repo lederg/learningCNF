@@ -157,8 +157,13 @@ def cadet_main():
     probs = F.softmax(logits)    
     all_logprobs = safe_logprobs(probs)
     returns = torch.Tensor(rewards)
-    adv_t = returns - values.squeeze().data
-    value_loss = mse_loss(values, Variable(returns))    
+    if settings['ac_baseline']:
+      adv_t = returns - values.squeeze().data
+      value_loss = mse_loss(values, Variable(returns))    
+      print('Value loss is {}'.format(value_loss.data.numpy()))
+    else:
+      adv_t = returns
+      value_loss = 0.
     logprobs = all_logprobs.gather(1,Variable(collated_batch.action).view(-1,1)).squeeze()            
     entropies = (-probs*all_logprobs).sum(1)
     if settings['cuda']:
@@ -176,7 +181,6 @@ def cadet_main():
     optimizer.step()
     end_time = time.time()
     print('Backward computation done in %f seconds' % (end_time-begin_time))
-    print('Value loss is {}, pg_loss is {}'.format(value_loss.data.numpy(), pg_loss.data.numpy()))
 
 
     # Change learning rate according to KL

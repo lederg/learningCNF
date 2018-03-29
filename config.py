@@ -95,6 +95,7 @@ def cfg():
 	adaptive_lr = False
 	desired_kl = 1e-6
 	min_timesteps_per_batch = 400
+	ac_baseline = False
 # RL - DQN
 
 	EPS_START = 0.9

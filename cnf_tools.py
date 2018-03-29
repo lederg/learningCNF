@@ -3,6 +3,7 @@
 import os
 import re
 import ipdb
+import numpy as np
 from subprocess import Popen, PIPE, STDOUT
 
 MAX_CLAUSES_PER_VARIABLE = 100
@@ -58,36 +59,47 @@ def extract_num_decisions(s):
         return 0
 
 
-def eval_formula(maxvar,clauses,universals=set()):
+def eval_formula(maxvar,clauses,universals=set(), repetitions=1):
     # print(str(maxvar))
     # print(str(clauses))
     # ipdb.set_trace()
-    tool = ['./../cadet/dev/cadet','-v','1', '--debugging',
-    		'--cegar_soft_conflict_limit', '--sat_by_qbf'] 
-    p = Popen(tool,stdout=PIPE,stdin=PIPE)
-    p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clauses))))
-    if len(universals) > 0:
-        p.stdin.write(str.encode('a'))
-        for u in universals:
-            p.stdin.write(str.encode(' {}'.format(u)))
-        p.stdin.write(str.encode(' 0\n'))
-        p.stdin.write(str.encode('e'))
-        for v in range(1,maxvar+1):
-            if v not in universals:
-                p.stdin.write(str.encode(' {}'.format(v)))
-        p.stdin.write(str.encode(' 0\n'))
-    for c in clauses:
-        p.stdin.write(str.encode(clause_to_string(c)))
-    stdout, stderr = p.communicate()
-    # print('  ' + str(p.returncode))
-    # print('  ' + str(stdout))
-    # print('  ' + str(stderr))
-    
-    # print('  Maxvar: ' + str(maxvar))
-    # print('  Conflicts: ' + str(extract_num_conflicts(stdout)))
 
-    p.stdin.close()
-    return (p.returncode, extract_num_conflicts(stdout), extract_num_decisions(stdout))
+    returncodes = []
+    conflicts = []
+    decisions = []
+
+    for _ in range(repetitions):
+        tool = ['./../cadet/dev/cadet','-v','1', '--debugging',
+                '--cegar_soft_conflict_limit', '--sat_by_qbf', '--random_decisions'] 
+        p = Popen(tool,stdout=PIPE,stdin=PIPE)
+        p.stdin.write(str.encode('p cnf {} {}\n'.format(maxvar,len(clauses))))
+        if len(universals) > 0:
+            p.stdin.write(str.encode('a'))
+            for u in universals:
+                p.stdin.write(str.encode(' {}'.format(u)))
+            p.stdin.write(str.encode(' 0\n'))
+            p.stdin.write(str.encode('e'))
+            for v in range(1,maxvar+1):
+                if v not in universals:
+                    p.stdin.write(str.encode(' {}'.format(v)))
+            p.stdin.write(str.encode(' 0\n'))
+        for c in clauses:
+            p.stdin.write(str.encode(clause_to_string(c)))
+        stdout, stderr = p.communicate()
+        # print('  ' + str(p.returncode))
+        # print('  ' + str(stdout))
+        # print('  ' + str(stderr))
+        
+        # print('  Maxvar: ' + str(maxvar))
+        # print('  Conflicts: ' + str(extract_num_conflicts(stdout)))
+        returncodes.append(p.returncode)
+        conflicts.append(extract_num_conflicts(stdout))
+        decisions.append(extract_num_decisions(stdout))
+
+        p.stdin.close()
+
+    assert all(x == returncodes[0] for x in returncodes)
+    return (returncodes[0], np.mean(conflicts), np.mean(decisions))
     
 def is_sat(maxvar,clauses,universals=set()):
     (returncode,_) = eval_formula(maxvar,clauses,universals)
@@ -127,7 +139,7 @@ def dimacs_to_clauselist(dimacs):
 #                 if abs(l) not in occs:
 #                     occs[abs(l)] = []
 #                 occs[abs(l)] += [lits] # storing reference to lits so we can 
-#										 # manipulate them consistently
+#                                        # manipulate them consistently
 #         else:
 #             if lits[0] == b'p':
 #                 maxvar = int(lits[2])
@@ -177,7 +189,7 @@ def normalizeCNF_occs(maxvar, occs):
             # to remove the connector_clauses with what follows
             occs[v] = connector_clauses + occs[v] 
             assert(len(occs[v][(MAX_CLAUSES_PER_VARIABLE+2):]) > 0)  
-            	# > MAX_CLAUSES_PER_VARIABLE and we added two connector_clauses
+                # > MAX_CLAUSES_PER_VARIABLE and we added two connector_clauses
         
             assert(maxvar not in occs)
             occs[maxvar] = connector_clauses
@@ -200,7 +212,7 @@ def normalizeCNF_occs(maxvar, occs):
     # print ('  added vars: ' + str(added_vars))
     # print ('  Max: ' + str( max( [len(occs[v]) for v in occs.keys()] )))
     # print ('  Over MAX_CLAUSES_PER_VARIABLE occs: ' 
-    	# + str(len( filter(lambda x: x, [len(occs[v]) 
-    	# 	> MAX_CLAUSES_PER_VARIABLE for v in occs.keys()] ))))
+        # + str(len( filter(lambda x: x, [len(occs[v]) 
+        #   > MAX_CLAUSES_PER_VARIABLE for v in occs.keys()] ))))
 
     return occs_to_clauses(maxvar, occs)

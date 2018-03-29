@@ -20,17 +20,23 @@ def require_init(f, *args, **kwargs):
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     
 class CadetEnv:
-  def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, use_old_rewards = False, **kwargs):
+  def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, use_old_rewards = False, fresh_seed = False, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
     self.greedy_rewards = greedy_rewards
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.
     cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
-    if use_old_rewards:
+    if not use_old_rewards:
       # if self.debug:
-      print('Using old rewards!')
+      print('Using new rewards!')
       cadet_params.append('--rl_advanced_rewards')
+    if fresh_seed:
+      print('Using fresh seed!')
+      cadet_params.append('--fresh_seed')
+    # cadet_params.append('-v')
+    # cadet_params.append('1')    
+
     self.cadet_proc = Popen([self.cadet_binary,  *cadet_params], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
     self.poll_obj = select.poll()
     self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
@@ -60,6 +66,8 @@ class CadetEnv:
 
   def reset(self, fname):    
     self.terminate()
+    if self.debug:
+      print('Starting Env {}'.format(fname))
     # if fname == 'data/test2_qbf/299_UNSAT.qdimacs':
     #   ipdb.set_trace()
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
@@ -121,8 +129,9 @@ class CadetEnv:
       if not a or a == '\n': continue
       if self.debug:
         print(a)
-      if a == 'UNSAT\n':
-        a = self.read_line_with_timeout()     # refutation line
+      if False and a == 'UNSAT\n':
+        if self.cadet_binary != './cadet':
+          a = self.read_line_with_timeout()     # refutation line
         a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
         if np.isnan(self.rewards).any():
@@ -133,7 +142,8 @@ class CadetEnv:
         self.done = True
         state = None
         break
-      elif a == 'SAT\n':
+      elif False and a == 'SAT\n':
+        ipdb.set_trace()
         a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))                
         if np.isnan(self.rewards).any():
@@ -144,7 +154,7 @@ class CadetEnv:
         self.done = True
         state = None
         break
-      elif a.startswith('SATrewards') or a.startswith('UNSATrewards'):
+      elif a.startswith('rewards') or a.startswith('SATrewards') or a.startswith('UNSATrewards'):
         self.rewards = np.asarray(list(map(float,a.split()[1:])))                
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():

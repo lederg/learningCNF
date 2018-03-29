@@ -26,8 +26,9 @@ class Policy(nn.Module):
 		self.ground_dim = self.settings['ground_dim']
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']		
-		self.graph_embedder = GraphEmbedder(settings=self.settings)
-		# self.value_score = nn.Linear(self.state_dim+self.embedding_dim,1)
+		if self.settings['ac_baseline']:
+			self.graph_embedder = GraphEmbedder(settings=self.settings)
+			self.value_score = nn.Linear(self.state_dim+self.embedding_dim,1)
 		if encoder:
 			print('Bootstraping Policy from existing encoder')
 			self.encoder = encoder
@@ -38,7 +39,10 @@ class Policy(nn.Module):
 		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
 		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([self.settings['invalid_bias']]))
 		self.action_score = nn.Linear(self.policy_dim2,1)
-		self.activation = F.relu
+		if self.settings['leaky']:
+			self.activation = F.leaky_relu
+		else:
+			self.activation = F.relu
 		self.saved_log_probs = []
 	
 	# state is just a (batched) vector of fixed size state_dim which should be expanded. 
@@ -66,8 +70,7 @@ class Policy(nn.Module):
 		inputs = torch.cat([reshaped_state, vs,ground_embeddings],dim=2).view(-1,self.state_dim+self.embedding_dim+self.ground_dim)
 		# inputs = torch.cat([reshaped_state, ground_embeddings],dim=2).view(-1,self.state_dim+self.ground_dim)
 		# inputs = ground_embeddings.view(-1,self.ground_dim)
-		# graph_embedding = self.graph_embedder(vs,batch_size=len(vs))
-		# value = self.value_score(torch.cat([state,graph_embedding]))
+		
 		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs))))).view(self.batch_size,-1)
 		# outputs = outputs-value		# Advantage
 		# outputs = self.action_score(self.activation(self.linear1(inputs))).view(self.batch_size,-1)		
@@ -75,11 +78,13 @@ class Policy(nn.Module):
 		if self.settings['pre_bias']:
 			missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])
 			valid = (1-(1-missing)*(1-ground_embeddings[:,:,IDX_VAR_DETERMINIZED]))*self.invalid_bias
-			# return valid
-			valid_outputs = outputs + valid
-			return valid_outputs
+			outputs = outputs + valid
+		if self.settings['ac_baseline']:
+			graph_embedding = self.graph_embedder(vs,batch_size=len(vs))
+			value = self.value_score(torch.cat([state,graph_embedding],dim=1))
 		else:
-			return outputs
+			value = None
+		return outputs, value
 
 		# rc = F.softmax(valid_outputs)
 		# return rc

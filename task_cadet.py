@@ -44,7 +44,7 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
     action = np.argmax(activities)
     return action, None
 
-  logits = model(obs, **kwargs)
+  logits, values = model(obs, **kwargs)
   
   if testing:
     action = logits.squeeze().max(0)[1].data   # argmax when testing        
@@ -110,16 +110,18 @@ def cadet_main():
   if settings['do_test']:
     test_envs(random_test=True)
   total_steps = 0
+  mse_loss = nn.MSELoss()
+  stepsize = settings['init_lr']
   policy = create_policy()
-  optimizer = optim.Adam(policy.parameters(), lr=settings['init_lr'])
+  optimizer = optim.Adam(policy.parameters(), lr=stepsize)  
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])
   ds = QbfDataset(fnames=settings['rl_train_data'])
-  all_episode_files = ds.get_files_list()  
+  all_episode_files = ds.get_files_list()
+  old_logits = None
   for i in range(10000):
     rewards = []
-    time_steps_this_batch = 0
     transition_data = []
     total_transitions = []
     time_steps_this_batch = 0
@@ -151,27 +153,24 @@ def cadet_main():
     begin_time = time.time()
     states, actions, next_states, rewards = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
-    logits = policy(collated_batch.state)
-    probs = F.softmax(logits)
-    thres = 1e-4
-
-    zero_probs = Variable(settings.zeros(probs.size()))
-    fake_probs = zero_probs + 100
-    aug_probs = torch.stack([fake_probs, probs])
-    index_probs = (probs>thres).long().unsqueeze(0)
-    aug_logprobs = torch.stack([zero_probs,aug_probs.gather(0,index_probs).squeeze().log()])
-    all_logprobs = aug_logprobs.gather(0,index_probs).squeeze()
-
-    # ipdb.set_trace()
+    logits, values = policy(collated_batch.state)
+    probs = F.softmax(logits)    
+    all_logprobs = safe_logprobs(probs)
     returns = torch.Tensor(rewards)
-    logprobs = all_logprobs.gather(1,Variable(collated_batch.action).view(-1,1)).squeeze()        
-    # logprobs = F.softmax(logits).gather(1,Variable(collated_batch.action).view(-1,1)).log().squeeze()        
+    if settings['ac_baseline']:
+      adv_t = returns - values.squeeze().data
+      value_loss = mse_loss(values, Variable(returns))    
+      print('Value loss is {}'.format(value_loss.data.numpy()))
+    else:
+      adv_t = returns
+      value_loss = 0.
+    logprobs = all_logprobs.gather(1,Variable(collated_batch.action).view(-1,1)).squeeze()            
     entropies = (-probs*all_logprobs).sum(1)
     if settings['cuda']:
       returns = returns.cuda()
-    returns = (returns - returns.mean()) / (returns.std() + np.finfo(np.float32).eps)
-    # loss = (-Variable(returns)*logprobs).sum()    
-    loss = (-Variable(returns)*logprobs - settings['entropy_alpha']*entropies).sum()    
+    adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + np.finfo(np.float32).eps)
+    pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
+    loss = pg_loss + value_loss
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm(policy.parameters(), settings['grad_norm_clipping'])
@@ -182,6 +181,29 @@ def cadet_main():
     optimizer.step()
     end_time = time.time()
     print('Backward computation done in %f seconds' % (end_time-begin_time))
+
+
+    # Change learning rate according to KL
+
+    if settings['adaptive_lr']:
+      old_logits = logits
+      logits, _ = policy(collated_batch.state)    
+      kl = compute_kl(logits.data,old_logits.data)
+      kl = kl.mean()
+      if kl > settings['desired_kl'] * 2: 
+        stepsize /= 1.5
+        print('stepsize -> %s'%stepsize)
+        utils.set_lr(optimizer,stepsize)
+      elif kl < settings['desired_kl'] / 2: 
+        stepsize *= 1.5
+        print('stepsize -> %s'%stepsize)
+        utils.set_lr(optimizer,stepsize)
+      else:
+        print('stepsize OK')
+
+
+
+
     if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), total_steps))
     if i % TEST_EVERY == 0 and i>0:

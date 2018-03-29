@@ -30,7 +30,7 @@ def cfg():
 	batch_size = 128
 	val_size = 100 
 	threshold = 10
-	init_lr = 1e-03
+	init_lr = 0.0006
 	# init_lr = 0.001
 	# 'init_lr = 0.0004
 	decay_lr = 0.055
@@ -64,12 +64,11 @@ def cfg():
 # RL - PG
 
 	gamma=0.99
-	entropy_alpha = 0.00
+	entropy_alpha = 0.000
 	policy_dim1 = 30
 	policy_dim2 = 15
 	# policy_dim1 = 100
 	# policy_dim2 = 50
-	min_timesteps_per_batch = 400
 	batch_backwards = False					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
 	# greedy_rewards = True
 	greedy_rewards = False
@@ -88,9 +87,15 @@ def cfg():
 	debug_actions = False
 	debug = False
 	use_old_rewards = False					#  Must be false if using old cadet
+	leaky=False
 	cadet_binary = './cadet'
 	# cadet_binary = './old_cadet' 			
 	do_test = True
+	fresh_seed = False  						# Use a fresh seed in cadet
+	adaptive_lr = False
+	desired_kl = 1e-6
+	min_timesteps_per_batch = 400
+	ac_baseline = False
 # RL - DQN
 
 	EPS_START = 0.9

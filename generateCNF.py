@@ -61,7 +61,7 @@ def parse_cmdline():
     p.add_argument('-r', '--repetitions', dest='repetitions', action='store',
                    nargs='?', default=1, type=int, metavar='R',
                    help='Number of runs of CADET to compute average decisions.')
-    p.add_argument('--prefix', dest='file_prefix', action='store',
+    p.add_argument('-p', '--prefix', dest='file_prefix', action='store',
                    nargs='?', default='', type=str, metavar='P',
                    help='Prefix given to all files.')
     p.add_argument('-g', '--ground_variables', dest='ground_vars',
@@ -105,113 +105,63 @@ def main(argv):
         # find a set of universals that provokes many conflicts
         print('  maxvar {}'.format(str(maxvar)))
         universals = set()
-        if is_qbf:
-            for _ in range(args.universals_num):
-                # print('  Trying n={} universals'.format(n))
-                
-                candidate = random.randint(1, maxvar)
-                universals.add(candidate)
-                assert(len(universals) > 0)
-
-            (returncode, _, decisions) = eval_formula(maxvar,
-                                                      clauses,
-                                                      universals,
-                                                      args.repetitions)
-            if returncode not in [10, 20]:
-                errfiledir = '{}/err{}_{}.{}'.format(args.directory,
-                                                     str(num_generated),
-                                                     result_string,
-                                                     file_extension)
-                print('Warning: unexpected return code: {}; \
-                       writing formula to {} and ignoring it'.
-                      format(returncode,
-                             errfiledir))
-                write_to_file(
-                    maxvar,
-                    clauses,
-                    errfiledir,
-                    universals)
-                continue
-
-            print('decisions {}'.format(decisions))
-            if args.max_hardness >= decisions >= args.min_hardness:
-                if returncode == 10:
-                    result_string = 'SAT'
-                    num_sat += 1
-                else:  # returncode == 20:
-                    result_string = 'UNSAT'
-                    num_unsat += 1
-                print('  best candidate has {} universals, is {}, and '
-                      'takes {} decisions'.format(
-                            len(universals),
-                            result_string,
-                            decisions))
-
-                filedir = '{}/{}_{}.{}'.format(
-                            args.directory,
-                            str(num_generated),
-                            result_string,
-                            file_extension)
-
-                write_to_file(
-                    maxvar,
-                    clauses,
-                    filedir,
-                    universals)
-                num_generated += 1
-            else:
-                print('Failed to generate: '
-                      'number of decisions is {}, which is not in bounds [{},{}]'.
-                      format(decisions, args.min_hardness, args.max_hardness))
-
-
-        else:  # SAT formula
-            (returncode, _, decisions) = eval_formula(
-                                        maxvar,
-                                        clauses,
-                                        universals)
-            if returncode not in [10, 20]:
-                errfiledir = '{}/err{}_{}.{}'.format(
-                                args.directory,
-                                str(num_generated),
-                                result_string,
-                                file_extension)
-                print('Warning: unexpected return code: {}; \
-                       writing formula to {} and ignoring it'.
-                      format(returncode, errfiledir))
-                write_to_file(maxvar, clauses, errfiledir, universals)
-                continue
         
-            print('decisions {}'.format(decisions))
-            if args.max_hardness >= decisions >= args.min_hardness:
-                if returncode == 10:
-                    result_string = 'SAT'
-                    num_sat += 1
-                else:  # returncode == 20:
-                    result_string = 'UNSAT'
-                    num_unsat += 1
-                print('  best candidate has {} universals, is {}, and '
-                      'takes {} decisions'.format(
-                            len(universals),
-                            result_string,
-                            decisions))
+        for _ in range(args.universals_num):
+            candidate = random.randint(1, maxvar)
+            universals.add(candidate)
+            assert(len(universals) > 0)
 
-                filedir = '{}/{}_{}.{}'.format(
-                            args.directory,
-                            str(num_generated),
-                            result_string,
-                            file_extension)
+        (returncode, _, decisions) = eval_formula(maxvar,
+                                                  clauses,
+                                                  universals,
+                                                  args.repetitions)
+        if returncode not in [10, 20]:
+            errfiledir = '{}/err{}_{}.{}'.format(args.directory,
+                                                 str(num_generated),
+                                                 result_string,
+                                                 file_extension)
+            print('Warning: unexpected return code: {}; \
+                   writing formula to {} and ignoring it'.
+                  format(returncode,
+                         errfiledir))
+            write_to_file(
+                maxvar,
+                clauses,
+                errfiledir,
+                universals)
+            continue
 
-                write_to_file(
-                    maxvar,
-                    clauses,
-                    filedir,
-                    universals)
-                num_generated += 1
-            else:
-                print('Failed to generate: '
-                      'number of decisions is {}, which is not in bounds [{},{}]'.
-                      format(decisions, args.min_hardness, args.max_hardness))
+        print('decisions {}'.format(decisions))
+        if args.max_hardness >= decisions >= args.min_hardness:
+            if returncode == 10:
+                result_string = 'SAT'
+                num_sat += 1
+            else:  # returncode == 20:
+                result_string = 'UNSAT'
+                num_unsat += 1
+            print('  best candidate has {} universals, is {}, and '
+                  'takes {} decisions'.format(
+                        len(universals),
+                        result_string,
+                        decisions))
+
+            filedir = '{}/{}{}_{}.{}'.format(
+                        args.directory,
+                        args.file_prefix,
+                        str(num_generated),
+                        result_string,
+                        file_extension)
+
+            write_to_file(
+                maxvar,
+                clauses,
+                filedir,
+                universals)
+            num_generated += 1
+        else:
+            print('Failed to generate: '
+                  'number of decisions is {}, which is not in bounds [{},{}]'.
+                  format(decisions, args.min_hardness, args.max_hardness))
 
     print('Generated {} SAT and {} UNSAT formulas'.format(
             str(num_sat),

@@ -103,7 +103,6 @@ def eval_formula(maxvar,clauses,universals=set(), repetitions=1):
         p.stdin.close()
 
     assert all(x == returncodes[0] for x in returncodes)
-    print (str(decisions))
     return (returncodes[0], np.mean(conflicts), np.mean(decisions))
     
 def is_sat(maxvar,clauses,universals=set()):

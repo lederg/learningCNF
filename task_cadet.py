@@ -109,6 +109,8 @@ def cadet_main():
 
   if settings['do_test']:
     test_envs(random_test=True)
+  if settings['do_not_run']:
+    return
   total_steps = 0
   mse_loss = nn.MSELoss()
   stepsize = settings['init_lr']

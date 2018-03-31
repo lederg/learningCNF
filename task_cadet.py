@@ -20,7 +20,7 @@ import torch.nn.utils as tutils
 
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -100
-TEST_EVERY = 100
+TEST_EVERY = 200
 
 all_episode_files = ['data/mvs.qdimacs']
 
@@ -122,7 +122,9 @@ def cadet_main():
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()
   old_logits = None
-  for i in range(10000):
+  max_steps = len(ds)*100
+  print('Running for {} steps..'.format(max_steps))
+  for i in range(max_steps):
     rewards = []
     transition_data = []
     total_transitions = []

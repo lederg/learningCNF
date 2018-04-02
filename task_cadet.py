@@ -20,7 +20,7 @@ import torch.nn.utils as tutils
 
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -100
-TEST_EVERY = 200
+TEST_EVERY = 500
 
 all_episode_files = ['data/mvs.qdimacs']
 
@@ -143,7 +143,7 @@ def cadet_main():
       transition_data.extend([Transition(transition.state, transition.action, None, rew) for transition, rew in zip(episode, r)])
     
     print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, sum(inference_time)))
-    if not (i % 10) and i>0:
+    if not (i % 250) and i>0:
       reporter.report_stats(total_steps, len(all_episode_files))
       print('Testing all episodes:')
       for fname in all_episode_files:

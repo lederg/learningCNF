@@ -162,6 +162,7 @@ def create_policy(settings=None, is_clone=False):
     settings = CnfSettings()
   base_model = settings['base_model']
   if base_model and not is_clone:
+    print('Loading parameters from {}'.format(base_model))
     if settings['base_mode'] == BaseMode.ALL:
       policy = Policy()
       policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))

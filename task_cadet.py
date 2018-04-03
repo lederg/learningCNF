@@ -20,7 +20,8 @@ import torch.nn.utils as tutils
 
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -100
-TEST_EVERY = 500
+TEST_EVERY = 200
+REPORT_EVERY = 100
 
 all_episode_files = ['data/mvs.qdimacs']
 
@@ -143,13 +144,13 @@ def cadet_main():
       transition_data.extend([Transition(transition.state, transition.action, None, rew) for transition, rew in zip(episode, r)])
     
     print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, sum(inference_time)))
-    if not (i % 250) and i>0:
+    if not (i % REPORT_EVERY) and i>0:
       reporter.report_stats(total_steps, len(all_episode_files))
-      print('Testing all episodes:')
-      for fname in all_episode_files:
-        _, _ , _= handle_episode(model=policy, testing=True, fname=fname)
-        r = env.rewards
-        print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
+      # print('Testing all episodes:')
+      # for fname in all_episode_files:
+      #   _, _ , _= handle_episode(model=policy, testing=True, fname=fname)
+      #   r = env.rewards
+      #   print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
     inference_time.clear()
 
     if settings['do_not_learn']:
@@ -217,6 +218,14 @@ def cadet_main():
         log_value('Validation', val_average, total_steps)
         test_average = test_envs(fnames=settings['rl_test_data'], model=policy)
         log_value('Test', test_average, total_steps)
+        print('\n\n\nResults on VSIDS policy:\n\n\n')
+        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, activity_test=True, iters=1)
+        test_average = test_envs(fnames=settings['rl_test_data'], model=policy, activity_test=True, iters=1)
+        print('\n\n\nResults on optimal policy:\n\n\n')
+        val_average = test_envs(model=policy, testing=True, iters=1)
+        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, testing=True, iters=1)
+        test_average = test_envs(fnames=settings['rl_test_data'], model=policy, testing=True, iters=1)
+
 
   
 def test_one_env(fname, iters=100, threshold=100000, **kwargs):
@@ -225,7 +234,7 @@ def test_one_env(fname, iters=100, threshold=100000, **kwargs):
     r, _, _ = handle_episode(fname=fname, **kwargs)
     if len(r) > 1000:
       print('{} took {} steps!'.format(fname,len(r)))
-      break
+      # break
     s += len(r)
 
   if s/iters < threshold:

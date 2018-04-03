@@ -73,7 +73,7 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   if fname is None:
     total_envs = len(all_episode_files)
     fname = all_episode_files[random.randint(0,total_envs-1)]
-  env_id = int(os.path.split(fname)[1].split('_')[0])
+  env_id = int(os.path.split(fname)[1].split('_')[-2])
   # Set up ground_embeddings and adjacency matrices
   state, vars_add, vars_remove, activities, _, _ , _, _ = env.reset(fname)
   assert(len(state)==settings['state_dim'])

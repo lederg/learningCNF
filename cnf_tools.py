@@ -69,7 +69,7 @@ def eval_formula(maxvar,clauses,universals=set(), repetitions=1):
     decisions = []
 
     for _ in range(repetitions):
-        tool = ['./../cadet/dev/cadet','-v','1', 
+        tool = ['./cadet','-v','1', 
                 '--debugging',
                 '--cegar_soft_conflict_limit', 
                 '--sat_by_qbf', 

@@ -20,7 +20,7 @@ import torch.nn.utils as tutils
 
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -100
-TEST_EVERY = 100
+TEST_EVERY = 500
 
 all_episode_files = ['data/mvs.qdimacs']
 
@@ -109,6 +109,8 @@ def cadet_main():
 
   if settings['do_test']:
     test_envs(random_test=True)
+  if settings['do_not_run']:
+    return
   total_steps = 0
   mse_loss = nn.MSELoss()
   stepsize = settings['init_lr']
@@ -120,7 +122,9 @@ def cadet_main():
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()
   old_logits = None
-  for i in range(10000):
+  max_steps = len(ds)*100
+  print('Running for {} steps..'.format(max_steps))
+  for i in range(max_steps):
     rewards = []
     transition_data = []
     total_transitions = []
@@ -139,7 +143,7 @@ def cadet_main():
       transition_data.extend([Transition(transition.state, transition.action, None, rew) for transition, rew in zip(episode, r)])
     
     print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, sum(inference_time)))
-    if not (i % 10) and i>0:
+    if not (i % 250) and i>0:
       reporter.report_stats(total_steps, len(all_episode_files))
       print('Testing all episodes:')
       for fname in all_episode_files:

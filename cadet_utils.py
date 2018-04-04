@@ -12,17 +12,17 @@ from rl_types import *
 from utils import *
 
 
-  # We return a ground embedding of (self.num_vars,7), where embedding is 0 - universal, 1 - existential, 2 - pad, 
-  # 3 - determinized, 4 - activity, [5,6] - pos/neg determinization
-  # 3 is obviously empty here
+#   # We return a ground embedding of (self.num_vars,7), where embedding is 0 - universal, 1 - existential, 2 - pad, 
+#   # 3 - determinized, 4 - activity, [5,6] - pos/neg determinization
+#   # 3 is obviously empty here
 
-def get_base_ground(qbf, settings=None):
-  if not settings:
-    settings = CnfSettings()
-  rc = np.zeros([qbf.num_vars,settings['ground_dim']]).astype(float)
-  for j, val in enumerate(qbf.var_types):
-    rc[j][val] = True
-  return rc
+# def get_base_ground(qbf, settings=None):
+#   if not settings:
+#     settings = CnfSettings()
+#   rc = np.zeros([qbf.num_vars,settings['ground_dim']]).astype(float)
+#   for j, val in enumerate(qbf.var_types):
+#     rc[j][val] = True
+#   return rc
 
 def get_input_from_qbf(qbf, settings=None):
   if not settings:
@@ -69,15 +69,20 @@ def process_observation(env, last_obs, env_obs, settings=None):
 def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   if not settings:
     settings = CnfSettings()
+  env_gen = EnvIdGen()
 
   if fname is None:
     total_envs = len(all_episode_files)
     fname = all_episode_files[random.randint(0,total_envs-1)]
-  env_id = int(os.path.split(fname)[1].split('_')[-2])
+  try:
+    env_id = int(os.path.split(fname)[1].split('_')[-2])
+  except:
+    env_id = os.path.split(fname)[1]
+    # env_id = env_gen.get_id()
   # Set up ground_embeddings and adjacency matrices
   state, vars_add, vars_remove, activities, _, _ , _, _ = env.reset(fname)
   assert(len(state)==settings['state_dim'])
-  ground_embs = get_base_ground(env.qbf)
+  ground_embs = env.qbf.get_base_embeddings()
   ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True
   ground_embs[:,IDX_VAR_ACTIVITY] = activities
 
@@ -93,9 +98,17 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
 
 
 # This currently does not work on batches
+def get_ground_index(obs, idx):
+  return obs.ground.long().data[0][:,idx].byte()
+
 def get_determinized(obs):
-  return obs.ground.long().data[0][:,IDX_VAR_DETERMINIZED].byte()
+  return get_ground_index(obs,IDX_VAR_DETERMINIZED)  
+
+# A dirty hack implementing !determinized && existential
+
+def get_allowed_actions(obs):
+  return (get_determinized(obs)^1 + get_ground_index(obs,IDX_VAR_EXISTENTIAL)) == 2
 
 def action_allowed(obs, action):
-  return not get_determinized(obs)[action]
+  return get_allowed_actions(obs)[action]
 

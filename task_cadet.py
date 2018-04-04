@@ -38,7 +38,7 @@ inference_time = []
 def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, **kwargs):    
   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
   if random_test or (activity_test and not np.any(activities)):
-    choices = np.where(1-obs.ground.data.numpy()[0,:,IDX_VAR_DETERMINIZED])[0]
+    choices = np.where(get_allowed_actions(obs).numpy())[0]
     action = np.random.choice(choices)
     return action, None
   elif activity_test:    
@@ -94,12 +94,16 @@ def handle_episode(**kwargs):
       # rewards[-1] = INVALID_ACTION_REWARDS
       done = True
     episode_memory.push(last_obs,action,None, None)    
+    if t % 500 == 0 and t > 0:
+      print('In env {}, step {}'.format(env.current_fname,t))
     if done:
-      break
+      return episode_memory, env_id, np.mean(entropies) if entropies else None
     obs = process_observation(env,last_obs,env_obs)
     last_obs = obs
 
-  return episode_memory, env_id, np.mean(entropies) if entropies else None
+  print('Env {} took too long, aborting!'.format(env.current_fname))  
+  return None, None, None
+
 
 def ts_bonus(s):
   b = 5.
@@ -230,16 +234,24 @@ def cadet_main():
   
 def test_one_env(fname, iters=100, threshold=100000, **kwargs):
   s = 0.
+  i = 0
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
+    if not r:     # If r is None, the episodes never finished
+      continue
     if len(r) > 1000:
       print('{} took {} steps!'.format(fname,len(r)))
-      # break
+      # break      
     s += len(r)
+    i += 1
 
-  if s/iters < threshold:
-    print('For {}, average steps: {}'.format(fname,s/iters))
-  return s/iters
+  if i:
+    if s/i < threshold:
+      print('For {}, average steps: {}'.format(fname,s/i))
+    return s/i, float(i)/iters
+  else:
+    return None, None
+
 
 def test_envs(fnames=settings['rl_train_data'], **kwargs):
   ds = QbfDataset(fnames=fnames)
@@ -248,6 +260,8 @@ def test_envs(fnames=settings['rl_train_data'], **kwargs):
   totals_act = 0.
   for fname in all_episode_files:
     print('Starting {}'.format(fname))
-    totals += test_one_env(fname, **kwargs)
+    average, srate = test_one_env(fname, **kwargs)
+    if average:
+      totals += average
   print("Total average: {}".format(totals/len(all_episode_files)))
   return totals/len(all_episode_files)

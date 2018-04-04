@@ -108,3 +108,11 @@ def dict_product(dicts):
     return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
 
     
+class EnvIdGen(metaclass=Singleton):
+    def __init__(self, initial_id=10000):
+        self.initial_id = initial_id
+
+    def get_id(self):
+        rc = self.initial_id
+        self.initial_id += 1
+        return rc

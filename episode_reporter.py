@@ -104,7 +104,7 @@ class DqnEpisodeReporter(AbstractReporter):
 		for vals in totals[:10]:
 			s = vals[2][-DEF_WINDOW:]
 			r = vals[3][-DEF_WINDOW:]
-			print('Env %d appeared %d times, with moving (100) mean/std %f/%f:' % (vals[0], vals[1], np.mean(r), np.std(r)))
+			print('Env %s appeared %d times, with moving (100) mean/std %f/%f:' % (str(vals[0]), vals[1], np.mean(r), np.std(r)))
 			print(r)
 			print(s)
 			print('\n\n')

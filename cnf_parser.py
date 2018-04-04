@@ -111,8 +111,8 @@ def qdimacs_to_cnf(filename, zero_based=False):
     # Make sure not too many clauses per var            
     for x in cvars.keys():
         if len(cvars[x]['clauses']) > MAX_CLAUSES_PER_VARIABLE:
-            print(len(cvars[x]['clauses']))
-            print('Error: too many clauses for variable ' + str(x))
+            clauses = len(cvars[x]['clauses'])
+            print('Error: too many clauses ({}) for variable {} in file {}'.format(clauses,str(x),filename))
             return None
             
 

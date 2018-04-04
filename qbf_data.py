@@ -14,8 +14,8 @@ import ipdb
 
 _use_shared_memory = False
 
-MAX_VARIABLES = 100
-MAX_CLAUSES = 500
+MAX_VARIABLES = 1000
+MAX_CLAUSES = 5000
 GROUND_DIM = 6          # config.ground_dim duplicates this. 
 IDX_VAR_UNIVERSAL = 0
 IDX_VAR_EXISTENTIAL = 1
@@ -99,9 +99,13 @@ class QbfBase(object):
     @property 
     def var_types(self):        
         a = self.qcnf['cvars']
-        rc = np.zeros(self.num_vars)
+        rc = np.zeros(self.num_vars)+2      # Default var type for "missing" is 2
         for k in a.keys():
-            rc[k-1] = 0 if a[k]['universal'] else 1
+            if a[k]['universal']:
+                rc[k-1] = 0            
+            else:
+                rc[k-1] = 1
+
         return rc.astype(int)
 
 

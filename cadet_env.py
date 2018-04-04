@@ -1,4 +1,5 @@
 from subprocess import Popen, PIPE, STDOUT
+from collections import deque
 import select
 import ipdb
 import time
@@ -10,6 +11,7 @@ MAX_EPISODE_LENGTH = 200
 DQN_DEF_COST = -0.2
 # DQN_DEF_COST = 0.
 BINARY_SUCCESS = 1.
+LOG_SIZE = 100
 def require_init(f, *args, **kwargs): 
   def inner(instance, *args, **kwargs):
     assert(instance.cadet_proc != None)
@@ -41,6 +43,8 @@ class CadetEnv:
     self.poll_obj = select.poll()
     self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
     self.done = True      
+    self.current_fname = None
+    self.tail = deque([],LOG_SIZE)
     
 
 
@@ -68,7 +72,7 @@ class CadetEnv:
     self.terminate()
     if self.debug:
       print('Starting Env {}'.format(fname))
-    # if fname == 'data/test2_qbf/299_UNSAT.qdimacs':
+    # if fname == 'data/huge_gen1/small-bug1-fixpoint-3.qdimacs':
     #   ipdb.set_trace()
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
@@ -80,6 +84,7 @@ class CadetEnv:
 
     self.write(fname+'\n')
     self.done = False
+    self.current_fname = fname
     return self.read_state_update()     # Initial state
 
 
@@ -127,6 +132,7 @@ class CadetEnv:
       neg_vars = np.where(self.vars_deterministic<0)[0]      
       a = self.read_line_with_timeout()
       if not a or a == '\n': continue
+      self.tail.append(a)
       if self.debug:
         print(a)
       if False and a == 'UNSAT\n':
@@ -207,7 +213,7 @@ class CadetEnv:
       if self.greedy_rewards:
         reward += self.greedy_alpha*self.running_reward[-1]
     self.last_total_determinized = np.count_nonzero(self.total_vars_deterministic)
-    if sum(self.running_reward) < 0:
+    if sum(self.running_reward) < -1:
       ipdb.set_trace()
     if self.done:
       self.rewards = self.rewards + self.greedy_alpha*np.asarray(self.running_reward)

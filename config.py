@@ -93,6 +93,8 @@ def cfg():
 	desired_kl = 1e-6
 	min_timesteps_per_batch = 400
 	ac_baseline = False
+	use_global_state = True
+	clause_learning = True
 # RL - DQN
 
 	EPS_START = 0.9

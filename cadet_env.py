@@ -22,11 +22,13 @@ def require_init(f, *args, **kwargs):
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     
 class CadetEnv:
-  def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, use_old_rewards = False, fresh_seed = False, **kwargs):
+  def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, 
+                use_old_rewards = False, fresh_seed = False, clause_learning=True, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
     self.greedy_rewards = greedy_rewards
+    self.clause_learning = clause_learning
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.
     cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
     if not use_old_rewards:
@@ -191,7 +193,7 @@ class CadetEnv:
         update = int(b[0])-1
         activity = float(b[1])
         self.activities[update] = activity
-      elif a[0] == 'c':
+      elif a[0] == 'c' and self.clause_learning:
         if a.startswith('clause'):      # new cadet version
           b = [int(x) for x in a.split()[4:]]
         elif a.startswith('conflict'):

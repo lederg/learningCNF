@@ -34,8 +34,11 @@ class Policy(nn.Module):
 			self.encoder = encoder
 		else:
 			self.encoder = QbfEncoder(**self.settings.hyperparameters)
-		# self.linear1 = nn.Linear(self.state_dim+self.ground_dim, self.policy_dim1)
-		self.linear1 = nn.Linear(self.state_dim+self.embedding_dim+self.ground_dim, self.policy_dim1)
+		if self.settings['use_global_state']:
+			self.linear1 = nn.Linear(self.state_dim+self.embedding_dim+self.ground_dim, self.policy_dim1)
+		else:
+			self.linear1 = nn.Linear(self.embedding_dim+self.ground_dim, self.policy_dim1)
+
 		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
 		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([self.settings['invalid_bias']]))
 		self.action_score = nn.Linear(self.policy_dim2,1)
@@ -66,8 +69,11 @@ class Policy(nn.Module):
 		else:						
 			rc = self.encoder(ground_embeddings, cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
 			vs = rc.view(self.batch_size,-1,self.embedding_dim)
-		reshaped_state = state.view(self.batch_size,1,self.state_dim).expand(self.batch_size,size[1],self.state_dim)
-		inputs = torch.cat([reshaped_state, vs,ground_embeddings],dim=2).view(-1,self.state_dim+self.embedding_dim+self.ground_dim)
+		if self.settings['use_global_state']:
+			reshaped_state = state.view(self.batch_size,1,self.state_dim).expand(self.batch_size,size[1],self.state_dim)
+			inputs = torch.cat([reshaped_state, vs,ground_embeddings],dim=2).view(-1,self.state_dim+self.embedding_dim+self.ground_dim)
+		else:
+			inputs = torch.cat([vs,ground_embeddings],dim=2).view(-1,self.embedding_dim+self.ground_dim)			
 		# inputs = torch.cat([reshaped_state, ground_embeddings],dim=2).view(-1,self.state_dim+self.ground_dim)
 		# inputs = ground_embeddings.view(-1,self.ground_dim)
 		

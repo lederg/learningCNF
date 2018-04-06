@@ -72,7 +72,7 @@ def handle_episode(**kwargs):
     reporter.log_env(env_id)
   entropies = []
 
-  for t in range(5000):  # Don't infinite loop while learning
+  for t in range(3000):  # Don't infinite loop while learning
     begin_time = time.time()
     action, logits = select_action(last_obs, **kwargs)    
     if logits is not None:
@@ -94,8 +94,8 @@ def handle_episode(**kwargs):
       # rewards[-1] = INVALID_ACTION_REWARDS
       done = True
     episode_memory.push(last_obs,action,None, None)    
-    if t % 500 == 0 and t > 0:
-      print('In env {}, step {}'.format(env.current_fname,t))
+    # if t % 1500 == 0 and t > 0:
+    #   print('In env {}, step {}'.format(env.current_fname,t))
     if done:
       return episode_memory, env_id, np.mean(entropies) if entropies else None
     obs = process_observation(env,last_obs,env_obs)
@@ -222,19 +222,20 @@ def cadet_main():
         log_value('Validation', val_average, total_steps)
         test_average = test_envs(fnames=settings['rl_test_data'], model=policy)
         log_value('Test', test_average, total_steps)
-        print('\n\n\nResults on VSIDS policy:\n\n\n')
-        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, activity_test=True, iters=1)
-        test_average = test_envs(fnames=settings['rl_test_data'], model=policy, activity_test=True, iters=1)
-        print('\n\n\nResults on optimal policy:\n\n\n')
-        val_average = test_envs(model=policy, testing=True, iters=1)
-        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, testing=True, iters=1)
-        test_average = test_envs(fnames=settings['rl_test_data'], model=policy, testing=True, iters=1)
+        # print('\n\n\nResults on VSIDS policy:\n\n\n')
+        # val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, activity_test=True, iters=1)
+        # test_average = test_envs(fnames=settings['rl_test_data'], model=policy, activity_test=True, iters=1)
+        # print('\n\n\nResults on optimal policy:\n\n\n')
+        # val_average = test_envs(model=policy, testing=True, iters=1)
+        # val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, testing=True, iters=1)
+        # test_average = test_envs(fnames=settings['rl_test_data'], model=policy, testing=True, iters=1)
 
 
   
 def test_one_env(fname, iters=100, threshold=100000, **kwargs):
   s = 0.
   i = 0
+  step_counts = []
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
     if not r:     # If r is None, the episodes never finished
@@ -244,24 +245,33 @@ def test_one_env(fname, iters=100, threshold=100000, **kwargs):
       # break      
     s += len(r)
     i += 1
+    step_counts.append(len(r))
 
   if i:
     if s/i < threshold:
       print('For {}, average steps: {}'.format(fname,s/i))
-    return s/i, float(i)/iters
+    return s/i, float(i)/iters, step_counts
   else:
-    return None, None
+    return None, 0, None
 
 
 def test_envs(fnames=settings['rl_train_data'], **kwargs):
   ds = QbfDataset(fnames=fnames)
+  print('Testing {} envs..\n'.format(len(ds)))
   all_episode_files = ds.get_files_list()
   totals = 0.
-  totals_act = 0.
+  total_srate = 0.
+  total_scored = 0
+  rc = {}
   for fname in all_episode_files:
     print('Starting {}'.format(fname))
-    average, srate = test_one_env(fname, **kwargs)
+    # average, srate = test_one_env(fname, **kwargs)
+    rc[fname] = test_one_env(fname, **kwargs)
+    average = rc[fname][0]
+    srate = rc[fname][1]
+    total_srate += srate
     if average:
-      totals += average
-  print("Total average: {}".format(totals/len(all_episode_files)))
-  return totals/len(all_episode_files)
+      total_scored += 1
+      totals += average      
+  print("Total average: {}. Success rate: {} out of {}".format(totals/total_scored,total_scored,len(ds)))
+  return totals/total_scored

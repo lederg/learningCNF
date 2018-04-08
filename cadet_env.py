@@ -193,14 +193,13 @@ class CadetEnv:
         update = int(b[0])-1
         activity = float(b[1])
         self.activities[update] = activity
-      elif a[0] == 'c' and self.clause_learning:
+      elif self.timestep > 0 and a[0] == 'c' and self.clause_learning:
         if a.startswith('clause'):      # new cadet version
           b = [int(x) for x in a.split()[4:]]
         elif a.startswith('conflict'):
           continue
         else:
-          b = [int(x) for x in a[2:].split()]
-        # ipdb.set_trace()
+          b = [int(x) for x in a[2:].split()]        
         self.qbf.add_clause(b)
         clause = (np.array([abs(x)-1 for x in b if x > 0]), np.array([abs(x)-1 for x in b if x < 0]))
       elif self.debug:

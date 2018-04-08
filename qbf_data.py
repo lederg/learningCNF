@@ -118,7 +118,7 @@ class QbfBase(object):
     def get_sparse_adj_matrices(self,sample):
         clauses = sample['clauses']                
         indices = []
-        values = []        
+        values = []
 
         for i,c in enumerate(clauses):
             for v in c:

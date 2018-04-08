@@ -20,7 +20,7 @@ import torch.nn.utils as tutils
 
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -100
-TEST_EVERY = 200
+TEST_EVERY = 300
 REPORT_EVERY = 100
 
 all_episode_files = ['data/mvs.qdimacs']

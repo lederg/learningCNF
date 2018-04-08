@@ -75,7 +75,7 @@ def cfg():
 	rl_log_dir = 'runs_cadet'
 	# rl_train_data = 'data/candidate_qbf/'
 	# rl_train_data = 'data/test2_qbf/299_UNSAT.qdimacs'
-	rl_train_data = 'data/good_200/'
+	rl_train_data = 'data/good_500/'
 	rl_validation_data = 'data/new_gen1/'
 	rl_test_data = 'data/new_gen2/'
 	rl_log_envs = []

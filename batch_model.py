@@ -206,7 +206,10 @@ class FactoredInnerIteration(nn.Module):
 			
 		v_emb = F.tanh(nv + self.vb.squeeze())		
 		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
-		new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	
+		if self.settings['use_gru']:
+			new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	
+		else:
+			new_vars = v_emb
 		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
 		if (rc != rc).data.any():			# We won't stand for NaN
 			print('NaN in our tensors!!')

@@ -95,6 +95,7 @@ def cfg():
 	ac_baseline = False
 	use_global_state = True
 	clause_learning = True
+	use_gru = True
 # RL - DQN
 
 	EPS_START = 0.9

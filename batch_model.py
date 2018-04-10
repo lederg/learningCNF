@@ -69,7 +69,7 @@ class BatchInnerIteration(nn.Module):
 		self.U_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 		self.W = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
 		self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
-
+		self.non_linearity = eval(self.settings['non_linearity'])
 		self.re_init()
 
 	def re_init(self):
@@ -116,6 +116,7 @@ class FactoredInnerIteration(nn.Module):
 		super(FactoredInnerIteration, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
+		self.non_linearity = eval(self.settings['non_linearity'])
 		self.ground_dim = self.settings['ground_dim']
 		self.embedding_dim = self.settings['embedding_dim']		
 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],self.embedding_dim)
@@ -124,8 +125,7 @@ class FactoredInnerIteration(nn.Module):
 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		nn_init.normal(self.vb)
 		nn_init.normal(self.cb)
-		# self.var_bias = torch.stack([torch.cat([vb]*self.settings['max_variables'])]*self.settings['batch_size'])
-		# self.clause_bias = torch.stack([torch.cat([cb]*self.settings['max_clauses'])]*self.settings['batch_size'])
+
 				
 		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
 		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
@@ -184,7 +184,7 @@ class FactoredInnerIteration(nn.Module):
 			vars_all = torch.mm(c_block[0],v).t().contiguous().view(org_size[0],-1,self.embedding_dim)
 			c = torch.bmm(c_mat.float(),vars_all)	
 
-		c = F.tanh(c + self.cb.squeeze())		
+		c = self.non_linearity(c + self.cb.squeeze())		
 		cv = c.view(-1,self.embedding_dim).t()		
 		size = cv.size(1)
 		if use_neg:
@@ -204,7 +204,7 @@ class FactoredInnerIteration(nn.Module):
 			vars_all = torch.mm(v_block[0],cv).t().contiguous().view(org_size[0],-1,self.embedding_dim)
 			nv = torch.bmm(v_mat.float(),vars_all)	
 			
-		v_emb = F.tanh(nv + self.vb.squeeze())		
+		v_emb = self.non_linearity(nv + self.vb.squeeze())		
 		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
 		if self.settings['use_gru']:
 			new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	

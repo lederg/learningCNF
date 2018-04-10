@@ -60,6 +60,7 @@ def cfg():
 	run_task='train'
 	do_not_run=False
 	do_not_learn = False
+	non_linearity = 'F.tanh'
 
 # RL - PG
 

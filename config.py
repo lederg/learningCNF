@@ -61,7 +61,7 @@ def cfg():
 	do_not_run=False
 	do_not_learn = False
 	non_linearity = 'F.tanh'
-
+	test_every = 2000
 # RL - PG
 
 	gamma=0.99

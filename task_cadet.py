@@ -18,14 +18,14 @@ from cadet_utils import *
 from episode_reporter import *
 import torch.nn.utils as tutils
 
-SAVE_EVERY = 500
-INVALID_ACTION_REWARDS = -100
-TEST_EVERY = 300
-REPORT_EVERY = 100
-
 all_episode_files = ['data/mvs.qdimacs']
 
 settings = CnfSettings()
+
+SAVE_EVERY = 500
+INVALID_ACTION_REWARDS = -100
+TEST_EVERY = settings['test_every']
+REPORT_EVERY = 100
 
 reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), tensorboard=settings['report_tensorboard'])
 env = CadetEnv(**settings.hyperparameters)

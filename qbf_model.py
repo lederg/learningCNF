@@ -8,8 +8,116 @@ import ipdb
 
 import utils
 from qbf_data import *
-from batch_model import FactoredInnerIteration, GraphEmbedder
+from batch_model import GraphEmbedder, GroundCombinator
 from settings import *
+
+class FactoredInnerIteration(nn.Module):
+	def __init__(self, **kwargs):
+		super(FactoredInnerIteration, self).__init__()        
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
+		self.non_linearity = eval(self.settings['non_linearity'])
+		self.ground_dim = self.settings['ground_dim']
+		self.embedding_dim = self.settings['embedding_dim']		
+		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],self.embedding_dim)
+		self.cuda = self.settings['cuda']		
+		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+		nn_init.normal(self.vb)
+		nn_init.normal(self.cb)
+
+				
+		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
+		self.W_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
+		self.W = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
+		self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
+
+		self.re_init()
+
+	def re_init(self):
+		self.var_bias = torch.cat([self.vb]*self.settings['max_variables'])
+		self.clause_bias = torch.cat([self.cb]*self.settings['max_clauses'])
+		
+
+	def gru(self, av, prev_emb):
+		z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
+		r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
+		h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
+		h = (1-z) * prev_emb + z*h_tilda
+		# g = h.view(2,-1,self.embedding_dim)
+		# if (g[0]==g[1]).data.all():
+		# 	print('Same embedding in gru. wtf?')
+		# 	# pdb.set_trace()
+		return h
+
+
+
+
+	def forward(self, variables, v_mat, c_mat, ground_vars=None, v_block=None, c_block=None, **kwargs):		
+		if 'old_forward' in kwargs and kwargs['old_forward']:
+			return self.forward2(variables,v_mat,c_mat,ground_vars=ground_vars, **kwargs)
+		assert(v_block is not None and c_block is not None)
+		bsize = kwargs['batch_size'] if 'batch_size' in kwargs else self.settings['batch_size']
+		self.max_variables = kwargs['max_variables'] if 'max_variables' in kwargs else self.settings['max_variables']
+		org_size = variables.size()
+		v = variables.view(-1,self.embedding_dim).t()
+		size = v.size(1)	# batch x num_vars
+		use_neg = self.settings['negate_type'] != 'minus'
+		if use_neg:
+			# ipdb.set_trace()
+			pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)			
+			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
+				pos_cmat = kwargs['cmat_pos']
+				neg_cmat = kwargs['cmat_neg']
+				# c = torch.mm(pos_cmat,pos_vars) + torch.mm(neg_cmat,neg_vars)
+				c = torch.mm(pos_cmat,pos_vars) + torch.matmul(neg_cmat,neg_vars)
+				c = c.view(bsize,-1,self.embedding_dim)				
+			else:				
+				pos_cmat = c_mat.clamp(0,1).float()
+				neg_cmat = -c_mat.clamp(-1,0).float()
+				y1 = pos_vars.contiguous().view(org_size[0],-1,self.embedding_dim)
+				y2 = neg_vars.contiguous().view(org_size[0],-1,self.embedding_dim)	
+				c = torch.bmm(pos_cmat,y1) + torch.bmm(neg_cmat,y2)									
+		else:
+			vars_all = torch.mm(c_block[0],v).t().contiguous().view(org_size[0],-1,self.embedding_dim)
+			c = torch.bmm(c_mat.float(),vars_all)	
+
+		c = self.non_linearity(c + self.cb.squeeze())		
+		cv = c.view(-1,self.embedding_dim).t()		
+		size = cv.size(1)
+		if use_neg:
+			pos_cvars, neg_cvars = torch.bmm(v_block,cv.expand(2,self.embedding_dim,size)).transpose(1,2)
+			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
+				pos_vmat = kwargs['cmat_pos'].t()
+				neg_vmat = kwargs['cmat_neg'].t()
+				nv = torch.mm(pos_vmat,pos_cvars) + torch.mm(neg_vmat,neg_cvars)
+				nv = nv.view(bsize,-1,self.embedding_dim)
+			else:	
+				pos_vmat = v_mat.clamp(0,1).float()
+				neg_vmat = -v_mat.clamp(-1,0).float()
+				y1 = pos_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+				y2 = neg_cvars.contiguous().view(org_size[0],-1,self.embedding_dim)
+				nv = torch.bmm(pos_vmat,y1) + torch.bmm(neg_vmat,y2)
+		else:
+			vars_all = torch.mm(v_block[0],cv).t().contiguous().view(org_size[0],-1,self.embedding_dim)
+			nv = torch.bmm(v_mat.float(),vars_all)	
+			
+		v_emb = self.non_linearity(nv + self.vb.squeeze())		
+		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
+		if self.settings['use_gru']:
+			new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	
+		else:
+			new_vars = v_emb
+		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
+		if (rc != rc).data.any():			# We won't stand for NaN
+			print('NaN in our tensors!!')
+			pdb.set_trace()
+		# if (rc[0] == rc[1]).data.all():
+		# 	print('Same embedding. wtf?')
+			# pdb.set_trace()
+		return rc
 
 
 class QbfClassifier(nn.Module):

@@ -129,6 +129,7 @@ class CadetEnv:
     clause = None
     reward = None
     decision = None
+    vars_set = []
     while True:
       pos_vars = np.where(self.vars_deterministic>0)[0]
       neg_vars = np.where(self.vars_deterministic<0)[0]      
@@ -193,6 +194,9 @@ class CadetEnv:
         update = int(b[0])-1
         activity = float(b[1])
         self.activities[update] = activity
+      elif a[0] == 'v':
+        v, pol = a.split(' ')[1:]        
+        vars_set.append((int(v)-1,int(pol)))
       elif self.timestep > 0 and a[0] == 'c' and self.clause_learning:
         if a.startswith('clause'):      # new cadet version
           b = [int(x) for x in a.split()[4:]]
@@ -221,7 +225,7 @@ class CadetEnv:
 
     # on-line rewards, for Q-learning
 
-    return state, pos_vars, neg_vars, self.activities, decision, clause, reward, self.done
+    return state, pos_vars, neg_vars, self.activities, decision, clause, reward, np.array(vars_set), self.done
 
   def step(self, action):
     assert(not self.done)
@@ -229,7 +233,7 @@ class CadetEnv:
     if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:      
       rewards = self.terminate() + self.greedy_alpha*np.asarray(self.running_reward)
       self.rewards = np.concatenate([rewards, [DQN_DEF_COST]])    # Average action
-      return None, None, None, None, None, None, DQN_DEF_COST, True
+      return None, None, None, None, None, None, DQN_DEF_COST, {}, True
     self.write_action(action)
     return self.read_state_update()
             

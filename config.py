@@ -11,7 +11,7 @@ def cfg():
 	exp_time = int(time.time())
 	state_dim = 35
 	embedding_dim = 20
-	ground_dim = 6
+	ground_dim = 8
 	max_variables = 200 
 	max_clauses = 600
 	num_ground_variables = 0

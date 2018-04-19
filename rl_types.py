@@ -8,4 +8,5 @@ Transition = namedtuple('Transition',
 
 
 EnvObservation = namedtuple('EnvObservation', 
-                    ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 'reward', 'done'])
+                    ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
+                    	'reward', 'vars_set', 'done'])

@@ -16,7 +16,7 @@ _use_shared_memory = False
 
 MAX_VARIABLES = 10000
 MAX_CLAUSES = 50000
-GROUND_DIM = 6          # config.ground_dim duplicates this. 
+GROUND_DIM = 8          # config.ground_dim duplicates this. 
 IDX_VAR_UNIVERSAL = 0
 IDX_VAR_EXISTENTIAL = 1
 # IDX_VAR_MISSING = 2
@@ -24,6 +24,8 @@ IDX_VAR_DETERMINIZED = 2
 IDX_VAR_ACTIVITY = 3
 IDX_VAR_POLARITY_POS = 4
 IDX_VAR_POLARITY_NEG = 5
+IDX_VAR_SET_POS = 6
+IDX_VAR_SET_NEG = 7
 
 # external utility function to filter small formulas
 

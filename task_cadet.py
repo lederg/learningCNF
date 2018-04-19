@@ -83,8 +83,8 @@ def handle_episode(**kwargs):
     inference_time.append(time.time()-begin_time)
     if action_allowed(last_obs,action):
       try:
-        env_obs = EnvObservation(*env.step(action))
-        state, vars_add, vars_remove, activities, decision, clause, reward, done = env_obs
+        env_obs = EnvObservation(*env.step(action))        
+        state, vars_add, vars_remove, activities, decision, clause, reward, vars_set, done = env_obs
       except Exception as e:
         print(e)
         ipdb.set_trace()

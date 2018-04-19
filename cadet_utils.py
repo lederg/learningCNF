@@ -61,6 +61,7 @@ def process_observation(env, last_obs, env_obs, settings=None):
     ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_remove] = False
     ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][env_obs.vars_remove] = False
   ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
+  ipdb.set_trace()
   state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
   ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
   return State(state,cmat_pos,cmat_neg,ground_embs)
@@ -80,7 +81,7 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
     env_id = os.path.split(fname)[1]
     # env_id = env_gen.get_id()
   # Set up ground_embeddings and adjacency matrices
-  state, vars_add, vars_remove, activities, _, _ , _, _ = env.reset(fname)
+  state, vars_add, vars_remove, activities, _, _ , _, vars_set, _ = env.reset(fname)
   assert(len(state)==settings['state_dim'])
   ground_embs = env.qbf.get_base_embeddings()
   ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True

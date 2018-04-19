@@ -88,9 +88,8 @@ def handle_episode(**kwargs):
       except Exception as e:
         print(e)
         ipdb.set_trace()
-    else:
-      if settings['debug']:
-        print('Chose an invalid action!')
+    else:      
+      print('Chose an invalid action!')
       env.rewards = env.terminate()
       env.rewards = np.append(env.rewards,INVALID_ACTION_REWARDS)
       done = True

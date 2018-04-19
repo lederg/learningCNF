@@ -61,7 +61,15 @@ def process_observation(env, last_obs, env_obs, settings=None):
     ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_remove] = False
     ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][env_obs.vars_remove] = False
   ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
-  ipdb.set_trace()
+  if len(env_obs.vars_set):
+    a = env_obs.vars_set
+    idx = a[:,0][np.where(a[:,1]==1)[0]]
+    ground_embs[:,IDX_VAR_SET_POS][idx] = True
+    idx = a[:,0][np.where(a[:,1]==-1)[0]]
+    ground_embs[:,IDX_VAR_SET_NEG][idx] = True
+    idx = a[:,0][np.where(a[:,1]==0)[0]]
+    ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][idx] = False  
+
   state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
   ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
   return State(state,cmat_pos,cmat_neg,ground_embs)
@@ -86,6 +94,16 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   ground_embs = env.qbf.get_base_embeddings()
   ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True
   ground_embs[:,IDX_VAR_ACTIVITY] = activities
+  if len(vars_set):
+    a = vars_set
+    idx = a[:,0][np.where(a[:,1]==1)[0]]
+    ground_embs[:,IDX_VAR_SET_POS][idx] = True
+    idx = a[:,0][np.where(a[:,1]==-1)[0]]
+    ground_embs[:,IDX_VAR_SET_NEG][idx] = True
+    idx = a[:,0][np.where(a[:,1]==0)[0]]
+    ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][idx] = False  
+
+
 
   cmat_pos, cmat_neg = get_input_from_qbf(env.qbf, settings)
   

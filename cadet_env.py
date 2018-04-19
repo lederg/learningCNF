@@ -174,8 +174,8 @@ class CadetEnv:
             self.rewards[-1]=BINARY_SUCCESS
         self.done = True
         state = None
-        # if self.debug:
-        print('Successfuly finished episode in {} steps!'.format(self.timestep))
+        if self.debug:
+          print('Successfuly finished episode in {} steps!'.format(self.timestep))
         break
       elif a[0] == 'u' and a[1] != 'c':   # New cadet has 'uc'
         update = int(a[3:])-1     # Here we go from 1-based to 0-based
@@ -201,6 +201,9 @@ class CadetEnv:
       elif a[0] == 'v':
         v, pol = a.split(' ')[1:]        
         vars_set.append((int(v)-1,int(pol)))
+      elif a.startswith('delete_clause'):
+        print('A clause was just deleted!')
+        print(a)
       elif self.timestep > 0 and a[0] == 'c' and self.clause_learning:
         if a.startswith('clause'):      # new cadet version
           b = [int(x) for x in a.split()[4:]]

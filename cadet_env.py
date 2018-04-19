@@ -66,6 +66,8 @@ class CadetEnv:
         print('interrupting mid-episode!')
       self.write_action(-1)
       a = self.read_line_with_timeout()
+      if self.debug:
+        print(a)
       self.done = True
       rewards = np.asarray(list(map(float,a.split()[1:])))
       return rewards
@@ -172,6 +174,8 @@ class CadetEnv:
             self.rewards[-1]=BINARY_SUCCESS
         self.done = True
         state = None
+        # if self.debug:
+        print('Successfuly finished episode in {} steps!'.format(self.timestep))
         break
       elif a[0] == 'u' and a[1] != 'c':   # New cadet has 'uc'
         update = int(a[3:])-1     # Here we go from 1-based to 0-based

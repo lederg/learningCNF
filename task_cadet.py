@@ -23,7 +23,7 @@ all_episode_files = ['data/mvs.qdimacs']
 settings = CnfSettings()
 
 SAVE_EVERY = 500
-INVALID_ACTION_REWARDS = -100
+INVALID_ACTION_REWARDS = -10
 TEST_EVERY = settings['test_every']
 REPORT_EVERY = 100
 
@@ -89,9 +89,10 @@ def handle_episode(**kwargs):
         print(e)
         ipdb.set_trace()
     else:
-      print('Chose an invalid action!')
-      # rewards = np.zeros(len(episode_memory)+1) # stupid hack
-      # rewards[-1] = INVALID_ACTION_REWARDS
+      if settings['debug']:
+        print('Chose an invalid action!')
+      env.rewards = env.terminate()
+      env.rewards = np.append(env.rewards,INVALID_ACTION_REWARDS)
       done = True
     episode_memory.push(last_obs,action,None, None)    
     # if t % 1500 == 0 and t > 0:

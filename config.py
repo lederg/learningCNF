@@ -39,11 +39,13 @@ def cfg():
 	# 'classifier_type = 'BatchGraphLevelClassifier'
 	# 'classifier_type = 'BatchEqClassifier'
 	classifier_type = 'TopLevelClassifier'
-	combinator_type = 'SymmetricSumCombine'	    
+	combinator_type = 'SymmetricSumCombine'	    	
 	# ground_combinator_type = 'DummyGroundCombinator'
 	ground_combinator_type = 'GroundCombinator'	
 	# encoder_type = 'BatchEncoder'	    
 	encoder_type = 'QbfEncoder'	    
+	ggn_core = 'WeightedNegInnerIteration'
+	# ggn_core = 'FactoredInnerIteration'
 	# 'embedder_type = 'TopVarEmbedder'	    
 	embedder_type = 'GraphEmbedder'	    
 	# 'negate_type = 'minus'
@@ -61,7 +63,7 @@ def cfg():
 	do_not_run=False
 	do_not_learn = False
 	non_linearity = 'F.tanh'
-	test_every = 2000
+	test_every = 700
 # RL - PG
 
 	gamma=0.99

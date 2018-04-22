@@ -11,6 +11,14 @@ from qbf_data import *
 from batch_model import GraphEmbedder, GroundCombinator, DummyGroundCombinator
 from settings import *
 
+def expand_ground_to_state(v, settings=None):
+  if not settings:
+    settings = CnfSettings()  
+  dconst = settings.expand_dim_const.expand(len(v),settings['embedding_dim'] - settings['ground_dim'])
+  return torch.cat([v,dconst],dim=1)
+
+
+
 class GruOperator(nn.Module):
 	def __init__(self, **kwargs):
 		super(GruOperator, self).__init__()        
@@ -47,36 +55,7 @@ class FactoredInnerIteration(nn.Module):
 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		nn_init.normal(self.vb)
 		nn_init.normal(self.cb)
-
-				
-		# self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
-		# self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
-		# self.W_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
-		# self.U_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
-		# self.W = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
-		# self.U = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
-
-		self.re_init()
-
-	def re_init(self):
-		self.var_bias = torch.cat([self.vb]*self.settings['max_variables'])
-		self.clause_bias = torch.cat([self.cb]*self.settings['max_clauses'])
 		
-
-	# def gru(self, av, prev_emb):
-	# 	z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
-	# 	r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
-	# 	h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
-	# 	h = (1-z) * prev_emb + z*h_tilda
-	# 	# g = h.view(2,-1,self.embedding_dim)
-	# 	# if (g[0]==g[1]).data.all():
-	# 	# 	print('Same embedding in gru. wtf?')
-	# 	# 	# pdb.set_trace()
-	# 	return h
-
-
-
-
 	def forward(self, variables, v_mat, c_mat, ground_vars=None, v_block=None, c_block=None, **kwargs):		
 		if 'old_forward' in kwargs and kwargs['old_forward']:
 			return self.forward2(variables,v_mat,c_mat,ground_vars=ground_vars, **kwargs)
@@ -140,6 +119,58 @@ class FactoredInnerIteration(nn.Module):
 		# 	print('Same embedding. wtf?')
 			# pdb.set_trace()
 		return rc
+
+# class ScalarFilterInnerIteration(nn.Module):
+# 	def __init__(self, **kwargs):
+# 		super(ScalarFilterInnerIteration, self).__init__()        
+# 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+# 		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
+# 		self.non_linearity = eval(self.settings['non_linearity'])
+# 		self.ground_dim = self.settings['ground_dim']
+# 		self.embedding_dim = self.settings['embedding_dim']		
+# 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],self.embedding_dim)
+# 		self.cuda = self.settings['cuda']		
+# 		self.forward_backwards_block = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
+# 		nn_init.normal(self.forward_backwards_block)		
+# 		if self.settings['use_gru']:
+# 			self.gru = GruOperator(settings=self.settings)
+# 		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+# 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
+# 		nn_init.normal(self.vb)
+# 		nn_init.normal(self.cb)			
+
+# 	def forward(self, variables, v_mat, c_mat, ground_vars=None, cmat_pos=None, cmat_neg=None, **kwargs):				
+# 		bsize = kwargs['batch_size'] if 'batch_size' in kwargs else self.settings['batch_size']
+# 		self.max_variables = kwargs['max_variables'] if 'max_variables' in kwargs else self.settings['max_variables']
+# 		org_size = variables.size()
+# 		v = variables.view(-1,self.embedding_dim)
+# 		ipdb.set_trace()
+# 		c_mat = cmat_pos - cmat_neg
+# 		v_mat = c_mat.t()
+# 		vars_all = torch.mm(self.forward_backwards_block[0],v).t()
+# 		# ipdb.set_trace()
+# 		c = torch.mm(c_mat.float(),vars_all)	
+
+# 		c = self.non_linearity(c + self.cb.squeeze())		
+# 		cv = c.view(-1,self.embedding_dim).t()		
+# 		vars_all = torch.mm(self.forward_backwards_block[1],cv).t()
+# 		nv = torch.mm(v_mat.float(),vars_all)	
+			
+# 		v_emb = self.non_linearity(nv + self.vb.squeeze())		
+# 		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
+# 		if self.settings['use_gru']:
+# 			new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	
+# 		else:
+# 			new_vars = v_emb
+# 		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
+# 		if (rc != rc).data.any():			# We won't stand for NaN
+# 			print('NaN in our tensors!!')
+# 			pdb.set_trace()
+# 		# if (rc[0] == rc[1]).data.all():
+# 		# 	print('Same embedding. wtf?')
+# 			# pdb.set_trace()
+# 		return rc
+
 
 class WeightedNegInnerIteration(nn.Module):
 	def __init__(self, **kwargs):
@@ -240,10 +271,10 @@ class QbfEncoder(nn.Module):
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
 		nn_init.normal(self.backwards_pos_neg)		
 					
-	def expand_ground_to_state(self,v):
-		# ipdb.set_trace()
-		dconst = self.expand_dim_const.expand(len(v),self.embedding_dim - self.ground_dim)
-		return torch.cat([v,dconst],dim=1)
+	# def expand_ground_to_state(self,v):
+	# 	# ipdb.set_trace()
+	# 	dconst = self.expand_dim_const.expand(len(v),self.embedding_dim - self.ground_dim)
+	# 	return torch.cat([v,dconst],dim=1)
 	
 # This should probably be factored into a base class, its basically the same as for BatchEncoder
 
@@ -260,7 +291,8 @@ class QbfEncoder(nn.Module):
 		f_vars = None
 		f_clauses = None
 		# ipdb.set_trace()
-		v = self.expand_ground_to_state(ground_embeddings.view(-1,self.ground_dim)).view(1,-1).transpose(0,1)
+		# v = self.expand_ground_to_state(ground_embeddings.view(-1,self.ground_dim)).view(1,-1).transpose(0,1)
+		v = expand_ground_to_state(ground_embeddings.view(-1,self.ground_dim)).view(1,-1).transpose(0,1)
 		variables = v.view(-1,self.embedding_dim*size[1],1)
 		
 		# Inner iteration expects (batch*,embedding_dim*maxvar,1) for variables

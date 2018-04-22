@@ -30,6 +30,7 @@ class CadetEnv:
     self.greedy_rewards = greedy_rewards
     self.clause_learning = clause_learning
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.
+    self.finished = False
     cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
     if not use_old_rewards:
       # if self.debug:
@@ -84,6 +85,7 @@ class CadetEnv:
     self.activities = np.zeros(self.qbf.num_vars)
     self.max_rewards = self.qbf.num_existential
     self.timestep = 0
+    self.finished = False
     self.running_reward = []
 
     self.write(fname+'\n')
@@ -172,9 +174,10 @@ class CadetEnv:
           else:
             self.rewards[-1]=BINARY_SUCCESS
         self.done = True
+        self.finished = True
         state = None
         # if self.debug:
-        print('Successfuly finished episode in {} steps!'.format(self.timestep))
+        # print('Successfuly finished episode in {} steps!'.format(self.timestep))
         break
       elif a[0] == 'u' and a[1] != 'c':   # New cadet has 'uc'
         update = int(a[3:])-1     # Here we go from 1-based to 0-based
@@ -185,6 +188,7 @@ class CadetEnv:
           self.vars_deterministic[update] = -1
           self.total_vars_deterministic[update] = 0
       elif a.startswith('delete_clause'):
+        # print(a)
         continue
       elif a[0] == 'd':
         decision = [int(x) for x in a[2:].split(',')]

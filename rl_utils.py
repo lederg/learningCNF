@@ -190,6 +190,5 @@ def safe_logprobs(probs, settings=None, thres=1e-4):
   return all_logprobs
 
 def compute_kl(logits, old_logits):
-  # ipdb.set_trace()
   totals = F.softmax(old_logits) * (safe_logprobs(F.softmax(old_logits)) - safe_logprobs(F.softmax(logits)))
   return totals.sum(1).data

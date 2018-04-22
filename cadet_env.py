@@ -30,6 +30,7 @@ class CadetEnv:
     self.greedy_rewards = greedy_rewards
     self.clause_learning = clause_learning
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.
+    self.finished = False
     cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
     if not use_old_rewards:
       # if self.debug:
@@ -84,6 +85,7 @@ class CadetEnv:
     self.activities = np.zeros(self.qbf.num_vars)
     self.max_rewards = self.qbf.num_existential
     self.timestep = 0
+    self.finished = False
     self.running_reward = []
 
     self.write(fname+'\n')
@@ -173,6 +175,7 @@ class CadetEnv:
           else:
             self.rewards[-1]=BINARY_SUCCESS
         self.done = True
+        self.finished = True
         state = None
         if self.debug:
           print('Successfuly finished episode in {} steps!'.format(self.timestep))
@@ -240,7 +243,7 @@ class CadetEnv:
     if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:      
       rewards = self.terminate() + self.greedy_alpha*np.asarray(self.running_reward)
       self.rewards = np.concatenate([rewards, [DQN_DEF_COST]])    # Average action
-      return None, None, None, None, None, None, DQN_DEF_COST, {}, True
+      return None, None, None, None, None, None, DQN_DEF_COST, None, True
     self.write_action(action)
     return self.read_state_update()
             

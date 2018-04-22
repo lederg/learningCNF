@@ -143,7 +143,10 @@ def cadet_main():
       if settings['rl_log_all']:
         reporter.log_env(env_id)      
       # episode is a list of half-empty Tranitions - (obs, action, None, None), we want to turn it to (obs,action,None, None)
-      reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
+      if env.finished:
+        reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
+      else:
+        print('Env {} did not finish!'.format(env_id))
       r = discount(env.rewards, settings['gamma'])
       transition_data.extend([Transition(transition.state, transition.action, None, rew) for transition, rew in zip(episode, r)])
     

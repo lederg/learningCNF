@@ -115,7 +115,6 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   rc = State(state,cmat_pos, cmat_neg, ground_embs)
   return rc, env_id
 
-
 # This currently does not work on batches
 def get_ground_index(obs, idx):
   return obs.ground.long().data[0][:,idx].byte()

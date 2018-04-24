@@ -116,6 +116,9 @@ class CadetEnv:
 
   # This is where we go from 0-based to 1-based
   def write_action(self, a):
+    if a == '?':
+      self.write('?\n')
+      return
     if type(a) is tuple:
       cadet_action = int(a[0]) + 1
       if a[1]:

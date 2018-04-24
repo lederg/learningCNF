@@ -55,10 +55,15 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
       print(logits.squeeze().max(0))
       print('Got action {}'.format(action))
   else:
-    probs = F.softmax(logits)
+    # probs = F.softmax(logits)
+    probs = F.softmax(logits.view(1,-1))
     dist = probs.data.cpu().numpy()[0]
     choices = range(len(dist))
-    action = np.random.choice(choices, p=dist) 
+    action = np.random.choice(choices, p=dist)
+    if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
+      action = (int(action/2),action%2)
+
+
   return action, logits
 
 
@@ -76,7 +81,7 @@ def handle_episode(**kwargs):
     begin_time = time.time()
     action, logits = select_action(last_obs, **kwargs)    
     if logits is not None:
-      probs = F.softmax(logits.data)
+      probs = F.softmax(logits.data.view(1,-1))
       a = probs[probs>0].data
       entropy = -(a*a.log()).sum()
       entropies.append(entropy)
@@ -167,7 +172,9 @@ def cadet_main():
     states, actions, next_states, rewards = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
     logits, values = policy(collated_batch.state)
-    probs = F.softmax(logits)    
+    effective_bs = len(logits)
+    # probs = F.softmax(logits)    
+    probs = F.softmax(logits.view(effective_bs,-1))
     all_logprobs = safe_logprobs(probs)
     returns = torch.Tensor(rewards)
     if settings['ac_baseline']:
@@ -177,7 +184,10 @@ def cadet_main():
     else:
       adv_t = returns
       value_loss = 0.
-    logprobs = all_logprobs.gather(1,Variable(collated_batch.action).view(-1,1)).squeeze()            
+    flattened_actions = collated_batch.action
+    if len(flattened_actions.size()) > 1:
+      flattened_actions = 2*collated_batch.action[:,0] + collated_batch.action[:,1]
+    logprobs = all_logprobs.gather(1,Variable(flattened_actions).view(-1,1)).squeeze()            
     entropies = (-probs*all_logprobs).sum(1)
     if settings['cuda']:
       returns = returns.cuda()

@@ -116,7 +116,13 @@ class CadetEnv:
 
   # This is where we go from 0-based to 1-based
   def write_action(self, a):
-    self.write('%d\n' % (a+1))
+    if type(a) is tuple:
+      cadet_action = int(a[0]) + 1
+      if a[1]:
+        cadet_action = -cadet_action
+    else:
+      cadet_action = int(a)+1
+    self.write('%d\n' % cadet_action)
 
 
   '''
@@ -248,7 +254,7 @@ class CadetEnv:
     if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:      
       rewards = self.terminate() + self.greedy_alpha*np.asarray(self.running_reward)
       self.rewards = np.concatenate([rewards, [DQN_DEF_COST]])    # Average action
-      return None, None, None, None, None, None, DQN_DEF_COST, None, True
+      return None, None, None, None, None, None, DQN_DEF_COST, None, True    
     self.write_action(action)
     return self.read_state_update()
             

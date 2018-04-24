@@ -154,25 +154,26 @@ def collate_transitions(batch, settings=None):
   obs1 = collate_observations([x.state for x in batch], settings)
   obs2 = collate_observations([x.next_state for x in batch], settings)
   rews = settings.FloatTensor([x.reward for x in batch])
-  actions = settings.LongTensor([int(x.action) for x in batch])
+  actions = settings.LongTensor(np.asarray([x.action for x in batch]))
   return Transition(obs1,actions,obs2,rews)
 
 def create_policy(settings=None, is_clone=False):
   if not settings:
     settings = CnfSettings()
   base_model = settings['base_model']
+  policy_class = eval(settings['policy'])
   if base_model and not is_clone:
     print('Loading parameters from {}'.format(base_model))
     if settings['base_mode'] == BaseMode.ALL:
-      policy = Policy()
+      policy = policy_class()
       policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
     else:
       model = QbfClassifier()
       model.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
       encoder=model.encoder
-      policy = Policy(encoder=encoder)
+      policy = policy_class(encoder=encoder)
   else:
-    policy = Policy()
+    policy = policy_class()
   if settings['cuda']:
     policy = policy.cuda()
 

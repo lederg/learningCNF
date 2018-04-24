@@ -126,5 +126,7 @@ def get_allowed_actions(obs):
   return (get_determinized(obs)^1 + get_ground_index(obs,IDX_VAR_EXISTENTIAL)) == 2
 
 def action_allowed(obs, action):
+  if type(action) is tuple:       # double-sided actions
+    action = action[0]
   return get_allowed_actions(obs)[action]
 

@@ -68,6 +68,7 @@ def cfg():
 
 	gamma=0.99
 	entropy_alpha = 0.000
+	policy = 'Policy'
 	policy_dim1 = 30
 	policy_dim2 = 15
 	# policy_dim1 = 100

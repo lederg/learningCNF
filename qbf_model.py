@@ -120,58 +120,6 @@ class FactoredInnerIteration(nn.Module):
 			# pdb.set_trace()
 		return rc
 
-# class ScalarFilterInnerIteration(nn.Module):
-# 	def __init__(self, **kwargs):
-# 		super(ScalarFilterInnerIteration, self).__init__()        
-# 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
-# 		self.ground_comb_type = eval(self.settings['ground_combinator_type'])
-# 		self.non_linearity = eval(self.settings['non_linearity'])
-# 		self.ground_dim = self.settings['ground_dim']
-# 		self.embedding_dim = self.settings['embedding_dim']		
-# 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],self.embedding_dim)
-# 		self.cuda = self.settings['cuda']		
-# 		self.forward_backwards_block = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
-# 		nn_init.normal(self.forward_backwards_block)		
-# 		if self.settings['use_gru']:
-# 			self.gru = GruOperator(settings=self.settings)
-# 		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
-# 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
-# 		nn_init.normal(self.vb)
-# 		nn_init.normal(self.cb)			
-
-# 	def forward(self, variables, v_mat, c_mat, ground_vars=None, cmat_pos=None, cmat_neg=None, **kwargs):				
-# 		bsize = kwargs['batch_size'] if 'batch_size' in kwargs else self.settings['batch_size']
-# 		self.max_variables = kwargs['max_variables'] if 'max_variables' in kwargs else self.settings['max_variables']
-# 		org_size = variables.size()
-# 		v = variables.view(-1,self.embedding_dim)
-# 		ipdb.set_trace()
-# 		c_mat = cmat_pos - cmat_neg
-# 		v_mat = c_mat.t()
-# 		vars_all = torch.mm(self.forward_backwards_block[0],v).t()
-# 		# ipdb.set_trace()
-# 		c = torch.mm(c_mat.float(),vars_all)	
-
-# 		c = self.non_linearity(c + self.cb.squeeze())		
-# 		cv = c.view(-1,self.embedding_dim).t()		
-# 		vars_all = torch.mm(self.forward_backwards_block[1],cv).t()
-# 		nv = torch.mm(v_mat.float(),vars_all)	
-			
-# 		v_emb = self.non_linearity(nv + self.vb.squeeze())		
-# 		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
-# 		if self.settings['use_gru']:
-# 			new_vars = self.gru(v_emb, variables.view(-1,self.embedding_dim))	
-# 		else:
-# 			new_vars = v_emb
-# 		rc = new_vars.view(-1,self.max_variables*self.embedding_dim,1)
-# 		if (rc != rc).data.any():			# We won't stand for NaN
-# 			print('NaN in our tensors!!')
-# 			pdb.set_trace()
-# 		# if (rc[0] == rc[1]).data.all():
-# 		# 	print('Same embedding. wtf?')
-# 			# pdb.set_trace()
-# 		return rc
-
-
 class WeightedNegInnerIteration(nn.Module):
 	def __init__(self, **kwargs):
 		super(WeightedNegInnerIteration, self).__init__()        
@@ -191,13 +139,6 @@ class WeightedNegInnerIteration(nn.Module):
 		nn_init.normal(self.vb)
 		nn_init.normal(self.cb)
 				
-	# def gru(self, av, prev_emb):
-	# 	z = F.sigmoid(self.W_z(av) + self.U_z(prev_emb))
-	# 	r = F.sigmoid(self.W_r(av) + self.U_r(prev_emb))
-	# 	h_tilda = F.tanh(self.W(av) + self.U(r*prev_emb))
-	# 	h = (1-z) * prev_emb + z*h_tilda		
-	# 	return h
-
 	def forward(self, variables, v_mat, c_mat, ground_vars=None, cmat_pos=None, cmat_neg=None, **kwargs):				
 		bsize = kwargs['batch_size'] if 'batch_size' in kwargs else self.settings['batch_size']
 		self.max_variables = kwargs['max_variables'] if 'max_variables' in kwargs else self.settings['max_variables']

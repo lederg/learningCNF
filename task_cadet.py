@@ -128,6 +128,7 @@ def cadet_main():
   all_episode_files = ds.get_files_list()
   old_logits = None
   max_steps = len(ds)*100
+  settings.env = env
   print('Running for {} steps..'.format(max_steps))
   for i in range(max_steps):
     rewards = []

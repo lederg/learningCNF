@@ -49,6 +49,7 @@ def process_observation(env, last_obs, env_obs, settings=None):
     settings = CnfSettings()
 
   if env_obs.clause:
+    # ipdb.set_trace()
     cmat_pos, cmat_neg = get_input_from_qbf(env.qbf, settings)
   else:
     cmat_pos, cmat_neg = last_obs.cmat_pos, last_obs.cmat_neg
@@ -102,9 +103,6 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
     ground_embs[:,IDX_VAR_SET_NEG][idx] = True
     idx = a[:,0][np.where(a[:,1]==0)[0]]
     ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][idx] = False  
-
-
-
   cmat_pos, cmat_neg = get_input_from_qbf(env.qbf, settings)
   
   state = Variable(torch.from_numpy(state).float().unsqueeze(0))

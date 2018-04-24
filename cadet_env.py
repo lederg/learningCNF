@@ -189,7 +189,9 @@ class CadetEnv:
           self.vars_deterministic[update] = -1
           self.total_vars_deterministic[update] = 0
       elif a.startswith('delete_clause'):
-        continue
+        # ipdb.set_trace()
+        self.qbf.remove_clause(int(a.split()[1]))
+        clause = True
       elif a[0] == 'd':
         decision = [int(x) for x in a[2:].split(',')]
         decision[0] -= 1
@@ -204,18 +206,21 @@ class CadetEnv:
       elif a[0] == 'v':
         v, pol = a.split(' ')[1:]        
         vars_set.append((int(v)-1,int(pol)))
-      elif a.startswith('delete_clause'):
-        print('A clause was just deleted!')
-        print(a)
       elif self.timestep > 0 and a[0] == 'c' and self.clause_learning:
-        if a.startswith('clause'):      # new cadet version
-          b = [int(x) for x in a.split()[4:]]
-        elif a.startswith('conflict'):
+        if a.startswith('conflict'):
           continue
+        elif a.startswith('clause'):      # new cadet version
+          c = a.split()
+          cid = int(c[1])
+          b = [int(x) for x in c[4:]]
+          self.qbf.add_clause(b,cid)
         else:
+          print('This version is too old')
+          ipdb.set_trace()
           b = [int(x) for x in a[2:].split()]        
-        self.qbf.add_clause(b)
-        clause = (np.array([abs(x)-1 for x in b if x > 0]), np.array([abs(x)-1 for x in b if x < 0]))
+          
+        # clause = (np.array([abs(x)-1 for x in b if x > 0]), np.array([abs(x)-1 for x in b if x < 0]))
+        clause = True
       elif self.debug:
         print('Got unprocessed line: %s' % a)
         if a.startswith('Error'):

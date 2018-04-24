@@ -46,21 +46,29 @@ class QbfBase(object):
     def __init__(self, qcnf = None, **kwargs):
         self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
         self.qcnf = qcnf
-        self.extra_clauses = []
+        self.sp_indices = None
+        self.sp_vals = None
+        self.extra_clauses = {}
         # self.get_base_embeddings = lru_cache(max_size=16)(self.get_base_embeddings)
         if 'max_variables' in kwargs:
             self._max_vars = kwargs['max_variables']
         if 'max_clauses' in kwargs:
             self._max_clauses = kwargs['max_clauses']
 
+    def reset(self):
+        self.sp_indices = None
+        self.sp_vals = None
+        self.extra_clauses = {}
+        
 
     def reload_qdimacs(self, fname):
         self.qcnf = qdimacs_to_cnf(fname)
+        self.reset()
 
     @classmethod 
     def from_qdimacs(cls, fname, **kwargs):
         try:
-            rc = qdimacs_to_cnf(fname)
+            rc = qdimacs_to_cnf(fname)            
             if rc:
                 return cls(rc, **kwargs)
         except:
@@ -81,7 +89,10 @@ class QbfBase(object):
 
     @property
     def num_clauses(self):
-        return len(self.qcnf['clauses'])
+        k = self.extra_clauses.keys()
+        if not k:
+            return len(self.qcnf['clauses'])            
+        return max(k)+1
     @property
     def max_vars(self):
         try:
@@ -111,30 +122,45 @@ class QbfBase(object):
         return rc.astype(int)
 
 
-    def get_adj_matrices(self,sample):
+    def get_adj_matrices(self):
+        sample = self.qcnf
         if self.sparse:
             return self.get_sparse_adj_matrices(sample)
         else:
             return self.get_dense_adj_matrices(sample)
 
-    def get_sparse_adj_matrices(self,sample):
-        clauses = sample['clauses']                
-        indices = []
-        values = []
+    def get_sparse_adj_matrices(self):
+        sample = self.qcnf
+        if self.sp_indices is None:
+            clauses = sample['clauses']
+            indices = []
+            values = []
 
-        for i,c in enumerate(clauses):
+            for i,c in enumerate(clauses):
+                for v in c:
+                    val = np.sign(v)
+                    v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
+                    indices.append(np.array([i,v]))
+                    values.append(val)
+
+            self.sp_indices = np.vstack(indices)
+            self.sp_vals = np.stack(values)
+        if not self.extra_clauses:
+            return self.sp_indices, self.sp_vals
+        indices = []
+        values = []            
+        for i, c in self.extra_clauses.items():
             for v in c:
-                val = 1 if v>0 else -1
+                val = np.sign(v)
                 v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
                 indices.append(np.array([i,v]))
-                values.append(val)
-
-        sp_indices = np.vstack(indices)
-        sp_vals = np.stack(values)
-        return sp_indices, sp_vals
+                values.append(val)        
+        # ipdb.set_trace()
+        return np.concatenate([self.sp_indices,np.asarray(indices)]), np.concatenate([self.sp_vals, np.asarray(values)])
         
-    def get_dense_adj_matrices(self,sample):
-        clauses = sample['clauses']                
+    def get_dense_adj_matrices(self):
+        sample = self.qcnf
+        clauses = sample['clauses']          
         new_all_clauses = []        
 
         rc = np.zeros([self.max_clauses, self.max_vars])
@@ -150,8 +176,16 @@ class QbfBase(object):
             embs[:,i][np.where(self.var_types==i)]=1
         return embs
 
-    def add_clause(self,clause):
-        self.qcnf['clauses'].append(clause)
+    # def add_clause(self,clause):
+    #     self.qcnf['clauses'].append(clause)
+
+    def add_clause(self,clause, clause_id):
+        assert(clause_id not in self.extra_clauses.keys())
+        self.extra_clauses[clause_id]=clause
+
+    def remove_clause(self, clause_id):
+        assert(clause_id in self.extra_clauses.keys())
+        del self.extra_clauses[clause_id]
 
     @property
     def label(self):
@@ -161,7 +195,7 @@ class QbfBase(object):
         rc = {'sparse': torch.Tensor([int(self.sparse)])}
         
         if self.sparse:
-            rc_i, rc_v = self.get_sparse_adj_matrices(self.qcnf)
+            rc_i, rc_v = self.get_sparse_adj_matrices()
             sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
             sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
             sp_val_pos = torch.ones(len(sp_ind_pos))
@@ -170,13 +204,13 @@ class QbfBase(object):
             rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([self.max_clauses,self.max_vars]))
             rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([self.max_clauses,self.max_vars]))
         
-        rc['v2c'] = torch.from_numpy(self.get_dense_adj_matrices(self.qcnf))
+        rc['v2c'] = torch.from_numpy(self.get_dense_adj_matrices())
         return rc
     
     def as_np_dict(self):
         rc = {}
                 
-        rc_i, rc_v = self.get_sparse_adj_matrices(self.qcnf)
+        rc_i, rc_v = self.get_sparse_adj_matrices()
         
         # rc['sp_ind_pos'] = rc_i[np.where(rc_v>0)]
         # rc['sp_ind_neg'] = rc_i[np.where(rc_v<0)]

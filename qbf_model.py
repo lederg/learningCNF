@@ -212,7 +212,10 @@ class WeightedNegInnerIteration(nn.Module):
 		c = self.non_linearity(c + self.cb.squeeze())		
 		cv = c.view(-1,self.embedding_dim).t()		
 		vars_all = torch.mm(self.forward_backwards_block[1],cv).t()
-		nv = torch.mm(v_mat.float(),vars_all)	
+		try:
+			nv = torch.mm(v_mat.float(),vars_all)	
+		except:
+			ipdb.set_trace()
 			
 		v_emb = self.non_linearity(nv + self.vb.squeeze())		
 		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		

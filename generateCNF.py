@@ -24,7 +24,7 @@ def randomCNF(args):
 
 
 def randomQBF(args):
-    fraction_of_additional_clauses = 8
+    fraction_of_additional_clauses = 10
     cmdstring = "./fuzzsat-0.1/fuzzsat -i {} -I {} -p {} -P {} -l 3 -L 8"
     fuzz = Popen(cmdstring.format(str(args.ground_vars),
                                   str(args.ground_vars),

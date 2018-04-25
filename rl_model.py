@@ -42,10 +42,7 @@ class Policy(nn.Module):
 		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
 		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([self.settings['invalid_bias']]))
 		self.action_score = nn.Linear(self.policy_dim2,1)
-		if self.settings['leaky']:
-			self.activation = F.leaky_relu
-		else:
-			self.activation = F.relu
+		self.activation = eval(self.settings['non_linearity'])		
 		self.saved_log_probs = []
 	
 	# state is just a (batched) vector of fixed size state_dim which should be expanded. 

@@ -62,7 +62,7 @@ def cfg():
 	run_task='train'
 	do_not_run=False
 	do_not_learn = False
-	non_linearity = 'F.tanh'
+	non_linearity = 'F.relu'
 	test_every = 700
 # RL - PG
 
@@ -79,6 +79,7 @@ def cfg():
 	rl_log_dir = 'runs_cadet'
 	# rl_train_data = 'data/candidate_qbf/'
 	# rl_train_data = 'data/test2_qbf/299_UNSAT.qdimacs'
+	# rl_train_data = 'data/sat_med_500/sat_med__42_UNSAT.dimacs'
 	rl_train_data = 'data/medium_500/'
 	rl_validation_data = 'data/medium_gen1/'
 	rl_test_data = 'data/medium_gen2/'

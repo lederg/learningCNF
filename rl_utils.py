@@ -191,5 +191,8 @@ def safe_logprobs(probs, settings=None, thres=1e-4):
   return all_logprobs
 
 def compute_kl(logits, old_logits):
-  totals = F.softmax(old_logits) * (safe_logprobs(F.softmax(old_logits)) - safe_logprobs(F.softmax(logits)))
+  s = logits.size(0)
+  old_logits = old_logits.view(s,-1)
+  logits = logits.view(s,-1)
+  totals = F.softmax(old_logits) * (F.log_softmax(old_logits) - F.log_softmax(logits))
   return totals.sum(1).data

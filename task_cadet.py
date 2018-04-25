@@ -33,16 +33,42 @@ exploration = LinearSchedule(1, 1.)
 total_steps = 0
 inference_time = []
 
+init_lr = settings['init_lr']
+desired_kl = settings['desired_kl']
+curr_lr = init_lr
+lr_multiplier = 1.0
+num_iterations = 5000000
+lr_schedule = PiecewiseSchedule([
+                                     (0,                   init_lr),
+                                     (num_iterations / 10, init_lr),
+                                     (num_iterations / 5,  init_lr * 0.5),
+                                     (num_iterations / 3,  init_lr * 0.25),
+                                     (num_iterations / 2,  init_lr * 0.1),
+                                ],
+                                outside_value=init_lr * 0.02) 
+
+kl_schedule = PiecewiseSchedule([
+                                     (0,                   desired_kl),
+                                     (num_iterations / 10, desired_kl),
+                                     (num_iterations / 5,  desired_kl * 0.5),
+                                     (num_iterations / 3,  desired_kl * 0.25),
+                                     (num_iterations / 2,  desired_kl * 0.1),
+                                ],
+                                outside_value=desired_kl * 0.02) 
 
 
 def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
-  if random_test or (activity_test and not np.any(activities)):
+  if random_test:
     choices = np.where(get_allowed_actions(obs).numpy())[0]
     action = np.random.choice(choices)
     return action, None
-  elif activity_test:    
-    action = np.argmax(activities)
+  elif activity_test:
+    if np.any(activities):
+      action = np.argmax(activities)
+    else:
+      choices = np.where(get_allowed_actions(obs).numpy())[0]
+      action = choices[0]
     return action, None
   elif cadet_test:
     return '?', None
@@ -117,10 +143,10 @@ def ts_bonus(s):
   return b/float(s)
 
 def cadet_main():
-  global all_episode_files, total_steps
+  global all_episode_files, total_steps, curr_lr
 
   if settings['do_test']:
-    test_envs(random_test=True)
+    test_envs(cadet_test=True, iters=1)
   if settings['do_not_run']:
     return
   total_steps = 0
@@ -214,17 +240,26 @@ def cadet_main():
       old_logits = logits
       logits, _ = policy(collated_batch.state)    
       kl = compute_kl(logits.data,old_logits.data)
-      kl = kl.mean()
-      if kl > settings['desired_kl'] * 2: 
+      kl = kl.mean()      
+      print('desired kl is {}, real one is {}'.format(settings['desired_kl'],kl))
+      curr_kl = kl_schedule.value(total_steps)
+      if kl > curr_kl * 2: 
         stepsize /= 1.5
         print('stepsize -> %s'%stepsize)
         utils.set_lr(optimizer,stepsize)
-      elif kl < settings['desired_kl'] / 2: 
+      elif kl < curr_kl / 2: 
         stepsize *= 1.5
         print('stepsize -> %s'%stepsize)
         utils.set_lr(optimizer,stepsize)
       else:
         print('stepsize OK')
+
+    else:
+      new_lr = lr_schedule.value(total_steps)
+      if new_lr != curr_lr:
+        utils.set_lr(optimizer,new_lr)
+        curr_lr = new_lr
+
 
 
 

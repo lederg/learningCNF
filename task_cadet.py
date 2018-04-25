@@ -35,7 +35,7 @@ inference_time = []
 
 
 
-def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, **kwargs):    
+def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
   if random_test or (activity_test and not np.any(activities)):
     choices = np.where(get_allowed_actions(obs).numpy())[0]
@@ -44,6 +44,8 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
   elif activity_test:    
     action = np.argmax(activities)
     return action, None
+  elif cadet_test:
+    return '?', None
 
   logits, values = model(obs, **kwargs)
   

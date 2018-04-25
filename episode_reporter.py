@@ -1,6 +1,7 @@
 import numpy as np
 from tensorboard_logger import configure, log_value
 import ipdb
+import shelve
 
 DEF_WINDOW = 100
 
@@ -11,6 +12,7 @@ class AbstractReporter(object):
 		self.ids_to_log = set()
 		self.tensorboard = tensorboard
 		self.log_value = log_value
+		self.shelf_name = fname+'.shelf'
 		if tensorboard:
 			configure(fname, flush_secs=5)
 	
@@ -53,6 +55,10 @@ class PGEpisodeReporter(AbstractReporter):
 			print(s)
 			print('\n\n')
 		
+		with shelve.open(self.shelf_name) as db:
+			db['stats'] = self.stats
+			db['stats_dict'] = self.stats_dict
+
 		if not self.tensorboard:
 			return
 

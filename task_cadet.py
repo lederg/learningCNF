@@ -36,26 +36,6 @@ inference_time = []
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
 curr_lr = init_lr
-lr_multiplier = 1.0
-num_iterations = 5000000
-lr_schedule = PiecewiseSchedule([
-                                     (0,                   init_lr),
-                                     (num_iterations / 10, init_lr),
-                                     (num_iterations / 5,  init_lr * 0.5),
-                                     (num_iterations / 3,  init_lr * 0.25),
-                                     (num_iterations / 2,  init_lr * 0.1),
-                                ],
-                                outside_value=init_lr * 0.02) 
-
-kl_schedule = PiecewiseSchedule([
-                                     (0,                   desired_kl),
-                                     (num_iterations / 10, desired_kl),
-                                     (num_iterations / 5,  desired_kl * 0.5),
-                                     (num_iterations / 3,  desired_kl * 0.25),
-                                     (num_iterations / 2,  desired_kl * 0.1),
-                                ],
-                                outside_value=desired_kl * 0.02) 
-
 
 def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
@@ -148,6 +128,8 @@ def cadet_main():
   if settings['do_test']:
     test_envs(cadet_test=True, iters=1)
   if settings['do_not_run']:
+    print('Not running. Printing settings instead:')
+    print(settings.hyperparameters)
     return
   total_steps = 0
   mse_loss = nn.MSELoss()
@@ -160,10 +142,29 @@ def cadet_main():
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()
   old_logits = None
-  max_steps = len(ds)*100
+  max_iterations = len(ds)*100
   settings.env = env
-  print('Running for {} steps..'.format(max_steps))
-  for i in range(max_steps):
+  num_steps = len(ds)*15000
+  lr_schedule = PiecewiseSchedule([
+                                       (0,                   init_lr),
+                                       (num_steps / 10, init_lr),
+                                       (num_steps / 5,  init_lr * 0.5),
+                                       (num_steps / 3,  init_lr * 0.25),
+                                       (num_steps / 2,  init_lr * 0.1),
+                                  ],
+                                  outside_value=init_lr * 0.02) 
+
+  kl_schedule = PiecewiseSchedule([
+                                       (0,                   desired_kl),
+                                       (num_steps / 10, desired_kl),
+                                       (num_steps / 5,  desired_kl * 0.5),
+                                       (num_steps / 3,  desired_kl * 0.25),
+                                       (num_steps / 2,  desired_kl * 0.1),
+                                  ],
+                                  outside_value=desired_kl * 0.02) 
+
+  print('Running for {} iterations..'.format(max_iterations))
+  for i in range(max_iterations):
     rewards = []
     transition_data = []
     total_transitions = []
@@ -254,7 +255,7 @@ def cadet_main():
       else:
         print('stepsize OK')
 
-    else:
+    elif settings['rl_decay']:
       new_lr = lr_schedule.value(total_steps)
       if new_lr != curr_lr:
         utils.set_lr(optimizer,new_lr)

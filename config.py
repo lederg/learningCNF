@@ -66,7 +66,7 @@ def cfg():
 	test_every = 700
 # RL - PG
 
-	gamma=0.99
+	gamma=0.99	
 	entropy_alpha = 0.000
 	policy = 'Policy'
 	policy_dim1 = 30
@@ -80,11 +80,12 @@ def cfg():
 	# rl_train_data = 'data/candidate_qbf/'
 	# rl_train_data = 'data/test2_qbf/299_UNSAT.qdimacs'
 	# rl_train_data = 'data/sat_med_500/sat_med__42_UNSAT.dimacs'
-	rl_train_data = 'data/medium_500/'
-	rl_validation_data = 'data/medium_gen1/'
-	rl_test_data = 'data/medium_gen2/'
+	rl_train_data = 'data/old/good_500/'
+	rl_validation_data = 'data/old/medium_gen1/'
+	rl_test_data = 'data/old/medium_gen2/'
 	rl_log_envs = []
 	rl_log_all = False
+	rl_decay = False
 	# rl_clip_episode_at = 100
 	debug_actions = False
 	debug = False

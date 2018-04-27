@@ -72,12 +72,20 @@ def parse_cmdline():
                    help='Directory to write the formulas to.')
     return p.parse_args()
 
+def log_parameters(args):
+    filename = os.path.join(args.directory, 'README')
+    textfile = open(filename, "w")
+    textfile.write(str(sys.argv))
+    textfile.write('\n')
+    textfile.write(str(args))
+    textfile.close()
 
-def main(argv):
+def main():
     args = parse_cmdline()
 
     if not os.path.exists(args.directory):
         os.makedirs(args.directory)
+    log_parameters(args)
     is_qbf = args.universals_num > 0
     file_extension = 'qdimacs' if is_qbf else 'dimacs'
     num_sat = 0
@@ -169,4 +177,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()

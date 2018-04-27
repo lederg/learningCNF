@@ -23,12 +23,13 @@ def require_init(f, *args, **kwargs):
     
 class CadetEnv:
   def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, 
-                use_old_rewards = False, fresh_seed = False, clause_learning=True, **kwargs):
+                use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
     self.greedy_rewards = greedy_rewards
     self.clause_learning = clause_learning
+    self.vars_set = vars_set
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.
     self.finished = False
     cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
@@ -198,7 +199,8 @@ class CadetEnv:
           self.vars_deterministic[update] = -1
           self.total_vars_deterministic[update] = 0
       elif a.startswith('delete_clause'):
-        # ipdb.set_trace()
+        if not self.clause_learning:
+          continue
         self.qbf.remove_clause(int(a.split()[1]))
         clause = True
       elif a[0] == 'd':
@@ -212,13 +214,15 @@ class CadetEnv:
         update = int(b[0])-1
         activity = float(b[1])
         self.activities[update] = activity
-      elif a[0] == 'v':
+      elif a[0] == 'v' and self.vars_set:
         v, pol = a.split(' ')[1:]        
         vars_set.append((int(v)-1,int(pol)))
-      elif self.timestep > 0 and a[0] == 'c' and self.clause_learning:
+      elif self.timestep > 0 and a[0] == 'c':
         if a.startswith('conflict'):
           continue
         elif a.startswith('clause'):      # new cadet version
+          if not self.clause_learning:
+            continue
           c = a.split()
           cid = int(c[1])
           b = [int(x) for x in c[4:]]

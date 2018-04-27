@@ -101,6 +101,7 @@ def cfg():
 	ac_baseline = False
 	use_global_state = True
 	clause_learning = True
+	vars_set = True
 	use_gru = True
 # RL - DQN
 

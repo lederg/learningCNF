@@ -62,6 +62,7 @@ def cfg():
 	run_task='train'
 	do_not_run=False
 	do_not_learn = False
+	restart_cadet_every = 3500
 	non_linearity = 'F.relu'
 	test_every = 700
 # RL - PG

@@ -30,27 +30,43 @@ class CadetEnv:
     self.greedy_rewards = greedy_rewards
     self.clause_learning = clause_learning
     self.vars_set = vars_set
-    self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.
-    self.finished = False
+    self.fresh_seed = fresh_seed
+    self.use_old_rewards = use_old_rewards
+    self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.    
+    self.tail = deque([],LOG_SIZE)
+    self.start_cadet()
+    
+
+  def start_cadet(self):
     cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
-    if not use_old_rewards:
-      # if self.debug:
+    if not self.use_old_rewards:
       print('Using new rewards!')
       cadet_params.append('--rl_advanced_rewards')
-    if fresh_seed:
+    if self.fresh_seed:
       print('Using fresh seed!')
       cadet_params.append('--fresh_seed')
-    # cadet_params.append('-v')
-    # cadet_params.append('1')    
 
     self.cadet_proc = Popen([self.cadet_binary,  *cadet_params], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
     self.poll_obj = select.poll()
     self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
+    self.finished = False
     self.done = True      
     self.current_fname = None
-    self.tail = deque([],LOG_SIZE)
-    
 
+  def stop_cadet(self):
+    assert(self.cadet_proc != None)
+    self.cadet_proc.terminate()
+    time.sleep(5)
+    if self.cadet_proc.poll() != None:
+      self.cadet_proc.kill()
+    self.cadet_proc = None
+    self.poll_obj = None
+
+  def restart_cadet(self):
+    print('Stopping cadet...')
+    self.stop_cadet()
+    print('Restarting cadet...')
+    self.start_cadet()
 
   def eat_initial_output(self):
     self.read_line_with_timeout()

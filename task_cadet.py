@@ -263,6 +263,9 @@ def cadet_main():
 
 
 
+    if settings['restart_cadet_every'] and not (i % settings['restart_cadet_every']) and i > 0:
+      env.restart_cadet()   # Restart cadet to deal with memory
+
 
 
     if i % SAVE_EVERY == 0 and i>0:

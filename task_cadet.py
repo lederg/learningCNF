@@ -273,9 +273,9 @@ def cadet_main():
     if i % TEST_EVERY == 0 and i>0:
       if settings['rl_validation_data']:
         print('Testing envs:')
-        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy)
+        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, iters=5)
         log_value('Validation', val_average, total_steps)
-        test_average = test_envs(fnames=settings['rl_test_data'], model=policy)
+        test_average = test_envs(fnames=settings['rl_test_data'], model=policy, iters=5)
         log_value('Test', test_average, total_steps)
         # print('\n\n\nResults on VSIDS policy:\n\n\n')
         # val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, activity_test=True, iters=1)

@@ -64,7 +64,7 @@ def cfg():
 	do_not_learn = False
 	restart_cadet_every = 3500
 	non_linearity = 'F.relu'
-	test_every = 700
+	test_every = 1000
 # RL - PG
 
 	gamma=0.99	
@@ -81,8 +81,8 @@ def cfg():
 	# rl_train_data = 'data/candidate_qbf/'
 	# rl_train_data = 'data/test2_qbf/299_UNSAT.qdimacs'
 	# rl_train_data = 'data/sat_med_500/sat_med__42_UNSAT.dimacs'
-	rl_train_data = 'data/old/good_500/'
-	rl_validation_data = 'data/old/medium_gen1/'
+	rl_train_data = 'data/qbf_easy_train/'
+	rl_validation_data = 'data/qbf_easy_test'
 	rl_test_data = 'data/old/medium_gen2/'
 	rl_log_envs = []
 	rl_log_all = False

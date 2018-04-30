@@ -95,6 +95,7 @@ def cfg():
 	cadet_binary = './cadet'
 	# cadet_binary = './old_cadet' 			
 	do_test = True
+	test_iters = 100
 	fresh_seed = False  						# Use a fresh seed in cadet
 	adaptive_lr = False
 	desired_kl = 1e-6

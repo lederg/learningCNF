@@ -91,6 +91,8 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
     # env_id = env_gen.get_id()
   # Set up ground_embeddings and adjacency matrices
   state, vars_add, vars_remove, activities, _, _ , _, vars_set, _ = env.reset(fname)
+  if state is None:   # Env solved in 0 steps
+    return None, env_id
   assert(len(state)==settings['state_dim'])
   ground_embs = env.qbf.get_base_embeddings()
   ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True
@@ -113,9 +115,8 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   rc = State(state,cmat_pos, cmat_neg, ground_embs)
   return rc, env_id
 
-# This currently does not work on batches
 def get_ground_index(obs, idx):
-  return obs.ground.long().data[0][:,idx].byte()
+  return obs.ground.long().data[:,:,idx].byte()
 
 def get_determinized(obs):
   return get_ground_index(obs,IDX_VAR_DETERMINIZED)  
@@ -130,5 +131,5 @@ def action_allowed(obs, action):
     return True
   if type(action) is tuple:       # double-sided actions
     action = action[0]
-  return get_allowed_actions(obs)[action]
+  return get_allowed_actions(obs)[0,action]
 

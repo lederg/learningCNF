@@ -217,7 +217,10 @@ class CadetEnv:
       elif a.startswith('delete_clause'):
         if not self.clause_learning:
           continue
-        self.qbf.remove_clause(int(a.split()[1]))
+        cid = int(a.split()[1])
+        # print('Removing clause id {}'.format(cid))
+        # print(a)
+        self.qbf.remove_clause(cid)
         clause = True
       elif a[0] == 'd':
         decision = [int(x) for x in a[2:].split(',')]
@@ -243,6 +246,8 @@ class CadetEnv:
           cid = int(c[1])
           b = [int(x) for x in c[4:]]
           self.qbf.add_clause(b,cid)
+          # print('Adding clause id {}'.format(cid))
+          # print(a)
         else:
           print('This version is too old')
           ipdb.set_trace()

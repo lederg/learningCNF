@@ -32,7 +32,7 @@ env = CadetEnv(**settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
 inference_time = []
-
+lambda_disallowed = 1
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
 curr_lr = init_lr
@@ -40,14 +40,14 @@ curr_lr = init_lr
 def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
   if random_test:
-    choices = np.where(get_allowed_actions(obs).numpy())[0]
+    choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
     action = np.random.choice(choices)
     return action, None
   elif activity_test:
     if np.any(activities):
       action = np.argmax(activities)
     else:
-      choices = np.where(get_allowed_actions(obs).numpy())[0]
+      choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
       action = choices[0]
     return action, None
   elif cadet_test:
@@ -77,10 +77,12 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
 
 
 def handle_episode(**kwargs):
-  global total_steps
   episode_memory = ReplayMemory(5000)
 
   last_obs, env_id = new_episode(env,all_episode_files, **kwargs)
+  if last_obs is None:      # env solved in 0 steps
+    print('Env {} solved in 0 steps, removing'.format(env_id))
+    return None, None, None
   if settings['rl_log_all']:
     reporter.log_env(env_id)
   entropies = []
@@ -95,12 +97,13 @@ def handle_episode(**kwargs):
       entropies.append(entropy)
     inference_time.append(time.time()-begin_time)
     if action_allowed(last_obs,action):
-      try:
-        env_obs = EnvObservation(*env.step(action))        
-        state, vars_add, vars_remove, activities, decision, clause, reward, vars_set, done = env_obs
-      except Exception as e:
-        print(e)
-        ipdb.set_trace()
+      # try:
+        # ipdb.set_trace()
+      env_obs = EnvObservation(*env.step(action))        
+      state, vars_add, vars_remove, activities, decision, clause, reward, vars_set, done = env_obs
+      # except Exception as e:
+      #   print(e)
+      #   ipdb.set_trace()
     else:      
       print('Chose an invalid action!')
       env.rewards = env.terminate()
@@ -142,6 +145,7 @@ def cadet_main():
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()
   old_logits = None
+  disallowed_loss = 0.
   max_iterations = len(ds)*100
   settings.env = env
   num_steps = len(ds)*15000
@@ -205,6 +209,15 @@ def cadet_main():
     # probs = F.softmax(logits)    
     probs = F.softmax(logits.view(effective_bs,-1))
     all_logprobs = safe_logprobs(probs)
+    if not settings['pre_bias']:        # Disallowed actions are possible, so we add auxilliary loss
+      aux_probs = F.softmax(logits.view(effective_bs,-1)).view_as(logits)
+      disallowed_actions = Variable(get_allowed_actions(collated_batch.state)^1).float()
+      if len(logits.size()) > len(disallowed_actions.size()):        
+        disallowed_actions = disallowed_actions.unsqueeze(2).expand_as(logits)
+      disallowed_mass = (aux_probs*disallowed_actions).view(effective_bs,-1).sum(1)
+      disallowed_loss = disallowed_mass.sum()
+
+
     returns = torch.Tensor(rewards)
     if settings['ac_baseline']:
       adv_t = returns - values.squeeze().data
@@ -222,7 +235,8 @@ def cadet_main():
       returns = returns.cuda()
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + np.finfo(np.float32).eps)
     pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
-    loss = pg_loss + value_loss
+    # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))
+    loss = pg_loss + value_loss + lambda_disallowed*disallowed_loss
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm(policy.parameters(), settings['grad_norm_clipping'])
@@ -273,9 +287,9 @@ def cadet_main():
     if i % TEST_EVERY == 0 and i>0:
       if settings['rl_validation_data']:
         print('Testing envs:')
-        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, iters=5)
+        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy)
         log_value('Validation', val_average, total_steps)
-        test_average = test_envs(fnames=settings['rl_test_data'], model=policy, iters=5)
+        test_average = test_envs(fnames=settings['rl_test_data'], model=policy)
         log_value('Test', test_average, total_steps)
         # print('\n\n\nResults on VSIDS policy:\n\n\n')
         # val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, activity_test=True, iters=1)
@@ -287,10 +301,12 @@ def cadet_main():
 
 
   
-def test_one_env(fname, iters=100, threshold=100000, **kwargs):
+def test_one_env(fname, iters=None, threshold=100000, **kwargs):
   s = 0.
   i = 0
   step_counts = []
+  if iters is None:
+    iters = settings['test_iters']
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
     if not r:     # If r is None, the episodes never finished
@@ -327,6 +343,9 @@ def test_envs(fnames=settings['rl_train_data'], **kwargs):
     total_srate += srate
     if average:
       total_scored += 1
-      totals += average      
-  print("Total average: {}. Success rate: {} out of {}".format(totals/total_scored,total_scored,len(ds)))
-  return totals/total_scored
+      totals += average
+  if total_scored > 0:
+    print("Total average: {}. Success rate: {} out of {}".format(totals/total_scored,total_scored,len(ds)))
+    return totals/total_scored
+  else:
+    return 0.

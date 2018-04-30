@@ -49,6 +49,7 @@ class QbfBase(object):
         self.sp_indices = None
         self.sp_vals = None
         self.extra_clauses = {}
+        self.removed_old_clauses = []
         # self.get_base_embeddings = lru_cache(max_size=16)(self.get_base_embeddings)
         if 'max_variables' in kwargs:
             self._max_vars = kwargs['max_variables']
@@ -137,6 +138,8 @@ class QbfBase(object):
             values = []
 
             for i,c in enumerate(clauses):
+                if i in self.removed_old_clauses:
+                    continue
                 for v in c:
                     val = np.sign(v)
                     v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
@@ -149,7 +152,7 @@ class QbfBase(object):
             return self.sp_indices, self.sp_vals
         indices = []
         values = []            
-        for i, c in self.extra_clauses.items():
+        for i, c in self.extra_clauses.items():            
             for v in c:
                 val = np.sign(v)
                 v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
@@ -184,8 +187,10 @@ class QbfBase(object):
         self.extra_clauses[clause_id]=clause
 
     def remove_clause(self, clause_id):
-        assert(clause_id in self.extra_clauses.keys())
-        del self.extra_clauses[clause_id]
+        if not (clause_id in self.extra_clauses.keys()):            
+            self.removed_old_clauses.append(clause_id)
+        else:
+            del self.extra_clauses[clause_id]
 
     @property
     def label(self):

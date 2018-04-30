@@ -176,6 +176,8 @@ def cadet_main():
     begin_time = time.time()
     while time_steps_this_batch < settings['min_timesteps_per_batch']:      
       episode, env_id, entropy = handle_episode(model=policy)
+      if episode is None:
+        continue
       s = len(episode)
       total_steps += s
       time_steps_this_batch += s      

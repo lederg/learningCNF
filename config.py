@@ -63,6 +63,7 @@ def cfg():
 	do_not_run=False
 	do_not_learn = False
 	restart_cadet_every = 3500
+	restart_in_test = False
 	non_linearity = 'F.relu'
 	test_every = 1000
 # RL - PG

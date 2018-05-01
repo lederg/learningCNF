@@ -322,7 +322,8 @@ def test_one_env(fname, iters=None, threshold=100000, **kwargs):
     iters = settings['test_iters']
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
-    env.restart_cadet(timeout=3)
+    if settings['restart_in_test']:
+      env.restart_cadet(timeout=3)
     if not r:     # If r is None, the episodes never finished
       continue
     if len(r) > 1000:

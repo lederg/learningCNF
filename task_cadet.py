@@ -302,6 +302,7 @@ def cadet_main():
         print('Testing envs:')
         val_average = test_envs(fnames=settings['rl_validation_data'], model=policy)
         log_value('Validation', val_average, total_steps)
+      if settings['rl_test_data']:        
         test_average = test_envs(fnames=settings['rl_test_data'], model=policy)
         log_value('Test', test_average, total_steps)
         # print('\n\n\nResults on VSIDS policy:\n\n\n')

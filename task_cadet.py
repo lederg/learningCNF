@@ -322,11 +322,12 @@ def test_one_env(fname, iters=None, threshold=100000, **kwargs):
     iters = settings['test_iters']
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
+    env.restart_cadet(timeout=3)
     if not r:     # If r is None, the episodes never finished
       continue
     if len(r) > 1000:
       print('{} took {} steps!'.format(fname,len(r)))
-      # break      
+      # break            
     s += len(r)
     i += 1
     step_counts.append(len(r))
@@ -356,7 +357,7 @@ def test_envs(fnames=settings['rl_train_data'], **kwargs):
     total_srate += srate
     if average:
       total_scored += 1
-      totals += average
+      totals += average        
   if total_scored > 0:
     print("Total average: {}. Success rate: {} out of {}".format(totals/total_scored,total_scored,len(ds)))
     return totals/total_scored

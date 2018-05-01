@@ -53,18 +53,18 @@ class CadetEnv:
     self.done = True      
     self.current_fname = None
 
-  def stop_cadet(self):
+  def stop_cadet(self, timeout):
     assert(self.cadet_proc != None)
     self.cadet_proc.terminate()
-    time.sleep(5)
+    time.sleep(timeout)
     if self.cadet_proc.poll() != None:
       self.cadet_proc.kill()
     self.cadet_proc = None
     self.poll_obj = None
 
-  def restart_cadet(self):
+  def restart_cadet(self, timeout=5):
     print('Stopping cadet...')
-    self.stop_cadet()
+    self.stop_cadet(timeout)
     print('Restarting cadet...')
     self.start_cadet()
 

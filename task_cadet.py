@@ -36,8 +36,11 @@ lambda_disallowed = 1
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
 curr_lr = init_lr
+max_reroll = 0
+
 
 def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
+  global max_reroll
   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
   if random_test:
     choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
@@ -67,9 +70,17 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
     probs = F.softmax(logits.view(1,-1))
     dist = probs.data.cpu().numpy()[0]
     choices = range(len(dist))
-    action = np.random.choice(choices, p=dist)
-    if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
-      action = (int(action/2),action%2)
+    i = 0
+    while i<1000:
+      action = np.random.choice(choices, p=dist)
+      if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
+        action = (int(action/2),action%2)
+      if not settings['disallowed_aux'] or action_allowed(obs, action):
+        break
+      i = i+1
+    if i > max_reroll:
+      max_reroll = i
+      print('Had to roll {} times to come up with a valid action!'.format(max_reroll))
 
 
   return action, logits
@@ -211,7 +222,7 @@ def cadet_main():
     # probs = F.softmax(logits)    
     probs = F.softmax(logits.view(effective_bs,-1))
     all_logprobs = safe_logprobs(probs)
-    if not settings['pre_bias']:        # Disallowed actions are possible, so we add auxilliary loss
+    if not settings['pre_bias'] and settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
       aux_probs = F.softmax(logits.view(effective_bs,-1)).view_as(logits)
       disallowed_actions = Variable(get_allowed_actions(collated_batch.state)^1).float()
       if len(logits.size()) > len(disallowed_actions.size()):        

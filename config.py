@@ -116,7 +116,7 @@ def cfg():
 	target_update_freq=3000
 	grad_norm_clipping=2
 	pre_bias = True
-	# pre_bias = False
+	disallowed_aux = False
 	invalid_bias = -1000
 	# invalid_bias = 0
 	report_tensorboard = True

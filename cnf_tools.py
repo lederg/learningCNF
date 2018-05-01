@@ -6,7 +6,7 @@ import ipdb
 import numpy as np
 from subprocess import Popen, PIPE, STDOUT
 
-MAX_CLAUSES_PER_VARIABLE = 1000
+MAX_CLAUSES_PER_VARIABLE = 30000
 
 def is_number(s):
     try:

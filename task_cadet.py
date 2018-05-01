@@ -81,6 +81,12 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
     if i > max_reroll:
       max_reroll = i
       print('Had to roll {} times to come up with a valid action!'.format(max_reroll))
+    if i>600:
+      print("Couldn't choose an action within 600 re-samples. Printing probabilities:")
+      print(dist)
+      print('Allowed actions are:')
+      print(get_allowed_actions(obs))      
+      print('total allowed mass is {}'.format((dist*get_allowed_actions(obs).numpy()).sum()))
 
 
   return action, logits

@@ -5,7 +5,7 @@ import ipdb
 import pdb
 import random
 import time
-import pandas as pd
+# import pandas as pd
 from tensorboard_logger import configure, log_value
 
 from settings import *

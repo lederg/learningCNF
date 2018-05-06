@@ -5,6 +5,7 @@ import ipdb
 import pdb
 import random
 import time
+import pandas as pd
 from tensorboard_logger import configure, log_value
 
 from settings import *
@@ -27,12 +28,12 @@ INVALID_ACTION_REWARDS = -10
 TEST_EVERY = settings['test_every']
 REPORT_EVERY = 100
 
-reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), tensorboard=settings['report_tensorboard'])
+reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard'])
 env = CadetEnv(**settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
 inference_time = []
-lambda_disallowed = 1
+lambda_disallowed = settings['lambda_disallowed']
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
 curr_lr = init_lr
@@ -67,7 +68,7 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
       print('Got action {}'.format(action))
   else:
     # probs = F.softmax(logits)
-    probs = F.softmax(logits.view(1,-1))
+    probs = F.softmax(logits.contiguous().view(1,-1))
     dist = probs.data.cpu().numpy()[0]
     choices = range(len(dist))
     i = 0
@@ -82,11 +83,11 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
       max_reroll = i
       print('Had to roll {} times to come up with a valid action!'.format(max_reroll))
     if i>600:
-      print("Couldn't choose an action within 600 re-samples. Printing probabilities:")
-      print(dist)
-      print('Allowed actions are:')
-      print(get_allowed_actions(obs))      
-      print('total allowed mass is {}'.format((dist*get_allowed_actions(obs).numpy()).sum()))
+      print("Couldn't choose an action within 600 re-samples. Printing probabilities:")            
+      # ipdb.set_trace()
+      allowed_mass = probs.view_as(logits).sum(2).data*get_allowed_actions(obs).float().sum(1)
+      print('total allowed mass is {}'.format(allowed_mass.sum()))
+      print(dist.max())
 
 
   return action, logits
@@ -123,6 +124,7 @@ def handle_episode(**kwargs):
       #   ipdb.set_trace()
     else:      
       print('Chose an invalid action!')
+      print('Entropy for this step: {}'.format(entropy))
       env.rewards = env.terminate()
       env.rewards = np.append(env.rewards,INVALID_ACTION_REWARDS)
       done = True
@@ -189,13 +191,16 @@ def cadet_main():
     rewards = []
     transition_data = []
     total_transitions = []
+    total_envs = []
     time_steps_this_batch = 0
     begin_time = time.time()
+    policy.eval()
     while time_steps_this_batch < settings['min_timesteps_per_batch']:      
       episode, env_id, entropy = handle_episode(model=policy)
       if episode is None:
         continue
       s = len(episode)
+      total_envs += [env_id]*s
       total_steps += s
       time_steps_this_batch += s      
       if settings['rl_log_all']:
@@ -220,15 +225,16 @@ def cadet_main():
 
     if settings['do_not_learn']:
       continue
+    policy.train()
     begin_time = time.time()
     states, actions, next_states, rewards = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
     logits, values = policy(collated_batch.state)
     effective_bs = len(logits)
-    # probs = F.softmax(logits)    
-    probs = F.softmax(logits.view(effective_bs,-1))
+    probs = F.softmax(logits.contiguous().view(effective_bs,-1))
     all_logprobs = safe_logprobs(probs)
     if not settings['pre_bias'] and settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
+      # ipdb.set_trace()
       aux_probs = F.softmax(logits.view(effective_bs,-1)).view_as(logits)
       disallowed_actions = Variable(get_allowed_actions(collated_batch.state)^1).float()
       if len(logits.size()) > len(disallowed_actions.size()):        
@@ -254,7 +260,17 @@ def cadet_main():
       returns = returns.cuda()
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + np.finfo(np.float32).eps)
     pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
+    # print('--------------------------------------------------------------')
     # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))
+    # print('entropies are {}'.format(entropies.mean().data[0]))
+    # print('**************************************************************')
+    # x = pd.DataFrame({'entropies': entropies.data.numpy(), 'env_id': np.array(total_envs)})
+    # pd.options.display.max_rows = 2000
+    # print(x)
+    # # print(entropies[entropies<0.1].data)
+    # print('--------------------------------------------------------------')
+    # print(disallowed_mass)
+    # loss = value_loss + lambda_disallowed*disallowed_loss
     loss = pg_loss + value_loss + lambda_disallowed*disallowed_loss
     optimizer.zero_grad()
     loss.backward()

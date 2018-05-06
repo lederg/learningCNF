@@ -51,8 +51,9 @@ def process_observation(env, last_obs, env_obs, settings=None):
   if env_obs.clause:
     # ipdb.set_trace()
     cmat_pos, cmat_neg = get_input_from_qbf(env.qbf, settings)
+    clabels = Variable(torch.from_numpy(env.qbf.get_clabels()).float().unsqueeze(0))
   else:
-    cmat_pos, cmat_neg = last_obs.cmat_pos, last_obs.cmat_neg
+    cmat_pos, cmat_neg, clabels = last_obs.cmat_pos, last_obs.cmat_neg, last_obs.clabels
   ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
   if env_obs.decision:
     ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
@@ -73,7 +74,7 @@ def process_observation(env, last_obs, env_obs, settings=None):
 
   state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
   ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-  return State(state,cmat_pos,cmat_neg,ground_embs)
+  return State(state,cmat_pos,cmat_neg,ground_embs, clabels)
 
 
 def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
@@ -109,10 +110,11 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   
   state = Variable(torch.from_numpy(state).float().unsqueeze(0))
   ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
+  clabels = Variable(torch.from_numpy(env.qbf.get_clabels()).float().unsqueeze(0))
   # if settings['cuda']:
   #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
   #   state, ground_embs = state.cuda(), ground_embs.cuda()
-  rc = State(state,cmat_pos, cmat_neg, ground_embs)
+  rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels)
   return rc, env_id
 
 def get_ground_index(obs, idx):

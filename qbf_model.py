@@ -225,7 +225,7 @@ class QbfEncoder(nn.Module):
 # ground_embeddings are (batch,maxvars,ground_dim)
 
 	
-	def forward(self, ground_embeddings, **kwargs):
+	def forward(self, ground_embeddings, clabels, **kwargs):
 		variables = []
 		clauses = []		
 		size = ground_embeddings.size()
@@ -263,3 +263,66 @@ class QbfEncoder(nn.Module):
 			# 	print('Variables identical on (inner) iteration %d' % i)
 		# aux_losses = Variable(torch.zeros(len(variables)))
 		return torch.squeeze(variables)
+
+class QbfNewEncoder(nn.Module):
+	def __init__(self, **kwargs):
+		super(QbfNewEncoder, self).__init__() 
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.debug = False
+		self.ground_dim = self.settings['ground_dim']
+		self.vlabel_dim = self.settings['ground_dim']
+		self.clabel_dim = self.settings['clabel_dim']
+		self.vemb_dim = self.settings['embedding_dim']
+		self.cemb_dim = self.settings['embedding_dim']
+		self.batch_size = self.settings['batch_size']
+		self.embedding_dim = self.settings['embedding_dim']				
+		self.max_iters = self.settings['max_iters']		
+		self.non_linearity = eval(self.settings['non_linearity'])
+		W_L_params = []
+		B_L_params = []
+		W_C_params = []
+		B_C_params = []
+		for i in range(self.max_iters):
+			W_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim,self.vlabel_dim+2*i*self.vemb_dim)))
+			B_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim)))
+			W_C_params.append(nn.Parameter(self.settings.FloatTensor(self.vemb_dim,self.clabel_dim+self.cemb_dim)))
+			B_C_params.append(nn.Parameter(self.settings.FloatTensor(self.vemb_dim)))
+			nn_init.normal(W_L_params[i])
+			nn_init.normal(B_L_params[i])		
+			nn_init.normal(W_C_params[i])				
+			nn_init.normal(B_C_params[i])		
+		self.W_L_params = nn.ParameterList(W_L_params)
+		self.B_L_params = nn.ParameterList(B_L_params)
+		self.W_C_params = nn.ParameterList(W_C_params)
+		self.B_C_params = nn.ParameterList(B_C_params)
+		
+					
+
+# vlabels are (batch,maxvars,vlabel_dim)
+# clabels are sparse (batch,maxvars,maxvars,label_dim)
+# cmat_pos and cmat_neg is the bs*v -> bs*c block-diagonal adjacency matrix 
+
+	def forward(self, vlabels, clabels, cmat_pos, cmat_neg, **kwargs):
+		size = vlabels.size()
+		bs = size[0]
+		maxvars = size[1]
+		pos_vars = vlabels.view(-1,self.vlabel_dim)
+		neg_vars = vlabels.view(-1,self.vlabel_dim)
+		vmat_pos = cmat_pos.t()
+		vmat_neg = cmat_neg.t()
+
+		for t, p in enumerate(self.W_L_params):
+			# results is everything we computed so far, its precisely the correct input to W_L_t
+			av = (torch.mm(cmat_pos,pos_vars)+torch.mm(cmat_neg,neg_vars)).t()
+			c_t_pre = self.non_linearity(torch.mm(self.W_L_params[t],av).t() + self.B_L_params[t])
+			# ipdb.set_trace()
+			c_t = torch.cat([clabels.view(-1,self.clabel_dim),c_t_pre],dim=1)
+			pv = torch.mm(vmat_pos,c_t).t()
+			nv = torch.mm(vmat_neg,c_t).t()
+			pv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],pv).t() + self.B_C_params[t])
+			nv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],nv).t() + self.B_C_params[t])
+			pos_vars = torch.cat([pos_vars,pv_t_pre,nv_t_pre],dim=1)
+			neg_vars = torch.cat([neg_vars,nv_t_pre,pv_t_pre],dim=1)
+
+
+		return pos_vars, neg_vars		

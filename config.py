@@ -12,6 +12,8 @@ def cfg():
 	state_dim = 35
 	embedding_dim = 20
 	ground_dim = 8
+	vlabel_dim = 8
+	clabel_dim = 1
 	max_variables = 200 
 	max_clauses = 600
 	num_ground_variables = 0
@@ -87,6 +89,7 @@ def cfg():
 	rl_test_data = 'data/old/medium_gen2/'
 	rl_log_envs = []
 	rl_log_all = False
+	rl_shelve_it = False
 	rl_decay = False
 	# rl_clip_episode_at = 100
 	debug_actions = False
@@ -106,6 +109,7 @@ def cfg():
 	clause_learning = True
 	vars_set = True
 	use_gru = True
+	use_bn=False
 # RL - DQN
 
 	EPS_START = 0.9
@@ -118,6 +122,7 @@ def cfg():
 	grad_norm_clipping=2
 	pre_bias = True
 	disallowed_aux = False
+	lambda_disallowed = 1.
 	invalid_bias = -1000
 	# invalid_bias = 0
 	report_tensorboard = True

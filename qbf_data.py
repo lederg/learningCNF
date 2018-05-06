@@ -181,8 +181,10 @@ class QbfBase(object):
             embs[:,i][np.where(self.var_types==i)]=1
         return embs
 
-    # def add_clause(self,clause):
-    #     self.qcnf['clauses'].append(clause)
+    def get_clabels(self):
+        rc = np.ones(self.num_clauses)
+        rc[:len(self.qcnf['clauses'])]=0
+        return rc
 
     def add_clause(self,clause, clause_id):
         assert(clause_id not in self.extra_clauses.keys())
@@ -227,6 +229,7 @@ class QbfBase(object):
         rc['num_vars'] = self.num_vars
         rc['num_clauses'] = self.num_clauses
         rc['ground'] = self.get_base_embeddings()
+        rc['clabels'] = self.get_clabels()
         rc['label'] = self.label
                 
         return rc

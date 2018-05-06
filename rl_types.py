@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 State = namedtuple('State', 
-                    ['state', 'cmat_pos', 'cmat_neg', 'ground'])
+                    ['state', 'cmat_pos', 'cmat_neg', 'ground', 'clabels'])
 
 Transition = namedtuple('Transition',
                         ['state', 'action', 'next_state', 'reward'])

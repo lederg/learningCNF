@@ -114,7 +114,7 @@ class LinearSchedule(object):
 
 def collate_observations(batch, settings=None):
   if batch.count(None) == len(batch):
-    return State(None, None, None, None)
+    return State(None, None, None, None, None)
   if not settings:
     settings = CnfSettings()
   c_size = max([x.cmat_neg.size(0) for x in batch if x])
@@ -125,6 +125,7 @@ def collate_observations(batch, settings=None):
   val_pos = []
   val_neg = []
   all_embs = []
+  all_clabels = []
   i=0
   for b in batch:
     if b:      
@@ -134,10 +135,15 @@ def collate_observations(batch, settings=None):
       val_pos.append(b.cmat_pos.data._values())
       val_neg.append(b.cmat_neg.data._values())
       embs = b.ground.squeeze()
+      clabels = b.clabels.squeeze()
       l = len(embs)
       if l < v_size:
         embs = torch.cat([embs,torch.zeros([v_size-l,settings['ground_dim']])])
       all_embs.append(embs)
+      l = len(clabels)
+      if l < c_size:
+        clabels = torch.cat([clabels,torch.zeros([c_size-l,settings['clabel_dim']])])
+      all_clabels.append(clabels)
       i += 1    
       # states.append(Variable(settings.zeros([1,settings['state_dim']])))
       # all_embs.append(Variable(settings.zeros([v_size,settings['ground_dim']])))
@@ -145,7 +151,7 @@ def collate_observations(batch, settings=None):
   cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_size*i,v_size*i]))
   # if settings['cuda']:
   #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
-  return State(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.stack(all_embs))
+  return State(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.stack(all_embs), torch.stack(all_clabels))
 
 def collate_transitions(batch, settings=None):  
   if not settings:

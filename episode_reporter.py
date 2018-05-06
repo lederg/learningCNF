@@ -6,11 +6,12 @@ import shelve
 DEF_WINDOW = 100
 
 class AbstractReporter(object):
-	def __init__(self, fname, tensorboard=False):
+	def __init__(self, fname, settings, tensorboard=False):
 		self.stats = []
 		self.stats_dict = {}
 		self.ids_to_log = set()
 		self.tensorboard = tensorboard
+		self.settings = settings
 		self.log_value = log_value
 		self.shelf_name = fname+'.shelf'
 		if tensorboard:
@@ -55,9 +56,11 @@ class PGEpisodeReporter(AbstractReporter):
 			print(s)
 			print('\n\n')
 		
-		with shelve.open(self.shelf_name) as db:
-			db['stats'] = self.stats
-			db['stats_dict'] = self.stats_dict
+
+		if self.settings['rl_shelve_it']:
+			with shelve.open(self.shelf_name) as db:
+				db['stats'] = self.stats
+				db['stats_dict'] = self.stats_dict
 
 		if not self.tensorboard:
 			return

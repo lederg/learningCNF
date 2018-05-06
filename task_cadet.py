@@ -85,7 +85,7 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
     if i>600:
       print("Couldn't choose an action within 600 re-samples. Printing probabilities:")            
       # ipdb.set_trace()
-      allowed_mass = probs.view_as(logits).sum(2).data*get_allowed_actions(obs).float().sum(1)
+      allowed_mass = (probs.view_as(logits).sum(2).data*get_allowed_actions(obs).float()).sum(1)
       print('total allowed mass is {}'.format(allowed_mass.sum()))
       print(dist.max())
 

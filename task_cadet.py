@@ -154,6 +154,8 @@ def cadet_main():
     print(settings.hyperparameters)
     return
   total_steps = 0
+  bad_episodes = 0
+  bad_episodes_not_added = 0
   mse_loss = nn.MSELoss()
   stepsize = settings['init_lr']
   policy = create_policy()
@@ -208,8 +210,19 @@ def cadet_main():
       # episode is a list of half-empty Tranitions - (obs, action, None, None), we want to turn it to (obs,action,None, None)
       if env.finished:
         reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
-      else:
+      else:        
         print('Env {} did not finish!'.format(env_id))
+        bad_episodes += 1
+        try:
+          print(reporter.stats_dict[env_id])
+          steps = np.array([x[0] for x in reporter.stats_dict[env_id]]).mean()
+          reporter.add_stat(env_id,steps,sum(env.rewards), entropy, total_steps)
+          print('Added it with existing steps average: {}'.format(steps))
+        except:
+          bad_episodes_not_added += 1
+          print('Avrage does not exist yet, did not add.')
+        print('Total Bad episodes so far: {}. Bad episodes that were not counted: {}'.format(bad_episodes,bad_episodes_not_added))
+
       r = discount(env.rewards, settings['gamma'])
       transition_data.extend([Transition(transition.state, transition.action, None, rew) for transition, rew in zip(episode, r)])
     

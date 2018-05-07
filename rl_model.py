@@ -61,7 +61,6 @@ class Policy(nn.Module):
 		cmat_pos = obs.cmat_pos		
 		cmat_neg = obs.cmat_neg
 		clabels = obs.clabels
-
 		if self.settings['cuda']:
 			cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
 			state, ground_embeddings = state.cuda(), ground_embeddings.cuda()
@@ -83,7 +82,6 @@ class Policy(nn.Module):
 			inputs = torch.cat([vs,ground_embeddings],dim=2).view(-1,self.embedding_dim+self.ground_dim)			
 		# inputs = torch.cat([reshaped_state, ground_embeddings],dim=2).view(-1,self.state_dim+self.ground_dim)
 		# inputs = ground_embeddings.view(-1,self.ground_dim)
-		
 		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs))))).view(self.batch_size,-1)
 		# outputs = outputs-value		# Advantage
 		# outputs = self.action_score(self.activation(self.linear1(inputs))).view(self.batch_size,-1)		
@@ -241,6 +239,9 @@ class NewDoublePolicy(nn.Module):
 			vs_pos = pos_vars.view(self.batch_size,-1,self.final_embedding_dim)
 			vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
 			vs = torch.cat([vs_pos,vs_neg])
+			if 'do_debug' in kwargs:
+				ipdb.set_trace()
+
 		if self.settings['use_global_state']:
 			# if self.batch_size > 1:
 			# 	ipdb.set_trace()

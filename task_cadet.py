@@ -32,6 +32,7 @@ reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(set
 env = CadetEnv(**settings.hyperparameters)
 exploration = LinearSchedule(1, 1.)
 total_steps = 0
+real_steps = 0
 inference_time = []
 lambda_disallowed = settings['lambda_disallowed']
 init_lr = settings['init_lr']
@@ -41,7 +42,7 @@ max_reroll = 0
 
 
 def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
-  global max_reroll
+  global max_reroll, real_steps
   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
   if random_test:
     choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
@@ -57,7 +58,10 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
   elif cadet_test:
     return '?', None
 
-  logits, values = model(obs, **kwargs)
+  if False and not (real_steps % 500):
+    logits, values = model(obs, do_debug=True, **kwargs)
+  else:
+    logits, values = model(obs, **kwargs)
   
   if testing:
     action = logits.squeeze().max(0)[1].data   # argmax when testing        
@@ -69,6 +73,9 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
   else:
     # probs = F.softmax(logits)
     probs = F.softmax(logits.contiguous().view(1,-1))
+    real_steps += 1
+    # if not (real_steps % 500):
+    #   ipdb.set_trace()
     dist = probs.data.cpu().numpy()[0]
     choices = range(len(dist))
     i = 0
@@ -83,8 +90,8 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
       max_reroll = i
       print('Had to roll {} times to come up with a valid action!'.format(max_reroll))
     if i>600:
-      print("Couldn't choose an action within 600 re-samples. Printing probabilities:")            
       # ipdb.set_trace()
+      print("Couldn't choose an action within 600 re-samples. Printing probabilities:")            
       allowed_mass = (probs.view_as(logits).sum(2).data*get_allowed_actions(obs).float()).sum(1)
       print('total allowed mass is {}'.format(allowed_mass.sum()))
       print(dist.max())
@@ -215,7 +222,7 @@ def cadet_main():
         bad_episodes += 1
         try:
           print(reporter.stats_dict[env_id])
-          steps = np.array([x[0] for x in reporter.stats_dict[env_id]]).mean()
+          steps = int(np.array([x[0] for x in reporter.stats_dict[env_id]]).mean())
           reporter.add_stat(env_id,steps,sum(env.rewards), entropy, total_steps)
           print('Added it with existing steps average: {}'.format(steps))
         except:

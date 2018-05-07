@@ -28,7 +28,7 @@ class PGEpisodeReporter(AbstractReporter):
 			self.ids_to_log.add(id)
 
 	def add_stat(self, env_id, steps, reward, entropy, total_steps):
-		self.stats.append([env_id,steps,reward])
+		self.stats.append([env_id,steps,reward, entropy])
 		if not env_id in self.stats_dict.keys():
 			self.stats_dict[env_id] = []
 
@@ -40,13 +40,14 @@ class PGEpisodeReporter(AbstractReporter):
 
 
 	def report_stats(self, total_steps, total_envs):
-		_, steps, rewards = zip(*self.stats)
+		_, steps, rewards, ents = zip(*self.stats)
 		DEF_BIG_WINDOW = total_envs*60
 		print('Total episodes so far: %d' % len(steps))
 		print('Total steps so far: %d' % sum(steps))
 		print('Total rewards so far: %f' % sum(rewards))
 		print('Mean steps for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(steps[-DEF_BIG_WINDOW:])))
 		print('Mean reward for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(rewards[-DEF_BIG_WINDOW:])))
+		print('Mean entropy for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(ents[-DEF_BIG_WINDOW:])))
 		totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
 
 		print('Data for the 10 most common envs:')

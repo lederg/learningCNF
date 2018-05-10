@@ -110,6 +110,7 @@ def cfg():
 	vars_set = True
 	use_gru = True
 	use_bn=False
+	normalize_episodes = False
 # RL - DQN
 
 	EPS_START = 0.9

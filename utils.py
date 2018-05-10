@@ -96,6 +96,13 @@ def discount(x, gamma):
     return scipy.signal.lfilter([1],[1,-gamma],x[::-1], axis=0)[::-1]
 
 
+def normalize_weights(x):
+    for i in set(x):
+        l = len(x[x==i])
+        x[x==i]=l
+
+    return 1/x
+
 
 # cross-product
 

@@ -112,6 +112,11 @@ class LinearSchedule(object):
         fraction  = min(float(t) / self.schedule_timesteps, 1.0)
         return self.initial_p + fraction * (self.final_p - self.initial_p)
 
+def discount_episode(ep, gamma):
+  _, _, _,rewards, _ = zip(*ep)
+  r = discount(rewards, gamma)
+  return [Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(ep, r)]
+
 def collate_observations(batch, settings=None):
   if batch.count(None) == len(batch):
     return State(None, None, None, None, None)
@@ -161,7 +166,8 @@ def collate_transitions(batch, settings=None):
   obs2 = collate_observations([x.next_state for x in batch], settings)
   rews = settings.FloatTensor([x.reward for x in batch])
   actions = settings.LongTensor(np.asarray([x.action for x in batch]))
-  return Transition(obs1,actions,obs2,rews)
+  formulas = settings.LongTensor(np.asarray([x.formula for x in batch]))
+  return Transition(obs1,actions,obs2,rews, formulas)
 
 def create_policy(settings=None, is_clone=False):
   if not settings:

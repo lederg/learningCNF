@@ -17,6 +17,7 @@ from utils import *
 from rl_utils import *
 from cadet_utils import *
 from episode_reporter import *
+from episode_manager import *
 import torch.nn.utils as tutils
 
 all_episode_files = ['data/mvs.qdimacs']
@@ -125,7 +126,7 @@ def handle_episode(**kwargs):
       # try:
         # ipdb.set_trace()
       env_obs = EnvObservation(*env.step(action))        
-      state, vars_add, vars_remove, activities, decision, clause, reward, vars_set, done = env_obs
+      state, vars_add, vars_remove, activities, decision, clause, reward, vars_set, done = env_obs      
       # except Exception as e:
       #   print(e)
       #   ipdb.set_trace()
@@ -135,7 +136,7 @@ def handle_episode(**kwargs):
       env.rewards = env.terminate()
       env.rewards = np.append(env.rewards,INVALID_ACTION_REWARDS)
       done = True
-    episode_memory.push(last_obs,action,None, None)    
+    episode_memory.push(last_obs,action,None, None, env_id)
     # if t % 1500 == 0 and t > 0:
     #   print('In env {}, step {}'.format(env.current_fname,t))
     if done:
@@ -231,7 +232,7 @@ def cadet_main():
         print('Total Bad episodes so far: {}. Bad episodes that were not counted: {}'.format(bad_episodes,bad_episodes_not_added))
 
       r = discount(env.rewards, settings['gamma'])
-      transition_data.extend([Transition(transition.state, transition.action, None, rew) for transition, rew in zip(episode, r)])
+      transition_data.extend([Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(episode, r)])
     
     print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, sum(inference_time)))
     if not (i % REPORT_EVERY) and i>0:
@@ -247,7 +248,7 @@ def cadet_main():
       continue
     policy.train()
     begin_time = time.time()
-    states, actions, next_states, rewards = zip(*transition_data)
+    _, _, _, rewards, _ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
     logits, values = policy(collated_batch.state)
     effective_bs = len(logits)
@@ -273,12 +274,15 @@ def cadet_main():
       value_loss = 0.
     flattened_actions = collated_batch.action
     if len(flattened_actions.size()) > 1:
-      flattened_actions = 2*collated_batch.action[:,0] + collated_batch.action[:,1]
+      flattened_actions = 2*collated_batch.action[:,0] + collated_batch.action[:,1]    
     logprobs = all_logprobs.gather(1,Variable(flattened_actions).view(-1,1)).squeeze()            
     entropies = (-probs*all_logprobs).sum(1)
     if settings['cuda']:
       returns = returns.cuda()
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + np.finfo(np.float32).eps)
+    if settings['normalize_episodes']:
+      episodes_weights = normalize_weights(collated_batch.formula.numpy())
+      adv_t = adv_t*torch.Tensor(episodes_weights)
     pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
     # print('--------------------------------------------------------------')
     # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))

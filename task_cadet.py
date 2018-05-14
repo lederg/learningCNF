@@ -344,7 +344,7 @@ def cadet_main():
 
 
     if settings['restart_cadet_every'] and not (i % settings['restart_cadet_every']) and i > 0:
-      if self.settings['parallelism'] > 1:
+      if settings['parallelism'] > 1:
         em.restart_all()
       else:
         env.restart_cadet()   # Restart cadet to deal with memory

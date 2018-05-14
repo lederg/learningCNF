@@ -11,6 +11,10 @@ def cfg():
 	exp_time = int(time.time())
 	state_dim = 35
 	embedding_dim = 20
+	vemb_dim = 16
+	cemb_dim = 16
+	# vemb_dim = 8
+	# cemb_dim = 64
 	ground_dim = 8
 	vlabel_dim = 8
 	clabel_dim = 1
@@ -86,7 +90,7 @@ def cfg():
 	# rl_train_data = 'data/sat_med_500/sat_med__42_UNSAT.dimacs'
 	rl_train_data = 'data/qbf_easy_train/'
 	rl_validation_data = 'data/qbf_easy_test'
-	rl_test_data = 'data/old/medium_gen2/'
+	rl_test_data = 'data/qbf_hard_test/'
 	rl_log_envs = []
 	rl_log_all = False
 	rl_shelve_it = False
@@ -111,6 +115,7 @@ def cfg():
 	use_gru = True
 	use_bn=False
 	normalize_episodes = False
+	parallelism = 1
 # RL - DQN
 
 	EPS_START = 0.9

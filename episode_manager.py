@@ -6,6 +6,7 @@ from namedlist import namedlist
 
 
 from cadet_env import *
+from qbf_data import *
 from settings import *
 from utils import *
 from rl_utils import *
@@ -13,7 +14,36 @@ from cadet_utils import *
 
 
 EnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id'])
+                    ['env', 'last_obs', 'episode_memory', 'env_id', 'curr_step'])
+
+MAX_STEP = 2000
+
+
+def test_one_env(fname, iters=None, threshold=100000, **kwargs):
+  s = 0.
+  i = 0
+  step_counts = []
+  if iters is None:
+    iters = settings['test_iters']
+  for _ in range(iters):
+    r, _, _ = handle_episode(fname=fname, **kwargs)
+    if settings['restart_in_test']:
+      env.restart_cadet(timeout=3)
+    if not r:     # If r is None, the episodes never finished
+      continue
+    if len(r) > 1000:
+      print('{} took {} steps!'.format(fname,len(r)))
+      # break            
+    s += len(r)
+    i += 1
+    step_counts.append(len(r))
+
+  if i:
+    if s/i < threshold:
+      print('For {}, average steps: {}'.format(fname,s/i))
+    return s/i, float(i)/iters, step_counts
+  else:
+    return None, 0, None
 
 class EpisodeManager(object):
   def __init__(self, episodes_files, parallelism=20, reporter=None):
@@ -27,15 +57,18 @@ class EpisodeManager(object):
     self.reporter = reporter
     self.bad_episodes = 0
     self.bad_episodes_not_added = 0
+    self.INVALID_ACTION_REWARDS = -10
 
     for i in range(parallelism):
-      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None))
+      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None, None))
 
   def episode_lengths(self, num=0):
     rc = self.completed_episodes if num==0 else self.completed_episodes[:num]
     return sum([len(x) for x in rc])
 
-  def pop_min(self, num=400):
+  def pop_min(self, num=0):
+    if num == 0:
+      num = self.settings['min_timesteps_per_batch']
     total = 0
     rc = []
     while len(rc) < num:
@@ -44,17 +77,28 @@ class EpisodeManager(object):
 
     return rc
 
+  def reset_all(self):
+    for envstr in self.envs:
+      self.reset_env(envstr)
+
+# This discards everything from the old env
+  def reset_env(self, envstr):
+    last_obs, env_id = new_episode(envstr.env, self.episodes_files)
+    envstr.last_obs = last_obs
+    envstr.env_id = env_id
+    envstr.curr_step = 0
+    envstr.episode_memory = []
+    return last_obs
+
+# Step the entire pipeline one step, reseting any new envs. 
 
   def step_all(self, model):
     step_obs = []
     # if len(self.completed_episodes) > 0:
     #   ipdb.set_trace()
     for envstr in self.envs:
-      if not envstr.last_obs:
-        last_obs, env_id = new_episode(envstr.env, self.episodes_files)
-        envstr.last_obs = last_obs
-        envstr.env_id = env_id
-        envstr.episode_memory = ReplayMemory(2000)
+      if not envstr.last_obs or envstr.curr_step > MAX_STEP:
+        self.reset_env(envstr)
       step_obs.append(envstr.last_obs)
 
     obs_batch = collate_observations(step_obs)
@@ -64,29 +108,35 @@ class EpisodeManager(object):
     # self.settings.LongTensor(np.array(actions)[:,0]).contiguous().view(-1,1)
     for i, envstr in enumerate(self.envs):
       env = envstr.env
-      envstr.episode_memory.push(step_obs[i],actions[i],None, None, envstr.env_id)
+      env_id = envstr.env_id
+      envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id))
+      self.real_steps += 1
+      envstr.curr_step += 1
       if allowed_actions[i][actions[i][0]]:
-        env_obs = EnvObservation(*env.step(actions[i]))
+        env_obs = EnvObservation(*env.step(actions[i]))        
         done = env_obs.done
       else:
         print('Chose an invalid action!')
         env.rewards = env.terminate()
-        env.rewards = np.append(env.rewards,INVALID_ACTION_REWARDS)
+        env.rewards = np.append(env.rewards,self.INVALID_ACTION_REWARDS)
         done = True       
       if done:
-        for i,r in enumerate(env.rewards):
-          envstr.episode_memory[i].reward = r
+        try:
+          for i,r in enumerate(env.rewards):
+            envstr.episode_memory[i].reward = r
+        except:
+          ipdb.set_trace()
         self.completed_episodes.append(envstr.episode_memory)
-        envstr.last_obs = None
+        envstr.last_obs = None      # This will mark the env to reset with a new formula
         if env.finished:
-          self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), entropy, total_steps)
+          self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
         else:        
           print('Env {} did not finish!'.format(env_id))
           self.bad_episodes += 1
           try:
             print(self.reporter.stats_dict[env_id])
             steps = int(np.array([x[0] for x in self.reporter.stats_dict[env_id]]).mean())
-            self.reporter.add_stat(env_id,steps,sum(env.rewards), entropy, total_steps)
+            self.reporter.add_stat(env_id,steps,sum(env.rewards), 0, self.real_steps)
             print('Added it with existing steps average: {}'.format(steps))
           except:
             self.bad_episodes_not_added += 1
@@ -122,10 +172,7 @@ class EpisodeManager(object):
     elif cadet_test:
       return ['?']*bs, None
 
-    if False and not (real_steps % 500):
-      logits, values = model(obs, do_debug=True, **kwargs)
-    else:
-      logits, values = model(obs_batch, **kwargs)
+    logits, values = model(obs_batch, **kwargs)
     
     if testing:
       action = logits.squeeze().max(0)[1].data   # argmax when testing        
@@ -143,7 +190,7 @@ class EpisodeManager(object):
         choices = range(len(flattened_dist))
         while i<1000:
           action = np.random.choice(choices, p=flattened_dist)          
-          action = (int(action/2),action%2)
+          action = (int(action/2),int(action%2))
           if not self.settings['disallowed_aux'] or action_allowed(obs, action):
             break
           i = i+1
@@ -160,6 +207,31 @@ class EpisodeManager(object):
         actions.append(action)
 
     return actions, logits
+
+  def test_envs(self, fnames, **kwargs):
+    ds = QbfDataset(fnames=fnames)
+    print('Testing {} envs..\n'.format(len(ds)))
+    all_episode_files = ds.get_files_list()
+    totals = 0.
+    total_srate = 0.
+    total_scored = 0
+    rc = {}
+    for fname in all_episode_files:
+      print('Starting {}'.format(fname))
+      # average, srate = test_one_env(fname, **kwargs)
+      rc[fname] = test_one_env(fname, **kwargs)
+      average = rc[fname][0]
+      srate = rc[fname][1]
+      total_srate += srate
+      if average:
+        total_scored += 1
+        totals += average        
+    if total_scored > 0:
+      print("Total average: {}. Success rate: {} out of {}".format(totals/total_scored,total_scored,len(ds)))
+      return totals/total_scored
+    else:
+      return 0.
+
 
 
 

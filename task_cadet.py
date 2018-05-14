@@ -35,6 +35,7 @@ exploration = LinearSchedule(1, 1.)
 total_steps = 0
 real_steps = 0
 inference_time = []
+total_inference_time = 0
 lambda_disallowed = settings['lambda_disallowed']
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
@@ -83,7 +84,7 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
     while i<1000:
       action = np.random.choice(choices, p=dist)
       if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
-        action = (int(action/2),action%2)
+        action = (int(action/2),int(action%2))
       if not settings['disallowed_aux'] or action_allowed(obs, action):
         break
       i = i+1
@@ -153,8 +154,7 @@ def ts_bonus(s):
   return b/float(s)
 
 def cadet_main():
-  global all_episode_files, total_steps, curr_lr
-
+  global all_episode_files, total_steps, curr_lr  
   if settings['do_test']:
     test_envs(cadet_test=True, iters=1)
   if settings['do_not_run']:
@@ -173,6 +173,7 @@ def cadet_main():
   reporter.log_env(settings['rl_log_envs'])
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()
+  em = EpisodeManager(all_episode_files,parallelism=settings['parallelism'],reporter=reporter)
   old_logits = None
   disallowed_loss = 0.
   max_iterations = len(ds)*100
@@ -205,36 +206,43 @@ def cadet_main():
     time_steps_this_batch = 0
     begin_time = time.time()
     policy.eval()
-    while time_steps_this_batch < settings['min_timesteps_per_batch']:      
-      episode, env_id, entropy = handle_episode(model=policy)
-      if episode is None:
-        continue
-      s = len(episode)
-      total_envs += [env_id]*s
-      total_steps += s
-      time_steps_this_batch += s      
-      if settings['rl_log_all']:
-        reporter.log_env(env_id)      
-      # episode is a list of half-empty Tranitions - (obs, action, None, None), we want to turn it to (obs,action,None, None)
-      if env.finished:
-        reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
-      else:        
-        print('Env {} did not finish!'.format(env_id))
-        bad_episodes += 1
-        try:
-          print(reporter.stats_dict[env_id])
-          steps = int(np.array([x[0] for x in reporter.stats_dict[env_id]]).mean())
-          reporter.add_stat(env_id,steps,sum(env.rewards), entropy, total_steps)
-          print('Added it with existing steps average: {}'.format(steps))
-        except:
-          bad_episodes_not_added += 1
-          print('Avrage does not exist yet, did not add.')
-        print('Total Bad episodes so far: {}. Bad episodes that were not counted: {}'.format(bad_episodes,bad_episodes_not_added))
 
-      r = discount(env.rewards, settings['gamma'])
-      transition_data.extend([Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(episode, r)])
-    
-    print('Finished batch with total of %d steps in %f seconds' % (time_steps_this_batch, sum(inference_time)))
+    if settings['parallelism'] > 1:
+      while em.episode_lengths() < settings['min_timesteps_per_batch']:
+        em.step_all(policy)
+      transition_data = em.pop_min()    
+    else:
+      while time_steps_this_batch < settings['min_timesteps_per_batch']:      
+        episode, env_id, entropy = handle_episode(model=policy)
+        if episode is None:
+          continue
+        s = len(episode)
+        total_envs += [env_id]*s
+        total_steps += s
+        time_steps_this_batch += s      
+        if settings['rl_log_all']:
+          reporter.log_env(env_id)      
+        # episode is a list of half-empty Tranitions - (obs, action, None, None), we want to turn it to (obs,action,None, None)
+        if env.finished:
+          reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
+        else:        
+          print('Env {} did not finish!'.format(env_id))
+          bad_episodes += 1
+          try:
+            print(reporter.stats_dict[env_id])
+            steps = int(np.array([x[0] for x in reporter.stats_dict[env_id]]).mean())
+            reporter.add_stat(env_id,steps,sum(env.rewards), entropy, total_steps)
+            print('Added it with existing steps average: {}'.format(steps))
+          except:
+            bad_episodes_not_added += 1
+            print('Avrage does not exist yet, did not add.')
+          print('Total Bad episodes so far: {}. Bad episodes that were not counted: {}'.format(bad_episodes,bad_episodes_not_added))
+
+        r = discount(env.rewards, settings['gamma'])
+        transition_data.extend([Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(episode, r)])
+
+    total_inference_time = time.time() - begin_time
+    print('Finished batch with total of %d steps in %f seconds' % (len(transition_data), total_inference_time))
     if not (i % REPORT_EVERY) and i>0:
       reporter.report_stats(total_steps, len(all_episode_files))
       # print('Testing all episodes:')
@@ -264,7 +272,7 @@ def cadet_main():
       disallowed_loss = disallowed_mass.sum()
 
 
-    returns = torch.Tensor(rewards)
+    returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
       adv_t = returns - values.squeeze().data
       value_loss = mse_loss(values, Variable(returns))    
@@ -276,13 +284,11 @@ def cadet_main():
     if len(flattened_actions.size()) > 1:
       flattened_actions = 2*collated_batch.action[:,0] + collated_batch.action[:,1]    
     logprobs = all_logprobs.gather(1,Variable(flattened_actions).view(-1,1)).squeeze()            
-    entropies = (-probs*all_logprobs).sum(1)
-    if settings['cuda']:
-      returns = returns.cuda()
-    adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + np.finfo(np.float32).eps)
+    entropies = (-probs*all_logprobs).sum(1)    
+    adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
     if settings['normalize_episodes']:
-      episodes_weights = normalize_weights(collated_batch.formula.numpy())
-      adv_t = adv_t*torch.Tensor(episodes_weights)
+      episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
+      adv_t = adv_t*settings.FloatTensor(episodes_weights)    
     pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
     # print('--------------------------------------------------------------')
     # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))
@@ -342,6 +348,8 @@ def cadet_main():
 
 
     if i % SAVE_EVERY == 0 and i>0:
+      if settings['parallelism'] > 1:
+        total_steps = em.real_steps
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), total_steps))
     if i % TEST_EVERY == 0 and i>0:
       if settings['rl_validation_data']:

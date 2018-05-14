@@ -186,13 +186,16 @@ class NewDoublePolicy(nn.Module):
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()				
 		self.state_dim = self.settings['state_dim']
 		self.embedding_dim = self.settings['embedding_dim']
+		self.vemb_dim = self.settings['vemb_dim']
+		self.cemb_dim = self.settings['cemb_dim']
 		self.vlabel_dim = self.settings['vlabel_dim']
-		self.final_embedding_dim = 2*self.settings['max_iters']*self.embedding_dim+self.vlabel_dim
+		self.clabel_dim = self.settings['clabel_dim']
+		self.final_embedding_dim = 2*self.settings['max_iters']*self.vemb_dim+self.vlabel_dim
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']		
 		if self.settings['ac_baseline']:
 			self.graph_embedder = GraphEmbedder(settings=self.settings)
-			self.value_score = nn.Linear(self.state_dim+self.embedding_dim,1)
+			self.value_score = nn.Linear(self.state_dim+self.vemb_dim,1)
 		if encoder:
 			print('Bootstraping Policy from existing encoder')
 			self.encoder = encoder
@@ -227,7 +230,7 @@ class NewDoublePolicy(nn.Module):
 		if self.settings['cuda']:
 			cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
 			state, ground_embeddings = state.cuda(), ground_embeddings.cuda()			
-			if clabels:
+			if clabels is not None:
 				clabels = clabels.cuda()
 
 		size = ground_embeddings.size()

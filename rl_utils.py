@@ -122,6 +122,7 @@ def collate_observations(batch, settings=None):
     return State(None, None, None, None, None)
   if not settings:
     settings = CnfSettings()
+  bs = len(batch)
   c_size = max([x.cmat_neg.size(0) for x in batch if x])
   v_size = max([x.cmat_neg.size(1) for x in batch if x])
   states = []
@@ -140,13 +141,13 @@ def collate_observations(batch, settings=None):
       val_pos.append(b.cmat_pos.data._values())
       val_neg.append(b.cmat_neg.data._values())
       embs = b.ground.squeeze()
-      clabels = b.clabels.squeeze()
+      clabels = b.clabels.t()                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)
       l = len(embs)
       if l < v_size:
         embs = torch.cat([embs,torch.zeros([v_size-l,settings['ground_dim']])])
       all_embs.append(embs)
       l = len(clabels)
-      if l < c_size:
+      if l < c_size:        
         clabels = torch.cat([clabels,torch.zeros([c_size-l,settings['clabel_dim']])])
       all_clabels.append(clabels)
       i += 1    
@@ -165,8 +166,8 @@ def collate_transitions(batch, settings=None):
   obs1 = collate_observations([x.state for x in batch], settings)
   obs2 = collate_observations([x.next_state for x in batch], settings)
   rews = settings.FloatTensor([x.reward for x in batch])
-  actions = settings.LongTensor(np.asarray([x.action for x in batch]))
-  formulas = settings.LongTensor(np.asarray([x.formula for x in batch]))
+  actions = settings.LongTensor([x.action for x in batch])
+  formulas = settings.LongTensor([x.formula for x in batch])
   return Transition(obs1,actions,obs2,rews, formulas)
 
 def create_policy(settings=None, is_clone=False):

@@ -272,10 +272,10 @@ class QbfNewEncoder(nn.Module):
 		self.ground_dim = self.settings['ground_dim']
 		self.vlabel_dim = self.settings['ground_dim']
 		self.clabel_dim = self.settings['clabel_dim']
-		self.vemb_dim = self.settings['embedding_dim']
-		self.cemb_dim = self.settings['embedding_dim']
+		self.vemb_dim = self.settings['vemb_dim']
+		self.cemb_dim = self.settings['cemb_dim']
 		self.batch_size = self.settings['batch_size']
-		self.embedding_dim = self.settings['embedding_dim']				
+		# self.embedding_dim = self.settings['embedding_dim']				
 		self.max_iters = self.settings['max_iters']		
 		self.non_linearity = eval(self.settings['non_linearity'])
 		W_L_params = []
@@ -327,8 +327,8 @@ class QbfNewEncoder(nn.Module):
 			pv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],pv).t() + self.B_C_params[t])
 			nv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],nv).t() + self.B_C_params[t])
 			if self.settings['use_bn']:
-				pv_t_pre = self.bn_layers[t](pv_t_pre)
-				nv_t_pre = self.bn_layers[t](nv_t_pre)
+				pv_t_pre = self.bn_layers[t](pv_t_pre.contiguous())
+				nv_t_pre = self.bn_layers[t](nv_t_pre.contiguous())
 			# if bs>1:
 			# 	ipdb.set_trace()			
 			pos_vars = torch.cat([pos_vars,pv_t_pre,nv_t_pre],dim=1)

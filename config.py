@@ -11,10 +11,10 @@ def cfg():
 	exp_time = int(time.time())
 	state_dim = 35
 	embedding_dim = 20
-	vemb_dim = 16
-	cemb_dim = 16
-	# vemb_dim = 8
-	# cemb_dim = 64
+	# vemb_dim = 16
+	# cemb_dim = 16
+	vemb_dim = 8
+	cemb_dim = 64
 	ground_dim = 8
 	vlabel_dim = 8
 	clabel_dim = 1
@@ -24,11 +24,6 @@ def cfg():
 	data_dir = 'data/'
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
-	# base_model = 'run_qbf_base3_bs64_ed30_iters7__1519801625_epoch15.model'
-	# base_model = 'run_qbf_base4_bs64_ed40_iters7__1519842678_epoch200.model'
-	# base_model = 'run_rl_env718_bs64_ed30_iters7__1519807551_iter200.model'
-	# base_model = 'run_rl_env718_test2_bs64_ed30_iters7__1519810118_iter100.model'
-	# base_model = 'run_test2_1_bs128_ed40_iters1__1521592635_iter4600.model'
 	base_model = None
 	base_mode = BaseMode.ALL
 	# base_mode = BaseMode.EMBEDDING

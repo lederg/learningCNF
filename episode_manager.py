@@ -82,8 +82,8 @@ class EpisodeManager(object):
       self.reset_env(envstr)
 
 # This discards everything from the old env
-  def reset_env(self, envstr):
-    last_obs, env_id = new_episode(envstr.env, self.episodes_files)
+  def reset_env(self, envstr, **kwargs):
+    last_obs, env_id = new_episode(envstr.env, self.episodes_files, **kwargs)
     envstr.last_obs = last_obs
     envstr.env_id = env_id
     envstr.curr_step = 0

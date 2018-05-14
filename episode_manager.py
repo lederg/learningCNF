@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import time
 import ipdb
 from collections import namedtuple
 from namedlist import namedlist
@@ -80,6 +81,14 @@ class EpisodeManager(object):
   def reset_all(self):
     for envstr in self.envs:
       self.reset_env(envstr)
+
+
+  def restart_all(self):
+    for envstr in self.envs:
+      envstr.env.stop_cadet(timeout=0)
+    time.sleep(2)
+    for envstr in self.envs:
+      envstr.env.start_cadet()
 
 # This discards everything from the old env
   def reset_env(self, envstr, **kwargs):

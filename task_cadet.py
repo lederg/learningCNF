@@ -173,7 +173,8 @@ def cadet_main():
   reporter.log_env(settings['rl_log_envs'])
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()
-  em = EpisodeManager(all_episode_files,parallelism=settings['parallelism'],reporter=reporter)
+  if settings['parallelism'] > 1:
+    em = EpisodeManager(all_episode_files, parallelism=settings['parallelism'],reporter=reporter)
   old_logits = None
   disallowed_loss = 0.
   max_iterations = len(ds)*100
@@ -344,7 +345,7 @@ def cadet_main():
 
     if settings['restart_cadet_every'] and not (i % settings['restart_cadet_every']) and i > 0:
       if self.settings['parallelism'] > 1:
-        em.reset_all()
+        em.restart_all()
       else:
         env.restart_cadet()   # Restart cadet to deal with memory
 

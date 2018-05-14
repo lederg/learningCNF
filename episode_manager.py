@@ -84,11 +84,12 @@ class EpisodeManager(object):
 
 
   def restart_all(self):
-    for envstr in self.envs:
+    for envstr in self.envs:      
       envstr.env.stop_cadet(timeout=0)
     time.sleep(2)
     for envstr in self.envs:
       envstr.env.start_cadet()
+      envstr.last_obs = None          # This lets step_all know its an "empty" env that got to be reset.
 
 # This discards everything from the old env
   def reset_env(self, envstr, **kwargs):

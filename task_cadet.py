@@ -211,7 +211,9 @@ def cadet_main():
     if settings['parallelism'] > 1:
       while em.episode_lengths() < settings['min_timesteps_per_batch']:
         em.step_all(policy)
-      transition_data = em.pop_min()    
+      transition_data = em.pop_min()
+      total_steps = em.real_steps
+
     else:
       while time_steps_this_batch < settings['min_timesteps_per_batch']:      
         episode, env_id, entropy = handle_episode(model=policy)
@@ -352,8 +354,6 @@ def cadet_main():
 
 
     if i % SAVE_EVERY == 0 and i>0:
-      if settings['parallelism'] > 1:
-        total_steps = em.real_steps
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), total_steps))
     if i % TEST_EVERY == 0 and i>0:
       if settings['rl_validation_data']:

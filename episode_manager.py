@@ -201,7 +201,8 @@ class EpisodeManager(object):
         while i<1000:
           action = np.random.choice(choices, p=flattened_dist)          
           action = (int(action/2),int(action%2))
-          if not self.settings['disallowed_aux'] or action_allowed(obs, action):
+          # ipdb.set_trace()
+          if not self.settings['disallowed_aux'] or allowed_actions[j][action[0]]:
             break
           i = i+1
         if i > self.max_reroll:

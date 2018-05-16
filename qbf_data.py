@@ -14,8 +14,8 @@ import ipdb
 
 _use_shared_memory = False
 
-MAX_VARIABLES = 100000
-MAX_CLAUSES = 500000
+MAX_VARIABLES = 1000000
+MAX_CLAUSES = 5000000
 # MAX_VARIABLES = 10000
 # MAX_CLAUSES = 50000
 GROUND_DIM = 8          # config.ground_dim duplicates this. 

@@ -1,15 +1,16 @@
 #! /bin/bash
 
+echo "-----------Creating Machine-----------"
 docker-machine create --driver amazonec2 --amazonec2-instance-type $2 --amazonec2-region "us-west-2" $1
-echo "Machine created"
+echo "-----------Installing NFS-----------"
 docker-machine ssh $1 "sudo mkdir /efs; sudo apt-get install -y nfs-common"
-echo "Installed NFS"
+echo "-----------Mounting shared volume-----------"
 docker-machine ssh $1 "sudo mount -t nfs -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 fs-3525959c.efs.us-west-2.amazonaws.com:/ /efs"
-echo "Mounted /efs"
+echo "-----------Pulling Docker image-----------"
 docker-machine ssh $1 "sudo docker image pull gilled/learningcnf:v5"
-echo "Loaded docker image"
+echo "-----------Cloning source code-----------"
 docker-machine ssh $1 "git clone 'https://gilled:zbcer%\$T34g@repo.eecs.berkeley.edu/git/users/rabe/learningCNF.git'"
-echo "Cloned source code"
+echo "-----------Checking out $3-----------"
 
 cmd=`docker-machine ssh $1 "cd learningCNF; git checkout $3"`
 echo "$cmd"

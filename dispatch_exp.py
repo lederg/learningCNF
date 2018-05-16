@@ -108,7 +108,7 @@ async def async_dispatch_chain(mname, params, instance_type, rm, commit_name):
 	all_machines.append(mname)
 	if not machine_exists(mname):
 		print('Provisioning machine %s...' % mname)
-		rc = await async_provision_machine(mname,instance_type)				
+		rc = await async_provision_machine(mname,instance_type,commit_name)
 	else:
 		print('Machine already exists, hmm...')
 	print('Running experiment %s on machine %s...' % (params[0],mname))

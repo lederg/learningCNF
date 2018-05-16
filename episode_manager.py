@@ -199,7 +199,7 @@ class EpisodeManager(object):
         flattened_dist = dist.reshape(-1)
         choices = range(len(flattened_dist))
         while i<1000:
-          action = np.random.choice(choices, p=flattened_dist)          
+          action = np.random.choice(choices, p=flattened_dist)
           action = (int(action/2),int(action%2))
           # ipdb.set_trace()
           if not self.settings['disallowed_aux'] or allowed_actions[j][action[0]]:
@@ -216,6 +216,8 @@ class EpisodeManager(object):
           print(flattened_dist.max())
 
         actions.append(action)
+        if (2*action[0]+action[1])>len(flattened_dist):
+          ipdb.set_trace()
 
     return actions, logits
 

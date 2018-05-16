@@ -39,8 +39,6 @@ def filter_dir(dirname, bound):
             with open(fname,'r') as f:
                 l = int(f.readline().split()[2])
                 if l <= bound: rc.append(fname)
-
-
     return rc
 
 

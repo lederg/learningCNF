@@ -37,20 +37,20 @@ def machine_name(name):
 	sanitized_name = ['-' if x == '_' else x for x in name]
 	return ''.join(sanitized_name)+'-'+str(time.time())[-4:]
 
-def provision_machine(name, instance_type=None):
+def provision_machine(name, instance_type=None, commit_name='rl'):
 	if not instance_type:
 		instance_type = DEF_INSTANCE
 	if not machine_exists(name):
-		rc = subprocess.run(['./provision.sh', name, instance_type])
+		rc = subprocess.run(['./provision.sh', name, instance_type, commit_name])
 	else:
 		print('Machine %s already exists!')	
 	assert(machine_exists(name))
 
-async def async_provision_machine(name, instance_type=None):
+async def async_provision_machine(name, instance_type=None, commit_name='rl'):
 	if not instance_type:
 		instance_type = DEF_INSTANCE
 	if not machine_exists(name):
-		rc = await asyncio.create_subprocess_exec('./provision.sh', name, instance_type)
+		rc = await asyncio.create_subprocess_exec('./provision.sh', name, instance_type, commit_name)
 		await rc.communicate()
 		return True
 	else:

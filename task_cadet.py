@@ -43,7 +43,7 @@ curr_lr = init_lr
 max_reroll = 0
 
 
-def select_action(obs, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
+def select_action(obs, model=None, testing=False, max_test=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
   global max_reroll, real_steps
   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
   if random_test:
@@ -65,7 +65,7 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
   else:
     logits, values = model(obs, **kwargs)
   
-  if testing:
+  if max_test:
     action = logits.squeeze().max(0)[1].data   # argmax when testing        
     action = action[0]
     if settings['debug_actions']:
@@ -97,6 +97,11 @@ def select_action(obs, model=None, testing=False, random_test=False, activity_te
       allowed_mass = (probs.view_as(logits).sum(2).data*get_allowed_actions(obs).float()).sum(1)
       print('total allowed mass is {}'.format(allowed_mass.sum()))
       print(dist.max())
+    if i==1000 and testing:     # If we're testing, take random action
+      choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
+      action = np.random.choice(choices)
+      return action, None
+
 
 
   return action, logits
@@ -286,7 +291,10 @@ def cadet_main():
     flattened_actions = collated_batch.action
     if len(flattened_actions.size()) > 1:
       flattened_actions = 2*collated_batch.action[:,0] + collated_batch.action[:,1]    
-    logprobs = all_logprobs.gather(1,Variable(flattened_actions).view(-1,1)).squeeze()            
+    try:
+      logprobs = all_logprobs.gather(1,Variable(flattened_actions).view(-1,1)).squeeze()
+    except:
+      ipdb.set_trace()
     entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
     if settings['normalize_episodes']:

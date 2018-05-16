@@ -43,6 +43,7 @@ def main():
 	parser.add_argument('-c', '--command', type=str, default='reinforce_exp.py', help='Command to run (eg: qbf_exp.py)')	
 	parser.add_argument('-t', '--instance-type', type=str, help='instance type (eg: t2.xlarge)')	
 	parser.add_argument('-m', '--machine', type=str, help='machine name (eg: exp_dqn)')	
+	parser.add_argument('--commit', type=str, default='rl', help='commit to load')	
 	parser.add_argument('-n', '--num', type=int, default=1, help='Number of concurrent experiments')	
 	parser.add_argument('--rm', action='store_true', default=False, help='Delete after experiment is done')	
 	args = parser.parse_args()
@@ -88,7 +89,7 @@ def main():
 		a.insert(0, '%s' % args.command)
 
 		mname = base_mname+'-{}'.format(i)
-		p = async_dispatch_chain(mname,a, args.instance_type, args.rm)
+		p = async_dispatch_chain(mname,a, args.instance_type, args.rm, args.commit)
 		all_executions.append(p)
 
 	for signame in ('SIGINT', 'SIGTERM'):
@@ -103,7 +104,7 @@ def main():
 	# 	remove_machine(mname)
 
 
-async def async_dispatch_chain(mname, params, instance_type, rm):
+async def async_dispatch_chain(mname, params, instance_type, rm, commit_name):
 	all_machines.append(mname)
 	if not machine_exists(mname):
 		print('Provisioning machine %s...' % mname)

@@ -72,6 +72,16 @@ def select_action(obs, model=None, testing=False, max_test=False, random_test=Fa
       print(obs.state)
       print(logits.squeeze().max(0))
       print('Got action {}'.format(action))
+  elif testing:       # Don't resample, just choose only from the real data.
+    allowed = torch.from_numpy(np.where(get_allowed_actions(obs).squeeze().numpy())[0])
+    l = logits.squeeze()[allowed]
+    probs = F.softmax(l.contiguous().view(1,-1))
+    dist = probs.data.cpu().numpy()[0]
+    choices = range(len(dist))
+    aux_action = np.random.choice(choices, p=dist)
+    if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
+      aux_action = (int(aux_action/2),int(aux_action%2))
+      action = (allowed[aux_action[0]], aux_action[1])
   else:
     # probs = F.softmax(logits)
     probs = F.softmax(logits.contiguous().view(1,-1))
@@ -98,13 +108,14 @@ def select_action(obs, model=None, testing=False, max_test=False, random_test=Fa
       print('total allowed mass is {}'.format(allowed_mass.sum()))
       print(dist.max())
     if i==1000 and testing:     # If we're testing, take random action
+      print('Could not choose an action in testing. Choosing at random!')
       choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
       action = np.random.choice(choices)
       return action, None
 
 
 
-  return action, logits
+  return action, logits.contiguous()
 
 
 
@@ -119,7 +130,7 @@ def handle_episode(**kwargs):
     reporter.log_env(env_id)
   entropies = []
 
-  for t in range(2000):  # Don't infinite loop while learning
+  for t in range(3000):  # Don't infinite loop while learning
     begin_time = time.time()
     action, logits = select_action(last_obs, **kwargs)    
     if logits is not None:

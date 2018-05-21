@@ -93,7 +93,7 @@ def cfg():
 	# rl_clip_episode_at = 100
 	debug_actions = False
 	debug = False
-	use_old_rewards = False					#  Must be false if using old cadet
+	use_old_rewards = True					#  Must be false if using old cadet
 	leaky=False
 	cadet_binary = './cadet'
 	# cadet_binary = './old_cadet' 			

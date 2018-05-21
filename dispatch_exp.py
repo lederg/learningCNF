@@ -5,12 +5,10 @@ import subprocess
 import json
 import asyncio
 import signal
+import itertools
 
 from dispatch_utils import *
-
-def_params = {
-    
-}
+from gridparams import *
 
 NAME = 'DEBUG_TEST'
 LOCAL_CMD = ['python', 'run_exp.py']
@@ -54,18 +52,15 @@ def main():
 	base_mname = args.machine if args.machine else machine_name(args.name)
 	params = args.params
 
-# override params, cmdargs > json file > def_params > params defined in source code.
+# override params, cmdargs > params file > params defined in source code.
 
-	if args.file:
-		with open(args.file,'r') as f:
-			# load dict
-			d = json.load(f)
-			for (i,v) in d.items():
-				def_params[i]=v
-
+	grid = GridParams(args.file)
+	def_params = grid.grid_dict()
 	for k in params:
 		a, b = k.split('=')
+		b = b.split(',')
 		def_params[a]=b
+	configs = list(utils.dict_product(def_params))
 
 	mongo_addr = get_mongo_addr(MONGO_MACHINE)+MONGO_SFX
 	if args.command == 'run_exp.py':
@@ -77,14 +72,16 @@ def main():
 	else: 
 		mongo_addr += 'unknown'
 
-	all_params = ['%s=%s' % i for i in def_params.items()]	
-	all_executions = []
+	ipdb.set_trace()
 
-	for i in range(args.num):
-		a = all_params.copy()
+	all_executions = []
+	all_experiments = list(itertools.product(range(args.num),range(len(configs))))
+	for i, conf_num in all_experiments:		
+		conf = configs[conf_num]
+		a = ['%s=%s' % j for j in conf.items()]	
 		if all_params:
 			a.insert(0, 'with')
-		a.insert(0, '--name %s-%d' % (str(args.name),i))
+		a.insert(0, '--name %s-%d-%d' % (str(args.name),i,conf_num))
 		a.insert(0, '-m %s' % mongo_addr)
 		a.insert(0, '%s' % args.command)
 

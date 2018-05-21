@@ -19,14 +19,17 @@ cmp_ops = [bv.BV.__eq__, bv.BV.__ne__, bv.BV.__lt__, bv.BV.__le__, bv.BV.__gt__,
 
 leafs = [bv.BV(word_length, 'x'), bv.BV(word_length, 1)]
 
-variables = ['1 x', '2 y', '2 z']
+variables = ['1 x1', '1 x2', '2 y1', '2 y2']
 
 def variable():
     v = bv.BV(word_length, variables[randint(0, len(variables) - 1)])
     return v
 
 def constant_expr():
-    c = bv.BV(word_length, 1)
+    if randint(0, 4) == 0:
+        c = bv.BV(word_length, randint(- 2**word_length + 1, 2**word_length -1))
+    else: 
+        c = bv.BV(word_length, 1)
     return c
 
 def leaf_expr(size):  # constant or variable
@@ -136,6 +139,9 @@ def parse_cmdline():
     p.add_argument('-w', '--word_size', dest='word_size',
                    action='store', nargs='?', default=8, type=int, metavar='W',
                    help='Word size (default 8).')
+    p.add_argument('-e', '--expr_size', dest='expr_size',
+                   action='store', nargs='?', default=8, type=int, metavar='W',
+                   help='Number of nodes in the syntax tree of the expressions (default 8).')
     p.add_argument('-d', '--directory', dest='directory', action='store',
                    default='../data/words',
                    help='Directory to write the formulas to.')
@@ -169,26 +175,30 @@ def main():
     num_attempts = 0
 
     while num_generated < args.num_generated:
-        print('Generating file no {}'.format(num_generated+1))
+        if num_attempts == 0:
+            print('Generating file no {}'.format(num_generated+1))
         num_attempts += 1
 
-        e = random_circuit(9)
+        e = random_circuit(args.expr_size)
 
         if len(e.aig.gates) == 0:
-            print('Too few variables')
+            print('    Too few variables')
             continue
         if len(e.aig.gates) > args.maxvars:
-            print('Too many variables')
+            print('    Too many variables')
             continue
-        if '1 x' not in e.variables:
-            print('No universals')
+        if '1 x1' not in e.variables and '1 x2' not in e.variables:
+            print('    No universals')
             continue
 
-        (returncode, _, decisions) = eval_formula(str(e), args.repetitions)
-        if returncode not in [10, 20]:
+        (returncode, _, decisions) = eval_formula(str(e), args.repetitions, args.max_hardness * 10)
+        if returncode == 30:
+            print('    Hit the decision limit')
+            continue
+        if returncode not in [10, 20, 30]:
             errfiledir = '{}/err{}_{}.{}'.format(args.directory,
                                                  str(num_generated),
-                                                 result_string,
+                                                 returncode,
                                                  file_extension)
             print(f"Warning: unexpected return code: {returncode};"
                   "writing formula to {errfiledir} and ignoring it")
@@ -197,7 +207,6 @@ def main():
             textfile.close()
             continue
 
-        print('decisions {}'.format(decisions))
         if args.max_hardness >= decisions >= args.min_hardness:
             if returncode == 10:
                 result_string = 'SAT'
@@ -205,6 +214,7 @@ def main():
             else:  # returncode == 20:
                 result_string = 'UNSAT'
                 num_unsat += 1
+            print(f'    Found a good formula! Decisions {decisions}; {result_string}')
 
             filedir = '{}/{}{}_{}.{}'.format(
                         args.directory,
@@ -217,10 +227,9 @@ def main():
             textfile.write(str(e))
             textfile.close()
             num_generated += 1
+            num_attempts = 0
         else:
-            print('Failed to generate: '
-                  'number of decisions is {}, which is not in bounds [{},{}]'.
-                  format(decisions, args.min_hardness, args.max_hardness))
+            print(f'    Not the right number of decisions: {decisions}')
 
     print('Generated {} SAT and {} UNSAT formulas'.format(
             str(num_sat),

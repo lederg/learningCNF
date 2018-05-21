@@ -26,8 +26,9 @@ def extract_num_decisions(s):
         return 0
 
 
-def eval_formula(formula, repetitions=1):
+def eval_formula(formula, repetitions=1, decision_limit=0):
     assert isinstance(formula, str)
+    assert isinstance(decision_limit, int)
 
     returncodes = []
     conflicts = []
@@ -41,21 +42,38 @@ def eval_formula(formula, repetitions=1):
         tool = ['./../../cadet/dev/cadet','-v','1',
                 '--debugging',
                 '--cegar_soft_conflict_limit',
+                '-l', f'{decision_limit}',
                 '--sat_by_qbf',
                 '--random_decisions',
                 '--fresh_seed',
                 f.name]
         p = Popen(tool, stdout=PIPE, stdin=PIPE)
         stdout, stderr = p.communicate()
+
+        if p.returncode not in [10, 20, 30]:
+            print(stdout)
+            print(stderr)
+            quit()
         # print('  ' + str(p.returncode))
         # print('  ' + str(stdout))
         # print('  ' + str(stderr))
         
         # print('  Maxvar: ' + str(maxvar))
         # print('  Conflicts: ' + str(extract_num_conflicts(stdout)))
+        if p.returncode == 30:
+            f.close()
+            return 30, 0.0, 0.0
         returncodes.append(p.returncode)
         conflicts.append(extract_num_conflicts(stdout))
-        decisions.append(extract_num_decisions(stdout))
+        num_decisions = extract_num_decisions(stdout)
+        decisions.append(num_decisions)
+
+        if decision_limit != 0 and num_decisions > decision_limit:
+            print('Error: decision limit was violated')
+            print(formula)
+            print(' '.join(tool))
+            print(stdout)
+            quit()
 
     f.close()
 

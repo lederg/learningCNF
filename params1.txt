@@ -13,4 +13,5 @@ DiscreteParam(name='use_bn', values=[True])
 # decay [1, 0.999, 0.998] (just for example)
 # max iters [1,2,3]
 # min_timesteps_per_batch
-# grad_norm_clipping 
+# grad_norm_clipping
+# regular and slim global state

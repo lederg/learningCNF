@@ -117,16 +117,19 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels)
   return rc, env_id
 
-def get_ground_index(obs, idx):
-  return obs.ground.long().data[:,:,idx].byte()
+def get_ground_index(obs, idx, packed=False):
+  if packed:
+    return obs.ground.long().data[:,idx].byte()
+  else:    
+    return obs.ground.long().data[:,:,idx].byte()
 
-def get_determinized(obs):
-  return get_ground_index(obs,IDX_VAR_DETERMINIZED)  
+def get_determinized(obs, **kwargs):
+  return get_ground_index(obs,IDX_VAR_DETERMINIZED, **kwargs)  
 
 # A dirty hack implementing !determinized && existential
 
-def get_allowed_actions(obs):
-  return (get_determinized(obs)^1 + get_ground_index(obs,IDX_VAR_EXISTENTIAL)) == 2
+def get_allowed_actions(obs, **kwargs):
+  return (get_determinized(obs, **kwargs)^1 + get_ground_index(obs,IDX_VAR_EXISTENTIAL, **kwargs)) == 2
 
 def action_allowed(obs, action):
   if action == '?':

@@ -159,6 +159,41 @@ def collate_observations(batch, settings=None):
   #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
   return State(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.stack(all_embs), torch.stack(all_clabels))
 
+def packed_collate_observations(batch, settings=None):
+  if batch.count(None) == len(batch):
+    return State(None, None, None, None, None)
+  if not settings:
+    settings = CnfSettings()
+  bs = len(batch)
+  c_size = max([x.cmat_neg.size(0) for x in batch if x])
+  v_size = max([x.cmat_neg.size(1) for x in batch if x])
+  states = []
+  ind_pos = []
+  ind_neg = []
+  val_pos = []
+  val_neg = []
+  all_embs = []
+  all_clabels = []
+  v_indices = [0]
+  c_indices = [0]
+  
+  for b in batch:
+    if b:      
+      states.append(b.state)
+      ind_pos.append(b.cmat_pos.data._indices() + torch.LongTensor([c_indices[-1],v_indices[-1]]).view(2,1))
+      ind_neg.append(b.cmat_neg.data._indices() + torch.LongTensor([c_indices[-1],v_indices[-1]]).view(2,1))
+      val_pos.append(b.cmat_pos.data._values())
+      val_neg.append(b.cmat_neg.data._values())
+      c_indices.append(c_indices[-1] + b.cmat_pos.size(0))
+      v_indices.append(v_indices[-1] + b.cmat_pos.size(1))
+      embs = b.ground.squeeze()
+      clabels = b.clabels.t()                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)      
+      all_embs.append(embs)
+      all_clabels.append(clabels)
+  cmat_pos = torch.sparse.FloatTensor(torch.cat(ind_pos,1),torch.cat(val_pos),torch.Size([c_indices[-1],v_indices[-1]]))
+  cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_indices[-1],v_indices[-1]]))
+  return PackedState(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.cat(all_embs), torch.cat(all_clabels), (c_indices, v_indices))
+
 def collate_transitions(batch, settings=None):  
   if not settings:
     settings = CnfSettings()

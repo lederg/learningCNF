@@ -106,6 +106,7 @@ def cfg():
 	use_bn = False
 	normalize_episodes = False
 	parallelism = 1
+	packed = True
 
 	grad_norm_clipping = 2
 	pre_bias = True  # deprecate

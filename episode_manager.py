@@ -111,8 +111,12 @@ class EpisodeManager(object):
         self.reset_env(envstr)
       step_obs.append(envstr.last_obs)
 
-    obs_batch = collate_observations(step_obs)
-    allowed_actions = get_allowed_actions(obs_batch)
+    if self.settings['packed']:
+      obs_batch = packed_collate_observations(step_obs)
+    else:
+      obs_batch = collate_observations(step_obs)
+    allowed_actions = get_allowed_actions(obs_batch,packed=self.settings['packed'])
+    ipdb.set_trace()
     actions, logits = self.select_action(obs_batch, model=model)
     
     # self.settings.LongTensor(np.array(actions)[:,0]).contiguous().view(-1,1)

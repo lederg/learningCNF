@@ -311,8 +311,9 @@ class QbfNewEncoder(nn.Module):
 		size = vlabels.size()
 		bs = size[0]
 		maxvars = size[1]
-		pos_vars = vlabels.view(-1,self.vlabel_dim)
-		neg_vars = vlabels.view(-1,self.vlabel_dim)
+		# ipdb.set_trace()
+		pos_vars = vlabels
+		neg_vars = vlabels
 		vmat_pos = cmat_pos.t()
 		vmat_neg = cmat_neg.t()
 
@@ -321,7 +322,7 @@ class QbfNewEncoder(nn.Module):
 			av = (torch.mm(cmat_pos,pos_vars)+torch.mm(cmat_neg,neg_vars)).t()
 			c_t_pre = self.non_linearity(torch.mm(self.W_L_params[t],av).t() + self.B_L_params[t])
 			# ipdb.set_trace()
-			c_t = torch.cat([clabels.view(-1,self.clabel_dim),c_t_pre],dim=1)
+			c_t = torch.cat([clabels,c_t_pre],dim=1)
 			pv = torch.mm(vmat_pos,c_t).t()
 			nv = torch.mm(vmat_neg,c_t).t()
 			pv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],pv).t() + self.B_C_params[t])

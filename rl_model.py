@@ -238,7 +238,7 @@ class NewDoublePolicy(nn.Module):
 		if 'vs' in kwargs.keys():
 			vs = kwargs['vs']		
 		else:						
-			pos_vars, neg_vars = self.encoder(ground_embeddings, clabels, cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
+			pos_vars, neg_vars = self.encoder(ground_embeddings.view(-1,self.vlabel_dim), clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
 			vs_pos = pos_vars.view(self.batch_size,-1,self.final_embedding_dim)
 			vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
 			vs = torch.cat([vs_pos,vs_neg])

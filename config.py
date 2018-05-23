@@ -102,7 +102,7 @@ def cfg():
 	use_global_state = True
 	clause_learning = True
 	vars_set = True
-	use_gru = True  # deprecated
+	use_gru = False  # deprecated
 	use_bn = False
 	normalize_episodes = False
 	parallelism = 1

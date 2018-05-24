@@ -220,7 +220,7 @@ class NewDoublePolicy(nn.Module):
 
 	# cmat_net and cmat_pos are already "batched" into a single matrix
 
-	def forward(self, obs, **kwargs):
+	def forward2(self, obs, **kwargs):
 		state = obs.state
 		ground_embeddings = obs.ground
 		clabels = obs.clabels
@@ -245,6 +245,7 @@ class NewDoublePolicy(nn.Module):
 			if 'do_debug' in kwargs:
 				ipdb.set_trace()
 
+		ipdb.set_trace()
 		if self.settings['use_global_state']:
 			# if self.batch_size > 1:
 			# 	ipdb.set_trace()
@@ -270,5 +271,44 @@ class NewDoublePolicy(nn.Module):
 			value = None
 		return outputs, value
 
-		# rc = F.softmax(valid_outputs)
-		# return rc
+	def forward(self, obs, packed=False, **kwargs):
+		if not packed:
+			return self.forward2(obs,**kwargs)
+		state = obs.state
+		ground_embeddings = obs.ground
+		clabels = obs.clabels
+		cmat_pos = obs.cmat_pos		
+		cmat_neg = obs.cmat_neg
+
+		if self.settings['cuda']:
+			cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+			state, ground_embeddings = state.cuda(), ground_embeddings.cuda()			
+			if clabels is not None:
+				clabels = clabels.cuda()
+
+		size = ground_embeddings.size()
+		self.batch_size=size[0]
+		if 'vs' in kwargs.keys():
+			vs = kwargs['vs']		
+		else:						
+			vs_pos, vs_neg = self.encoder(ground_embeddings, clabels, cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
+			vs = torch.cat([vs_pos,vs_neg])
+			if 'do_debug' in kwargs:
+				ipdb.set_trace()
+				
+
+		if self.settings['use_global_state']:
+			reshaped_state = []
+			for i in range(len(obs.pack_indices[1])-1):
+				reshaped_state.append(state[i].expand(obs.pack_indices[1][i+1]-obs.pack_indices[1][i],self.state_dim))
+			reshaped_state = torch.cat(reshaped_state)
+			reshaped_state = reshaped_state.unsqueeze(0).expand(2,*reshaped_state.size()).contiguous().view(-1,self.state_dim)
+			inputs = torch.cat([reshaped_state, vs],dim=1)
+		else:
+			inputs = vs
+
+		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
+		outputs = outputs.view(2,self.batch_size).transpose(1,0)	# batch x pos-neg
+
+		value = None
+		return outputs, value

@@ -51,6 +51,7 @@ class EpisodeManager(object):
     self.settings = CnfSettings()
     self.parallelism = parallelism
     self.episodes_files = episodes_files
+    self.packed = self.settings['packed']
     self.envs = []
     self.completed_episodes = []
     self.real_steps = 0
@@ -111,33 +112,33 @@ class EpisodeManager(object):
         self.reset_env(envstr)
       step_obs.append(envstr.last_obs)
 
-    if self.settings['packed']:
+    if self.packed:
       obs_batch = packed_collate_observations(step_obs)
+      vp_ind = obs_batch.pack_indices[1]
     else:
       obs_batch = collate_observations(step_obs)
     allowed_actions = get_allowed_actions(obs_batch,packed=self.settings['packed'])
+    actions, logits = self.packed_select_action(obs_batch, model=model) if self.packed else self.select_action(obs_batch, model=model)
     ipdb.set_trace()
-    actions, logits = self.select_action(obs_batch, model=model)
     
-    # self.settings.LongTensor(np.array(actions)[:,0]).contiguous().view(-1,1)
     for i, envstr in enumerate(self.envs):
       env = envstr.env
       env_id = envstr.env_id
       envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id))
       self.real_steps += 1
       envstr.curr_step += 1
-      if allowed_actions[i][actions[i][0]]:
+      if allowed_actions[vp_ind[i]+actions[i][0]]:
         env_obs = EnvObservation(*env.step(actions[i]))        
         done = env_obs.done
       else:
-        print('Chose an invalid action!')
+        print('Chose an invalid action! In the packed version. That was not supposed to happen.')
         env.rewards = env.terminate()
         env.rewards = np.append(env.rewards,self.INVALID_ACTION_REWARDS)
         done = True       
       if done:
         try:
-          for i,r in enumerate(env.rewards):
-            envstr.episode_memory[i].reward = r
+          for j,r in enumerate(env.rewards):
+            envstr.episode_memory[j].reward = r
         except:
           ipdb.set_trace()
         self.completed_episodes.append(envstr.episode_memory)
@@ -145,18 +146,7 @@ class EpisodeManager(object):
         if env.finished:
           self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
         else:        
-          print('Env {} did not finish!'.format(env_id))
-          self.bad_episodes += 1
-          try:
-            print(self.reporter.stats_dict[env_id])
-            steps = int(np.array([x[0] for x in self.reporter.stats_dict[env_id]]).mean())
-            self.reporter.add_stat(env_id,steps,sum(env.rewards), 0, self.real_steps)
-            print('Added it with existing steps average: {}'.format(steps))
-          except:
-            self.bad_episodes_not_added += 1
-            print('Average does not exist yet, did not add.')
-          print('Total Bad episodes so far: {}. Bad episodes that were not counted: {}'.format(self.bad_episodes,self.bad_episodes_not_added))
-
+          ipdb.set_trace()
       else:
         envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 
@@ -223,6 +213,51 @@ class EpisodeManager(object):
         if (2*action[0]+action[1])>len(flattened_dist):
           ipdb.set_trace()
 
+    return actions, logits
+
+  def packed_select_action(self, obs_batch, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):        
+    bs = len(obs_batch.ground)
+    activities = obs_batch.ground.data.numpy()[:,IDX_VAR_ACTIVITY]
+    allowed_actions = get_allowed_actions(obs_batch, packed=True)
+    actions = []
+    pack_indices = obs_batch.pack_indices
+
+    if random_test:
+      i=0
+      while i < len(pack_indices):
+        choices = np.where(allowed[pack_indices[i]:pack_indices[i+1]].numpy())[0]
+        
+      for allowed in allowed_actions:
+        choices = np.where(allowed.numpy())[0]
+        actions.append(np.random.choice(choices))
+
+      return actions, None
+    elif activity_test:
+      for i,act in enumerate(activities):
+        if np.any(act):
+          actions.append(np.argmax(act))
+        else:
+          choices = np.where(allowed_actions[i].numpy())[0]
+          actions.append(np.random.choice(choices))
+      return actions, None
+    elif cadet_test:
+      return ['?']*bs, None
+
+    logits, values = model(obs_batch, packed=self.packed, **kwargs)
+    vp_ind = obs_batch.pack_indices[1]
+    for i in range(len(vp_ind)-1):
+      ith_allowed = allowed_actions[vp_ind[i]:vp_ind[i+1]]
+      ith_logits = logits[vp_ind[i]:vp_ind[i+1]]
+      allowed_idx = torch.from_numpy(np.where(ith_allowed.numpy())[0])
+      l = ith_logits[allowed_idx]
+      probs = F.softmax(l.contiguous().view(1,-1))
+      dist = probs.data.cpu().numpy()[0]
+      choices = range(len(dist))
+      aux_action = np.random.choice(choices, p=dist)
+      aux_action = (int(aux_action/2),int(aux_action%2))
+      action = (allowed_idx[aux_action[0]], aux_action[1])
+      actions.append(action)
+      
     return actions, logits
 
   def test_envs(self, fnames, **kwargs):

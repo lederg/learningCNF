@@ -194,12 +194,13 @@ def packed_collate_observations(batch, settings=None):
   cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_indices[-1],v_indices[-1]]))
   return PackedState(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.cat(all_embs), torch.cat(all_clabels), (c_indices, v_indices))
 
-def collate_transitions(batch, settings=None):  
+def collate_transitions(batch, settings=None, packed=False):  
   if not settings:
     settings = CnfSettings()
 
-  obs1 = collate_observations([x.state for x in batch], settings)
-  obs2 = collate_observations([x.next_state for x in batch], settings)
+  collate_fn = packed_collate_observations if packed else collate_observations
+  obs1 = collate_fn([x.state for x in batch], settings)
+  obs2 = collate_fn([x.next_state for x in batch], settings)
   rews = settings.FloatTensor([x.reward for x in batch])
   actions = settings.LongTensor([x.action for x in batch])
   formulas = settings.LongTensor([x.formula for x in batch])
@@ -226,6 +227,21 @@ def create_policy(settings=None, is_clone=False):
     policy = policy.cuda()
 
   return policy
+
+def unpack_logits(logits, vp_ind, settings=None):
+  if not settings:
+    settings = CnfSettings()  
+  sizes = [vp_ind[i+1] - vp_ind[i] for i in range(len(vp_ind)-1)]
+  vmax = max(sizes)
+  zero_seed = Variable(settings.zeros(1))
+  rc = []
+  for i, l in enumerate(sizes):
+    if vmax-l:
+      rc.append(torch.cat([logits[vp_ind[i]:vp_ind[i+1]], zero_seed.expand(vmax-l,2)]))
+    else:
+      rc.append(logits[vp_ind[i]:vp_ind[i+1]])    
+  return torch.stack(rc)
+
 
 def safe_logprobs(probs, settings=None, thres=1e-4):
   if not settings:

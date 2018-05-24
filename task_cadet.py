@@ -228,7 +228,7 @@ def cadet_main():
       while em.episode_lengths() < settings['min_timesteps_per_batch']:
         em.step_all(policy)
       transition_data = em.pop_min()
-      total_steps = em.real_steps
+      total_steps = em.real_steps      
 
     else:
       while time_steps_this_batch < settings['min_timesteps_per_batch']:      
@@ -278,6 +278,8 @@ def cadet_main():
     _, _, _, rewards, _ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
     logits, values = policy(collated_batch.state)
+    # unpacked_logits = unpack_logits(logits, collated_batch.state.pack_indices[1])
+    ipdb.set_trace()
     effective_bs = len(logits)
     probs = F.softmax(logits.contiguous().view(effective_bs,-1))
     all_logprobs = safe_logprobs(probs)

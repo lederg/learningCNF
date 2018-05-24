@@ -117,9 +117,8 @@ class EpisodeManager(object):
       vp_ind = obs_batch.pack_indices[1]
     else:
       obs_batch = collate_observations(step_obs)
-    allowed_actions = get_allowed_actions(obs_batch,packed=self.settings['packed'])
+    allowed_actions = get_allowed_actions(obs_batch,packed=self.packed)
     actions, logits = self.packed_select_action(obs_batch, model=model) if self.packed else self.select_action(obs_batch, model=model)
-    ipdb.set_trace()
     
     for i, envstr in enumerate(self.envs):
       env = envstr.env

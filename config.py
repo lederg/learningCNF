@@ -71,7 +71,7 @@ def cfg():
 
 	gamma = 0.99
 	entropy_alpha = 0.000
-	policy = 'Policy'
+	policy = 'NewDoublePolicy'
 	policy_dim1 = 64
 	policy_dim2 = 32
 	batch_backwards = False  # deprecated					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)

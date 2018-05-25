@@ -72,14 +72,14 @@ def main():
 	else: 
 		mongo_addr += 'unknown'
 
-	ipdb.set_trace()
+	# ipdb.set_trace()
 
 	all_executions = []
 	all_experiments = list(itertools.product(range(args.num),range(len(configs))))
 	for i, conf_num in all_experiments:		
 		conf = configs[conf_num]
 		a = ['%s=%s' % j for j in conf.items()]	
-		if all_params:
+		if conf:
 			a.insert(0, 'with')
 		a.insert(0, '--name %s-%d-%d' % (str(args.name),i,conf_num))
 		a.insert(0, '-m %s' % mongo_addr)

@@ -72,7 +72,7 @@ def select_action(obs, model=None, testing=False, max_test=False, random_test=Fa
       print(obs.state)
       print(logits.squeeze().max(0))
       print('Got action {}'.format(action))
-  elif testing:       # Don't resample, just choose only from the real data.
+  elif testing or settings['packed']:       # Don't resample, just choose only from the real data.
     allowed = torch.from_numpy(np.where(get_allowed_actions(obs).squeeze().numpy())[0])
     l = logits.squeeze()[allowed]
     probs = F.softmax(l.contiguous().view(1,-1))
@@ -116,8 +116,6 @@ def select_action(obs, model=None, testing=False, max_test=False, random_test=Fa
 
 
   return action, logits.contiguous()
-
-
 
 def handle_episode(**kwargs):
   episode_memory = ReplayMemory(5000)
@@ -287,7 +285,7 @@ def cadet_main():
     if settings['packed']:
       allowed_mask = allowed_actions.unsqueeze(2).expand_as(logits).contiguous().view_as(flattened_logits).float()
       probs, debug_probs = masked_softmax2d_loop(flattened_logits,allowed_mask)
-      # probs, debug_probs = masked_softmax2d_loop(flattened_logits,allowed_mask)
+      # probs, debug_probs = masked_softmax2d(flattened_logits,allowed_mask)
     else:
       probs = F.softmax(logits.contiguous().view(effective_bs,-1))
     all_logprobs = safe_logprobs(probs)

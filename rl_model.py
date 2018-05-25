@@ -245,7 +245,6 @@ class NewDoublePolicy(nn.Module):
 			if 'do_debug' in kwargs:
 				ipdb.set_trace()
 
-		ipdb.set_trace()
 		if self.settings['use_global_state']:
 			# if self.batch_size > 1:
 			# 	ipdb.set_trace()

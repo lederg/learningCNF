@@ -72,8 +72,8 @@ def cfg():
 	gamma = 0.99
 	entropy_alpha = 0.000
 	policy = 'Policy'
-	policy_dim1 = 32
-	policy_dim2 = 16
+	policy_dim1 = 64
+	policy_dim2 = 32
 	batch_backwards = False  # deprecated					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
 	# greedy_rewards = True
 	greedy_rewards = False
@@ -109,7 +109,7 @@ def cfg():
 	packed = True
 
 	grad_norm_clipping = 2
-	pre_bias = True  # deprecate
+	pre_bias = False  # deprecate
 	disallowed_aux = False
 	lambda_disallowed = 1.
 	invalid_bias = -1000  # deprecate

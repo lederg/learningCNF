@@ -278,20 +278,26 @@ def cadet_main():
     _, _, _, rewards, _ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
     logits, values = policy(collated_batch.state)
+    allowed_actions = Variable(get_allowed_actions(collated_batch.state))
+    if settings['cuda']:
+      allowed_actions = allowed_actions.cuda()
     # unpacked_logits = unpack_logits(logits, collated_batch.state.pack_indices[1])
-    ipdb.set_trace()
     effective_bs = len(logits)
-    probs = F.softmax(logits.contiguous().view(effective_bs,-1))
+    flattened_logits = logits.contiguous().view(effective_bs,-1)
+    if settings['packed']:
+      allowed_mask = allowed_actions.unsqueeze(2).expand_as(logits).contiguous().view_as(flattened_logits).float()
+      probs, debug_probs = masked_softmax2d_loop(flattened_logits,allowed_mask)
+      # probs, debug_probs = masked_softmax2d_loop(flattened_logits,allowed_mask)
+    else:
+      probs = F.softmax(logits.contiguous().view(effective_bs,-1))
     all_logprobs = safe_logprobs(probs)
-    if not settings['pre_bias'] and settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
-      # ipdb.set_trace()
-      aux_probs = F.softmax(logits.view(effective_bs,-1)).view_as(logits)
-      disallowed_actions = Variable(get_allowed_actions(collated_batch.state)^1).float()
+    if settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
+      aux_probs = F.softmax(logits.contiguous().view(effective_bs,-1)).view_as(logits)
+      disallowed_actions = Variable(allowed_actions.data^1).float()
       if len(logits.size()) > len(disallowed_actions.size()):        
         disallowed_actions = disallowed_actions.unsqueeze(2).expand_as(logits)
       disallowed_mass = (aux_probs*disallowed_actions).view(effective_bs,-1).sum(1)
       disallowed_loss = disallowed_mass.sum()
-
 
     returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
@@ -309,11 +315,13 @@ def cadet_main():
     except:
       ipdb.set_trace()
     entropies = (-probs*all_logprobs).sum(1)    
+    # ipdb.set_trace()
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
     if settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
       adv_t = adv_t*settings.FloatTensor(episodes_weights)    
-    pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
+    pg_loss = (-Variable(adv_t)*logprobs).sum()
+    # pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
     # print('--------------------------------------------------------------')
     # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))
     # print('entropies are {}'.format(entropies.mean().data[0]))

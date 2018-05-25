@@ -248,6 +248,8 @@ class EpisodeManager(object):
       ith_allowed = allowed_actions[vp_ind[i]:vp_ind[i+1]]
       ith_logits = logits[vp_ind[i]:vp_ind[i+1]]
       allowed_idx = torch.from_numpy(np.where(ith_allowed.numpy())[0])
+      if self.settings['cuda']:
+        allowed_idx = allowed_idx.cuda()
       l = ith_logits[allowed_idx]
       probs = F.softmax(l.contiguous().view(1,-1))
       dist = probs.data.cpu().numpy()[0]

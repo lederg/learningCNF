@@ -22,7 +22,7 @@ def require_init(f, *args, **kwargs):
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     
 class CadetEnv:
-  def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, 
+  def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, slim_state=False,
                 use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, **kwargs):
     self.cadet_binary = cadet_binary
     self.debug = debug
@@ -32,6 +32,7 @@ class CadetEnv:
     self.vars_set = vars_set
     self.fresh_seed = fresh_seed
     self.use_old_rewards = use_old_rewards
+    self.slim_state = slim_state
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.    
     self.tail = deque([],LOG_SIZE)
     self.start_cadet()
@@ -45,6 +46,9 @@ class CadetEnv:
     if self.fresh_seed:
       print('Using fresh seed!')
       cadet_params.append('--fresh_seed')
+    if self.slim_state:
+      print('Using slim_state!')
+      cadet_params.append('--rl_slim_state')
 
     self.cadet_proc = Popen([self.cadet_binary,  *cadet_params], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
     self.poll_obj = select.poll()
@@ -271,8 +275,6 @@ class CadetEnv:
       ipdb.set_trace()
     if self.done:
       self.rewards = self.rewards + self.greedy_alpha*np.asarray(self.running_reward)
-
-    # on-line rewards, for Q-learning
 
     return state, pos_vars, neg_vars, self.activities, decision, clause, reward, np.array(vars_set), self.done
 

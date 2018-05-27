@@ -243,11 +243,11 @@ def unpack_logits(logits, vp_ind, settings=None):
   return torch.stack(rc)
 
 def masked_softmax2d(A, mask):
-  ipdb.set_trace()
-  A_max = torch.max(A*mask,dim=1,keepdim=True)[0]
-  B = A*mask - A_max
-  B_mean = torch.mean(B*mask,dim=1,keepdim=True)
-  A_exp = torch.exp(B*mask-B_mean)
+  # ipdb.set_trace()
+  antimask = (1-mask)*(-1e20)
+  A_max = torch.max(A*mask+antimask,dim=1,keepdim=True)[0]
+  B = A*mask - A_max  
+  A_exp = torch.exp(torch.clamp(B*mask,max=20))
   A_exp = A_exp * mask 
   Z = torch.sum(A_exp,dim=1,keepdim=True)
   A_softmax = A_exp / Z

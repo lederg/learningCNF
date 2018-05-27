@@ -9,7 +9,7 @@ ex = Experiment('REINFORCE')
 def cfg():	
 	name = 'DEF_NAME'
 	exp_time = int(time.time())
-	state_dim = 35
+	state_dim = 36
 	embedding_dim = 20  # deprecated
 	# vemb_dim = 16
 	# cemb_dim = 16
@@ -106,7 +106,9 @@ def cfg():
 	use_bn = False
 	normalize_episodes = False
 	parallelism = 1
+	full_pipeline = True
 	packed = True
+	slim_state=False
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

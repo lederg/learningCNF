@@ -226,7 +226,9 @@ def cadet_main():
       while em.episode_lengths() < settings['min_timesteps_per_batch']:
         em.step_all(policy)
       transition_data = em.pop_min()
-      total_steps = em.real_steps      
+      total_steps = em.real_steps
+      if not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
+        em.reset_all()
 
     else:
       while time_steps_this_batch < settings['min_timesteps_per_batch']:      
@@ -284,8 +286,8 @@ def cadet_main():
     flattened_logits = logits.contiguous().view(effective_bs,-1)
     if settings['packed']:
       allowed_mask = allowed_actions.unsqueeze(2).expand_as(logits).contiguous().view_as(flattened_logits).float()
-      probs, debug_probs = masked_softmax2d_loop(flattened_logits,allowed_mask)
-      # probs, debug_probs = masked_softmax2d(flattened_logits,allowed_mask)
+      # probs, debug_probs = masked_softmax2d_loop(flattened_logits,allowed_mask)
+      probs, debug_probs = masked_softmax2d(flattened_logits,allowed_mask)
     else:
       probs = F.softmax(logits.contiguous().view(effective_bs,-1))
     all_logprobs = safe_logprobs(probs)

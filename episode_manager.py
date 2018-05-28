@@ -64,6 +64,11 @@ class EpisodeManager(object):
     for i in range(parallelism):
       self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None, None))
 
+  def check_batch_finished(self):
+    if self.settings['normalize_episodes']:
+      return not (len(self.completed_episodes) < self.settings['episodes_per_batch'])
+    else:
+      return not (self.episode_lengths() < self.settings['min_timesteps_per_batch'])
   def episode_lengths(self, num=0):
     rc = self.completed_episodes if num==0 else self.completed_episodes[:num]
     return sum([len(x) for x in rc])
@@ -71,9 +76,18 @@ class EpisodeManager(object):
   def pop_min(self, num=0):
     if num == 0:
       num = self.settings['min_timesteps_per_batch']
-    total = 0
     rc = []
     while len(rc) < num:
+      ep = discount_episode(self.completed_episodes.pop(0),self.settings['gamma'])
+      rc.extend(ep)
+
+    return rc
+
+  def pop_min_normalized(self, num=0):
+    if num == 0:
+      num = self.settings['episodes_per_batch']
+    rc = []
+    for _ in range(num):
       ep = discount_episode(self.completed_episodes.pop(0),self.settings['gamma'])
       rc.extend(ep)
 

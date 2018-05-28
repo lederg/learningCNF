@@ -187,8 +187,7 @@ def cadet_main():
   reporter.log_env(settings['rl_log_envs'])
   ds = QbfDataset(fnames=settings['rl_train_data'])
   all_episode_files = ds.get_files_list()
-  if settings['parallelism'] > 1:
-    em = EpisodeManager(all_episode_files, parallelism=settings['parallelism'],reporter=reporter)
+  em = EpisodeManager(all_episode_files, parallelism=settings['parallelism'],reporter=reporter)
   old_logits = None
   disallowed_loss = 0.
   max_iterations = len(ds)*100
@@ -222,10 +221,10 @@ def cadet_main():
     begin_time = time.time()
     policy.eval()
 
-    if settings['parallelism'] > 1:
-      while em.episode_lengths() < settings['min_timesteps_per_batch']:
+    if True or settings['parallelism'] > 1:
+      while not em.check_batch_finished():
         em.step_all(policy)
-      transition_data = em.pop_min()
+      transition_data = em.pop_min_normalized() if settings['normalize_episodes'] else em.pop_min()
       total_steps = em.real_steps
       if not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
         em.reset_all()

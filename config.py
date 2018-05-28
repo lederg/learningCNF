@@ -98,6 +98,7 @@ def cfg():
 	adaptive_lr = False
 	desired_kl = 1e-6
 	min_timesteps_per_batch = 400  # replace by number of formulas per batch after normalization
+	episodes_per_batch = 32
 	ac_baseline = False
 	use_global_state = True
 	clause_learning = True

@@ -93,7 +93,7 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   # Set up ground_embeddings and adjacency matrices
   state, vars_add, vars_remove, activities, _, _ , _, vars_set, _ = env.reset(fname)
   if state is None:   # Env solved in 0 steps
-    return None, env_id
+    return None, env_id, fname
   assert(len(state)==settings['state_dim'])
   ground_embs = env.qbf.get_base_embeddings()
   ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True
@@ -115,7 +115,7 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
   #   state, ground_embs = state.cuda(), ground_embs.cuda()
   rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels)
-  return rc, env_id
+  return rc, env_id, fname
 
 def get_ground_index(obs, idx, packed=False):
   if packed:

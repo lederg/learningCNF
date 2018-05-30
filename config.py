@@ -68,7 +68,7 @@ def cfg():
 	non_linearity = 'F.relu'
 	test_every = 1000
 # RL - PG
-
+	static_ed='eps/random_easy_train.eps'
 	gamma = 0.99
 	entropy_alpha = 0.000
 	policy = 'NewDoublePolicy'

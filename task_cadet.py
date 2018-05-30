@@ -120,7 +120,7 @@ def select_action(obs, model=None, testing=False, max_test=False, random_test=Fa
 def handle_episode(**kwargs):
   episode_memory = ReplayMemory(5000)
 
-  last_obs, env_id = new_episode(env,all_episode_files, **kwargs)
+  last_obs, env_id, _ = new_episode(env,all_episode_files, **kwargs)
   if last_obs is None:      # env solved in 0 steps
     print('Env {} solved in 0 steps, removing'.format(env_id))
     return None, None, None

@@ -15,7 +15,7 @@ from cadet_utils import *
 
 
 EnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'curr_step'])
+                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step'])
 
 MAX_STEP = 2000
 
@@ -62,7 +62,7 @@ class EpisodeManager(object):
     self.INVALID_ACTION_REWARDS = -10
 
     for i in range(parallelism):
-      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None, None))
+      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None, None, None))
 
   def check_batch_finished(self):
     if self.settings['normalize_episodes']:
@@ -108,10 +108,11 @@ class EpisodeManager(object):
 
 # This discards everything from the old env
   def reset_env(self, envstr, **kwargs):
-    last_obs, env_id = new_episode(envstr.env, self.episodes_files, **kwargs)
+    last_obs, env_id, fname = new_episode(envstr.env, self.episodes_files, **kwargs)
     envstr.last_obs = last_obs
     envstr.env_id = env_id
     envstr.curr_step = 0
+    envstr.fname = fname
     envstr.episode_memory = []
     return last_obs
 

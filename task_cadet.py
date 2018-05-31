@@ -410,7 +410,7 @@ def test_one_env(fname, iters=None, threshold=100000, **kwargs):
   for _ in range(iters):
     r, _, _ = handle_episode(fname=fname, **kwargs)
     if settings['restart_in_test']:
-      env.restart_cadet(timeout=3)
+      env.restart_cadet(timeout=0)
     if not r:     # If r is None, the episodes never finished
       continue
     if len(r) > 1000:
@@ -422,7 +422,7 @@ def test_one_env(fname, iters=None, threshold=100000, **kwargs):
 
   if i:
     if s/i < threshold:
-      print('For {}, average steps: {}'.format(fname,s/i))
+      print('For {}, average/min steps: {}/{}'.format(fname,s/i,min(step_counts)))
     return s/i, float(i)/iters, step_counts
   else:
     return None, 0, None
@@ -433,6 +433,7 @@ def test_envs(fnames=settings['rl_train_data'], **kwargs):
   print('Testing {} envs..\n'.format(len(ds)))
   all_episode_files = ds.get_files_list()
   totals = 0.
+  mins = 0.
   total_srate = 0.
   total_scored = 0
   rc = {}
@@ -441,13 +442,15 @@ def test_envs(fnames=settings['rl_train_data'], **kwargs):
     # average, srate = test_one_env(fname, **kwargs)
     rc[fname] = test_one_env(fname, **kwargs)
     average = rc[fname][0]
-    srate = rc[fname][1]
+    srate = rc[fname][1]    
+    mins += min(rc[fname][2])
     total_srate += srate
     if average:
       total_scored += 1
       totals += average        
   if total_scored > 0:
     print("Total average: {}. Success rate: {} out of {}".format(totals/total_scored,total_scored,len(ds)))
+    print("Average min: {}.".format(mins/total_scored))
     return totals/total_scored
   else:
     return 0.

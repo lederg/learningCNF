@@ -41,13 +41,16 @@ class CadetEnv:
   def start_cadet(self):
     cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
     if not self.use_old_rewards:
-      print('Using new rewards!')
+      if self.debug:
+        print('Using new rewards!')
       cadet_params.append('--rl_advanced_rewards')
     if self.fresh_seed:
-      print('Using fresh seed!')
+      if self.debug:
+        print('Using fresh seed!')
       cadet_params.append('--fresh_seed')
     if self.slim_state:
-      print('Using slim_state!')
+      if self.debug:
+        print('Using slim_state!')
       cadet_params.append('--rl_slim_state')
 
     self.cadet_proc = Popen([self.cadet_binary,  *cadet_params], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
@@ -67,9 +70,11 @@ class CadetEnv:
     self.poll_obj = None
 
   def restart_cadet(self, timeout=5):
-    print('Stopping cadet...')
+    if self.debug:
+      print('Stopping cadet...')
     self.stop_cadet(timeout)
-    print('Restarting cadet...')
+    if self.debug:
+      print('Restarting cadet...')
     self.start_cadet()
 
   def eat_initial_output(self):

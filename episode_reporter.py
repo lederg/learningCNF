@@ -43,12 +43,15 @@ class PGEpisodeReporter(AbstractReporter):
 		_, steps, rewards, ents = zip(*self.stats)
 		DEF_BIG_WINDOW = total_envs*60
 		print('Total episodes so far: %d' % len(steps))
-		print('Total steps so far: %d' % sum(steps))
+		print('Total steps learned from so far: %d' % sum(steps))
 		print('Total rewards so far: %f' % sum(rewards))
 		print('Mean steps for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(steps[-DEF_BIG_WINDOW:])))
 		print('Mean reward for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(rewards[-DEF_BIG_WINDOW:])))
 		print('Mean entropy for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(ents[-DEF_BIG_WINDOW:])))
 		totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
+
+		if sum(steps)+1000 < total_steps:			# Not all episodes are actually used (parallelism/on-policy pg)
+			total_steps = sum(steps)
 
 		print('Data for the 10 most common envs:')
 		for vals in totals[:10]:
@@ -69,7 +72,7 @@ class PGEpisodeReporter(AbstractReporter):
 		log_value('Mean steps for last {} episodes'.format(DEF_BIG_WINDOW), np.mean(steps[-DEF_BIG_WINDOW:]), total_steps)
 		log_value('Mean reward for last {} episodes'.format(DEF_BIG_WINDOW), np.mean(rewards[-DEF_BIG_WINDOW:]), total_steps)
 
-		print('reporter steps are {}'.format(total_steps))
+		print('Total steps are {}'.format(total_steps))
 		for id in self.ids_to_log:
 			try:
 				stats = self.stats_dict[id][-DEF_WINDOW:]

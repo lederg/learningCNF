@@ -29,7 +29,7 @@ class EpisodeData(object):
 			return self.add_stat(key,[stat])
 		if key not in self.data.keys():
 			self.data[key] = []
-		self.data.append(stat)
+		self.data[key].extend(stat)
 
 	def load_file(self, fname):
 		with open(fname,'rb') as f:

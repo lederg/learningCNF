@@ -15,9 +15,9 @@ from cadet_utils import *
 
 
 EnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step'])
+                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active'])
 
-MAX_STEP = 2000
+MAX_STEP = 4000
 
 
 def test_one_env(fname, iters=None, threshold=100000, **kwargs):
@@ -49,6 +49,7 @@ def test_one_env(fname, iters=None, threshold=100000, **kwargs):
 class EpisodeManager(object):
   def __init__(self, episodes_files, parallelism=20, reporter=None):
     self.settings = CnfSettings()
+    self.debug = False
     self.parallelism = parallelism
     self.episodes_files = episodes_files
     self.packed = self.settings['packed']
@@ -62,7 +63,7 @@ class EpisodeManager(object):
     self.INVALID_ACTION_REWARDS = -10
 
     for i in range(parallelism):
-      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None, None, None))
+      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None, None, None, True))
 
   def check_batch_finished(self):
     if self.settings['normalize_episodes']:
@@ -113,16 +114,17 @@ class EpisodeManager(object):
     envstr.env_id = env_id
     envstr.curr_step = 0
     envstr.fname = fname
-    envstr.episode_memory = []
+    envstr.episode_memory = []    
     return last_obs
 
 # Step the entire pipeline one step, reseting any new envs. 
 
   def step_all(self, model):
     step_obs = []
-    # if len(self.completed_episodes) > 0:
-    #   ipdb.set_trace()
-    for envstr in self.envs:
+    rc = []     # the env structure indices that finished and got to be reset (or will reset automatically next step)
+    active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
+    for i in active_envs:
+      envstr = self.envs[i]
       if not envstr.last_obs or envstr.curr_step > MAX_STEP:
         self.reset_env(envstr)
       step_obs.append(envstr.last_obs)
@@ -135,7 +137,8 @@ class EpisodeManager(object):
     allowed_actions = get_allowed_actions(obs_batch,packed=self.packed)
     actions, logits = self.packed_select_action(obs_batch, model=model) if self.packed else self.select_action(obs_batch, model=model)
     
-    for i, envstr in enumerate(self.envs):
+    for i, envnum in enumerate(active_envs):
+      envstr = self.envs[envnum]
       env = envstr.env
       env_id = envstr.env_id
       envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id))
@@ -157,14 +160,17 @@ class EpisodeManager(object):
           ipdb.set_trace()
         self.completed_episodes.append(envstr.episode_memory)
         envstr.last_obs = None      # This will mark the env to reset with a new formula
+        rc.append((envnum,True))
         if env.finished:
           self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
         else:        
           ipdb.set_trace()
       else:
+        if envstr.curr_step > MAX_STEP:
+          rc.append((envnum,False))
         envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 
-    return len(self.completed_episodes)
+    return rc
 
 
 
@@ -276,7 +282,7 @@ class EpisodeManager(object):
       
     return actions, logits
 
-  def test_envs(self, fnames, **kwargs):
+  def test_envs(self, fnames, model, ed=None, iters=10, **kwargs):
     ds = QbfDataset(fnames=fnames)
     print('Testing {} envs..\n'.format(len(ds)))
     all_episode_files = ds.get_files_list()
@@ -284,22 +290,49 @@ class EpisodeManager(object):
     total_srate = 0.
     total_scored = 0
     rc = {}
+    self.restart_all()
+    available_envs = list(range(self.parallelism))    
+    tasks = []
     for fname in all_episode_files:
-      print('Starting {}'.format(fname))
-      # average, srate = test_one_env(fname, **kwargs)
-      rc[fname] = test_one_env(fname, **kwargs)
-      average = rc[fname][0]
-      srate = rc[fname][1]
-      total_srate += srate
-      if average:
-        total_scored += 1
-        totals += average        
-    if total_scored > 0:
-      print("Total average: {}. Success rate: {} out of {}".format(totals/total_scored,total_scored,len(ds)))
-      return totals/total_scored
-    else:
-      return 0.
+      rc[fname] = []
+      tasks.extend([fname]*iters)
+    while tasks or len(available_envs) < self.parallelism:
+      while available_envs and tasks:
+        i = available_envs.pop(0)
+        fname=tasks.pop(0)
+        if self.debug:
+          print('Starting {} on Env #{}'.format(fname,i))
+        envstr = self.envs[i]
+        self.reset_env(envstr,fname=fname)  
+      if not tasks:       # We finished the tasks, mark all current available solvers as inactive
+        if self.debug:
+          print('Tasks are empty. Available envs: {}'.format(available_envs))
+        for i in available_envs:
+          if self.debug:
+              print('Marking Env #{} as inactive'.format(i))
+          self.envs[i].active = False      
+      finished_envs = self.step_all(model)
+      if finished_envs:
+        # print('Finished Envs: {}'.format(finished_envs))
+        # ipdb.set_trace()
+        for i, finished in finished_envs:
+          fname = self.envs[i].fname
+          if finished:
+            if self.debug:
+              print('Finished {} on Env #{}'.format(fname,i))
+            res = len(self.completed_episodes.pop(0))            
+          else:
+            print('Env {} took too long!'.format(fname,i))
+            ipdb.set_trace()
+            res = len(self.envs[i].episode_memory)
+          if ed is not None:
+            ed.add_stat(fname,res)
+          rc[fname].append(res)
+          if len(rc[fname]) == iters:
+            print('Finished {}, results are: {}, Average/Min are {}/{}'.format(fname,rc[fname],
+              np.mean(rc[fname]),min(rc[fname])))
+        available_envs.extend([x[0] for x in finished_envs])
 
-
+    return rc
 
 

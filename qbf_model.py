@@ -282,8 +282,8 @@ class QbfNewEncoder(nn.Module):
 		B_L_params = []
 		W_C_params = []
 		B_C_params = []
-		if self.settings['use_bn']:
-			self.bn_layers = nn.ModuleList([])
+		# if self.settings['use_bn']:
+		self.bn_layers = nn.ModuleList([])
 		for i in range(self.max_iters):
 			W_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim,self.vlabel_dim+2*i*self.vemb_dim)))
 			B_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim)))
@@ -302,6 +302,16 @@ class QbfNewEncoder(nn.Module):
 		self.B_C_params = nn.ParameterList(B_C_params)
 		
 					
+	def copy_from_encoder(self, other):
+		for i in range(len(other.W_L_params)):
+			self.W_L_params[i] = other.W_L_params[i]
+			self.B_L_params[i] = other.B_L_params[i]
+			self.W_C_params[i] = other.W_C_params[i]
+			self.B_C_params[i] = other.B_C_params[i]
+			if self.settings['use_bn']:
+				for i, layer in enumerate(other.bn_layers):
+					self.bn_layers[i].load_state_dict(layer.state_dict())
+
 
 # vlabels are (batch,maxvars,vlabel_dim)
 # clabels are sparse (batch,maxvars,maxvars,label_dim)

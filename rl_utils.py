@@ -1,4 +1,5 @@
 import ipdb
+import copy
 import torch
 from torch.autograd import Variable
 from settings import *
@@ -161,7 +162,7 @@ def collate_observations(batch, settings=None):
 
 def packed_collate_observations(batch, settings=None):
   if batch.count(None) == len(batch):
-    return State(None, None, None, None, None)
+    return PackedState(None, None, None, None, None, None)
   if not settings:
     settings = CnfSettings()
   bs = len(batch)
@@ -214,15 +215,26 @@ def create_policy(settings=None, is_clone=False):
   if base_model and not is_clone:
     print('Loading parameters from {}'.format(base_model))
     if settings['base_mode'] == BaseMode.ALL:
-      policy = policy_class()
+      policy = policy_class(settings=settings)
       policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
+    elif settings['base_mode'] == BaseMode.ITERS:
+      base_iters = settings['base_iters']
+      if base_iters != settings['max_iters']:
+        base_settings = copy.deepcopy(settings)
+        base_settings.hyperparameters['max_iters'] = base_iters
+      else:
+        base_settings = settings
+      base_policy = policy_class(settings=base_settings)
+      base_policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))      
+      policy = policy_class(settings=settings)
+      policy.encoder.copy_from_encoder(base_policy.encoder)      
     else:
       model = QbfClassifier()
       model.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
       encoder=model.encoder
-      policy = policy_class(encoder=encoder)
+      policy = policy_class(settings=settings,encoder=encoder)
   else:
-    policy = policy_class()
+    policy = policy_class(settings=settings)
   if settings['cuda']:
     policy = policy.cuda()
 

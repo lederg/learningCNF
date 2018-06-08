@@ -8,11 +8,14 @@ import sys
 from pprint import pprint
 import functools
 import weakref
+import signal
+import os
 from enum import Enum
 
 class BaseMode(Enum):
     ALL = 1
     EMBEDDING = 2
+    ITERS = 3
 
 
 def where(cond, x_1, x_2):
@@ -103,6 +106,13 @@ def normalize_weights(x):
 
     return 1/x
 
+
+def cleanup_process(pid):
+    try:
+        os.kill(pid,signal.SIGKILL)
+    except:
+        pass
+    os.waitpid(pid, 0)
 
 # cross-product
 

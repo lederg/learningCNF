@@ -2,6 +2,10 @@ import numpy as np
 import torch
 import time
 import ipdb
+import os
+import sys
+import signal
+import select
 from collections import namedtuple
 from namedlist import namedlist
 
@@ -18,33 +22,6 @@ EnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active'])
 
 MAX_STEP = 4000
-
-
-def test_one_env(fname, iters=None, threshold=100000, **kwargs):
-  s = 0.
-  i = 0
-  step_counts = []
-  if iters is None:
-    iters = settings['test_iters']
-  for _ in range(iters):
-    r, _, _ = handle_episode(fname=fname, **kwargs)
-    if settings['restart_in_test']:
-      env.restart_cadet(timeout=3)
-    if not r:     # If r is None, the episodes never finished
-      continue
-    if len(r) > 1000:
-      print('{} took {} steps!'.format(fname,len(r)))
-      # break            
-    s += len(r)
-    i += 1
-    step_counts.append(len(r))
-
-  if i:
-    if s/i < threshold:
-      print('For {}, average steps: {}'.format(fname,s/i))
-    return s/i, float(i)/iters, step_counts
-  else:
-    return None, 0, None
 
 class EpisodeManager(object):
   def __init__(self, episodes_files, parallelism=20, reporter=None):
@@ -126,9 +103,12 @@ class EpisodeManager(object):
     for i in active_envs:
       envstr = self.envs[i]
       if not envstr.last_obs or envstr.curr_step > MAX_STEP:
+        ipdb.set_trace()
         self.reset_env(envstr)
       step_obs.append(envstr.last_obs)
 
+    if step_obs.count(None) == len(step_obs):
+      return rc
     if self.packed:
       obs_batch = packed_collate_observations(step_obs)
       vp_ind = obs_batch.pack_indices[1]
@@ -294,16 +274,19 @@ class EpisodeManager(object):
     available_envs = list(range(self.parallelism))    
     tasks = []
     for fname in all_episode_files:
-      rc[fname] = []
       tasks.extend([fname]*iters)
     while tasks or len(available_envs) < self.parallelism:
       while available_envs and tasks:
         i = available_envs.pop(0)
-        fname=tasks.pop(0)
+        fname=tasks.pop(0)        
         if self.debug:
           print('Starting {} on Env #{}'.format(fname,i))
         envstr = self.envs[i]
-        self.reset_env(envstr,fname=fname)  
+        obs = self.reset_env(envstr,fname=fname)
+        if not obs:       # Env was solved in 0 steps, just ignore it
+          if self.debug:
+            print('File {} took 0 steps on solver #{}, ignoring'.format(fname,i))
+          available_envs.append(i)
       if not tasks:       # We finished the tasks, mark all current available solvers as inactive
         if self.debug:
           print('Tasks are empty. Available envs: {}'.format(available_envs))
@@ -313,26 +296,201 @@ class EpisodeManager(object):
           self.envs[i].active = False      
       finished_envs = self.step_all(model)
       if finished_envs:
-        # print('Finished Envs: {}'.format(finished_envs))
+        if self.debug:
+          print('Finished Envs: {}'.format(finished_envs))
         # ipdb.set_trace()
         for i, finished in finished_envs:
           fname = self.envs[i].fname
           if finished:
             if self.debug:
-              print('Finished {} on Env #{}'.format(fname,i))
+              print('Finished {} on Solver #{}'.format(fname,i))
             res = len(self.completed_episodes.pop(0))            
           else:
-            print('Env {} took too long!'.format(fname,i))
-            ipdb.set_trace()
+            print('Env {} took too long on Solver #{}!'.format(fname,i))
             res = len(self.envs[i].episode_memory)
           if ed is not None:
             ed.add_stat(fname,res)
+          if fname not in rc.keys():
+            rc[fname] = []
           rc[fname].append(res)
           if len(rc[fname]) == iters:
             print('Finished {}, results are: {}, Average/Min are {}/{}'.format(fname,rc[fname],
               np.mean(rc[fname]),min(rc[fname])))
         available_envs.extend([x[0] for x in finished_envs])
 
+    return rc
+
+  def mp_test_envs(self, fnames, model, ed=None, iters=10, **kwargs):
+    ds = QbfDataset(fnames=fnames)
+    print('Testing {} envs..\n'.format(len(ds)))
+    all_episode_files = ds.get_files_list()
+    totals = 0.
+    total_srate = 0.
+    total_scored = 0
+    rc = {}
+    seed_idx = 0
+    poll = select.poll()
+    pipes = [None]*self.parallelism
+    self.restart_all()
+    available_envs = list(range(self.parallelism))    
+    busy_envs = [False]*self.parallelism
+    pids = [0]*self.parallelism
+    tasks = []
+    for fname in all_episode_files:
+      rc[fname] = []
+      tasks.extend([fname]*iters)
+    for envstr in self.envs:        # All envs start (and stay) inactive in parent process
+      envstr.active = False
+    while tasks or any(busy_envs):
+      while available_envs and tasks:
+        i = available_envs.pop(0)
+        fname=tasks.pop(0)
+        if self.debug:
+          print('Starting {} on Env #{}'.format(fname,i))
+        envstr = self.envs[i]
+        envstr.fname = fname        # An UGLY HACK. This is for the parent process to also have the file name.
+        if pipes[i]:
+          poll.unregister(pipes[i][0])
+          os.close(pipes[i][0])
+        pipes[i] = os.pipe()    # reader, writer
+        poll.register(pipes[i][0], select.POLLIN)
+        # poll.register(pipes[i][0], select.POLLIN | select.POLLHUP)
+        pid = os.fork()
+        seed_idx += 1
+        if not pid:     # child
+          os.close(pipes[i][0])
+          self.envs[i].active=True
+          np.random.seed(int(time.time())+seed_idx)
+          # envstr.env.restart_cadet(timeout=1)
+          self.reset_env(envstr,fname=fname)
+          finished_envs = []
+          while not finished_envs:      # Just one (the ith) env is actually active and running
+            finished_envs = self.step_all(model)
+          finished = finished_envs[0][1]
+          if finished:
+            if self.debug:
+              print('Finished {} on Env #{}'.format(fname,i))
+            res = len(self.completed_episodes.pop(0))            
+          else:
+            print('Env {} took too long!'.format(fname,i))
+            res = len(self.envs[i].episode_memory)
+          os.write(pipes[i][1],str((i,res)).encode())
+          os._exit(os.EX_OK)
+        
+        # Parent continues here
+        os.close(pipes[i][1])
+        busy_envs[i] = True
+        pids[i]=pid
+
+      # We are now most likely out of available solvers, so wait on the busy ones (Which are all until the very end)
+
+      finished_envs = poll.poll()
+      for fd, event in finished_envs:
+        # print('Got event {}'.format(event))
+        if event == select.POLLHUP:
+          # print('Why do I get POLLHUP?')
+          continue
+        i, res = eval(os.read(fd,1000).decode())
+        # print('Read the end of env {}'.format(i))
+        busy_envs[i] = False
+        available_envs.append(i)
+        cleanup_process(pids[i])
+        envstr = self.envs[i]
+        fname = envstr.fname
+        rc[fname].append(res)
+        if ed is not None:
+          ed.add_stat(fname,res)
+        if len(rc[fname]) == iters:
+          print('Finished {}, results are: {}, Average/Min are {}/{}'.format(fname,rc[fname],
+            np.mean(rc[fname]),min(rc[fname])))
+        
+    return rc
+
+
+  def workers_test_envs(self, fnames, model, ed=None, iters=10, **kwargs):
+    ds = QbfDataset(fnames=fnames)
+    print('Testing {} envs..\n'.format(len(ds)))
+    all_episode_files = ds.get_files_list()
+    totals = 0.
+    total_srate = 0.
+    total_scored = 0
+    rc = {}
+    seed_idx = 0
+    poll = select.poll()
+    pipes = [None]*self.parallelism
+    self.restart_all()
+    available_envs = list(range(self.parallelism))    
+    busy_envs = [False]*self.parallelism
+    pids = [0]*self.parallelism
+    tasks = []
+    for fname in all_episode_files:
+      rc[fname] = []
+      tasks.extend([fname]*iters)
+    for envstr in self.envs:        # All envs start (and stay) inactive in parent process
+      envstr.active = False
+    while tasks or any(busy_envs):
+      while available_envs and tasks:
+        i = available_envs.pop(0)
+        fname=tasks.pop(0)
+        if self.debug:
+          print('Starting {} on Env #{}'.format(fname,i))
+        envstr = self.envs[i]
+        envstr.fname = fname        # An UGLY HACK. This is for the parent process to also have the file name.
+        if pipes[i]:
+          poll.unregister(pipes[i][0])
+          os.close(pipes[i][0])
+        pipes[i] = os.pipe()    # reader, writer
+        poll.register(pipes[i][0], select.POLLIN)
+        # poll.register(pipes[i][0], select.POLLIN | select.POLLHUP)
+        pid = os.fork()
+        seed_idx += 1
+        if not pid:     # child
+          os.close(pipes[i][0])
+          self.envs[i].active=True
+          np.random.seed(int(time.time())+seed_idx)
+          # envstr.env.restart_cadet(timeout=1)
+          self.reset_env(envstr,fname=fname)
+          finished_envs = []
+          while not finished_envs:      # Just one (the ith) env is actually active and running
+            finished_envs = self.step_all(model)
+          finished = finished_envs[0][1]
+          if finished:
+            if self.debug:
+              print('Finished {} on Env #{}'.format(fname,i))
+            res = len(self.completed_episodes.pop(0))            
+          else:
+            print('Env {} took too long!'.format(fname,i))
+            res = len(self.envs[i].episode_memory)
+          os.write(pipes[i][1],str((i,res)).encode())
+          os._exit(os.EX_OK)
+        
+        # Parent continues here
+        os.close(pipes[i][1])
+        busy_envs[i] = True
+        pids[i]=pid
+
+      # We are now most likely out of available solvers, so wait on the busy ones (Which are all until the very end)
+
+      finished_envs = poll.poll()
+      for fd, event in finished_envs:
+        # print('Got event {}'.format(event))
+        if event == select.POLLHUP:
+          # print('Why do I get POLLHUP?')
+          continue
+        i, res = eval(os.read(fd,1000).decode())
+        # print('Read the end of env {}'.format(i))
+        busy_envs[i] = False
+        available_envs.append(i)
+        cleanup_process(pids[i])
+        envstr = self.envs[i]
+        fname = envstr.fname
+        rc[fname].append(res)
+        if ed is not None:
+          ed.add_stat(fname,res)
+        if len(rc[fname]) == iters:
+          print('Finished {}, results are: {}, Average/Min are {}/{}'.format(fname,rc[fname],
+            np.mean(rc[fname]),min(rc[fname])))
+        
     return rc
 
 

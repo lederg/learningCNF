@@ -26,6 +26,7 @@ def cfg():
 	model_dir = 'saved_models'
 	base_model = None
 	base_mode = BaseMode.ALL  # deprecated?
+	base_iters = 1
 	# base_mode = BaseMode.EMBEDDING
 	max_iters = 1
 	batch_size = 128  # deprecated

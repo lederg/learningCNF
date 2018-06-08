@@ -443,11 +443,11 @@ def test_envs(fnames=settings['rl_train_data'], **kwargs):
     rc[fname] = test_one_env(fname, **kwargs)
     average = rc[fname][0]
     srate = rc[fname][1]    
-    mins += min(rc[fname][2])
     total_srate += srate
     if average:
       total_scored += 1
       totals += average        
+      mins += min(rc[fname][2])
   if total_scored > 0:
     print("Total average: {}. Success rate: {} out of {}".format(totals/total_scored,total_scored,len(ds)))
     print("Average min: {}.".format(mins/total_scored))

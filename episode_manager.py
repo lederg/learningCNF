@@ -21,14 +21,16 @@ from cadet_utils import *
 EnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active'])
 
-MAX_STEP = 4000
+MAX_STEP = 2000
 
 class EpisodeManager(object):
-  def __init__(self, episodes_files, parallelism=20, reporter=None):
+  def __init__(self, ds, ed=None, parallelism=20, reporter=None):
     self.settings = CnfSettings()
     self.debug = False
     self.parallelism = parallelism
-    self.episodes_files = episodes_files
+    self.ds = ds
+    self.ed = ed
+    self.episodes_files = ds.get_files_list()
     self.packed = self.settings['packed']
     self.envs = []
     self.completed_episodes = []
@@ -98,15 +100,15 @@ class EpisodeManager(object):
 
 # Step the entire pipeline one step, reseting any new envs. 
 
-  def step_all(self, model):
+  def step_all(self, model, **kwargs):
     step_obs = []
     rc = []     # the env structure indices that finished and got to be reset (or will reset automatically next step)
     active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
     for i in active_envs:
       envstr = self.envs[i]
       if not envstr.last_obs or envstr.curr_step > MAX_STEP:
-        ipdb.set_trace()
         self.reset_env(envstr)
+        # print('Started new Environment ({}).'.format(envstr.fname))
       step_obs.append(envstr.last_obs)
 
     if step_obs.count(None) == len(step_obs):
@@ -117,7 +119,7 @@ class EpisodeManager(object):
     else:
       obs_batch = collate_observations(step_obs)
     allowed_actions = get_allowed_actions(obs_batch,packed=self.packed)
-    actions, logits = self.packed_select_action(obs_batch, model=model) if self.packed else self.select_action(obs_batch, model=model)
+    actions, logits = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, **kwargs)
     
     for i, envnum in enumerate(active_envs):
       envstr = self.envs[envnum]
@@ -145,10 +147,13 @@ class EpisodeManager(object):
         rc.append((envnum,True))
         if env.finished:
           self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
+          if self.ed:
+            self.ed.add_stat(envstr.fname, len(envstr.episode_memory))
         else:        
           ipdb.set_trace()
       else:
         if envstr.curr_step > MAX_STEP:
+          print('Environment {} took too long, aborting it.'.format(envstr.fname))
           rc.append((envnum,False))
         envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 
@@ -228,7 +233,8 @@ class EpisodeManager(object):
       i=0
       while i < len(pack_indices):
         choices = np.where(allowed[pack_indices[i]:pack_indices[i+1]].numpy())[0]
-        
+    
+      ipdb.set_trace()      
       for allowed in allowed_actions:
         choices = np.where(allowed.numpy())[0]
         actions.append(np.random.choice(choices))
@@ -296,7 +302,7 @@ class EpisodeManager(object):
           if self.debug:
               print('Marking Env #{} as inactive'.format(i))
           self.envs[i].active = False      
-      finished_envs = self.step_all(model)
+      finished_envs = self.step_all(model, **kwargs)
       if finished_envs:
         if self.debug:
           print('Finished Envs: {}'.format(finished_envs))

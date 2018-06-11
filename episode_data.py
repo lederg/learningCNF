@@ -16,25 +16,91 @@ from cadet_utils import *
 
 
 class EpisodeData(object):
-	def __init__(self, name=None, fname=None):
-	  self.settings = CnfSettings()
-	  self.data = {}
-	  if fname is not None:
-	  	self.load_file(fname)
-	  else:
-	  	self.name	= name
+  def __init__(self, name=None, fname=None):
+    self.settings = CnfSettings()
+    self.data = {}
+    if fname is not None:
+      self.load_file(fname)
+    elif name is not None:
+      self.name = name
+    else:
+      self.name = self.settings['name']
 
-	def add_stat(self, key, stat):
-		if type(stat) is not list:
-			return self.add_stat(key,[stat])
-		if key not in self.data.keys():
-			self.data[key] = []
-		self.data[key].extend(stat)
+  def add_stat(self, key, stat):
+    if type(stat) is not list:
+      return self.add_stat(key,[stat])
+    if key not in self.data.keys():
+      self.data[key] = []
+    self.data[key].extend(stat)
 
-	def load_file(self, fname):
-		with open(fname,'rb') as f:
-			self.name, self.data = pickle.load(f)
+  def load_file(self, fname):
+    with open(fname,'rb') as f:
+      self.name, self.data = pickle.load(f)
 
-	def save_file(self, fname):
-		with open(fname,'wb') as f:
-			pickle.save((self.name,self.data),f)
+  def save_file(self, fname=None):
+    if not fname:
+      fname = 'eps/{}.eps'.format(self.name)
+    with open(fname,'wb') as f:
+      pickle.dump((self.name,self.data),f)
+
+
+class QbfCurriculumDataset(Dataset):
+  def __init__(self, fnames=None, ed=None, max_variables=MAX_VARIABLES, max_clauses=MAX_CLAUSES):
+    self.samples = []
+    self.max_vars = max_variables
+    self.max_clauses = max_clauses       
+    
+    self.ed = ed if ed else EpisodeData()
+    if fnames:
+      if type(fnames) is list:
+        self.load_files(fnames)
+      else:
+        self.load_files([fnames])
+
+  def load_dir(self, directory):
+    self.load_files([join(directory, f) for f in listdir(directory)])
+
+  def load_files(self, files):
+    only_files = [x for x in files if os.path.isfile(x)]
+    only_dirs = [x for x in files if os.path.isdir(x)]
+    for x in only_dirs:
+      self.load_dir(x)
+    rc = map(f2qbf,only_files)
+    self.samples.extend([x for x in rc if x and x.num_vars <= self.max_vars and x.num_clauses < self.max_clauses\
+                                                         and x.num_clauses > 0 and x.num_vars > 0])
+    
+    try:
+      del self.__weights_vector
+    except:
+      pass
+    return len(self.samples)
+
+  @property
+  def weights_vector(self):
+    try:
+      return self.__weights_vector
+    except:
+      pass
+
+    self.__weights_vector = self.recalc_weights()
+    return self.__weights_vector
+
+
+  def recalc_weights(self):
+    a = self.get_files_list()
+    self.ed.
+
+  def load_file(self,fname):
+    if os.path.isdir(fname):
+      self.load_dir(fname)
+    else:
+      self.load_files([fname])
+
+  def get_files_list(self):
+    return [x.qcnf['fname'] for x in self.samples]
+
+  def __len__(self):
+    return len(self.samples)
+
+  def __getitem__(self, idx):
+    return self.samples[idx].as_np_dict()

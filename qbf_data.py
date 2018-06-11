@@ -304,36 +304,39 @@ class QbfDataset(Dataset):
         else:
             return self.samples[1][idx-self.num_unsat].as_np_dict()
 
-def qbf_collate(batch):
-    rc = {}
 
-    # Get max var/clauses for this batch    
-    v_size = max([b['num_vars'] for b in batch])
-    c_size = max([b['num_clauses'] for b in batch])
+# Obselete, used only in qbf_train.py
 
-    # adjacency matrix indices in one huge matrix
-    rc_i = np.concatenate([b['sp_indices'] + np.asarray([i*c_size,i*v_size]) for i,b in enumerate(batch)], 0)
-    rc_v = np.concatenate([b['sp_vals'] for b in batch], 0)
+# def qbf_collate(batch):
+#     rc = {}
 
-    # make var_types into ground embeddings
-    all_embs = []
-    for i,b in enumerate(batch):
-        embs = b['ground']
-        l = len(embs)
-        embs = np.concatenate([embs,np.zeros([v_size-l,GROUND_DIM])])
-        all_embs.append(embs)    
+#     # Get max var/clauses for this batch    
+#     v_size = max([b['num_vars'] for b in batch])
+#     c_size = max([b['num_clauses'] for b in batch])
 
-    # break into pos/neg
-    sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
-    sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
-    sp_val_pos = torch.ones(len(sp_ind_pos))
-    sp_val_neg = torch.ones(len(sp_ind_neg))
+#     # adjacency matrix indices in one huge matrix
+#     rc_i = np.concatenate([b['sp_indices'] + np.asarray([i*c_size,i*v_size]) for i,b in enumerate(batch)], 0)
+#     rc_v = np.concatenate([b['sp_vals'] for b in batch], 0)
+
+#     # make var_types into ground embeddings
+#     all_embs = []
+#     for i,b in enumerate(batch):
+#         embs = b['ground']
+#         l = len(embs)
+#         embs = np.concatenate([embs,np.zeros([v_size-l,GROUND_DIM])])
+#         all_embs.append(embs)    
+
+#     # break into pos/neg
+#     sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
+#     sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
+#     sp_val_pos = torch.ones(len(sp_ind_pos))
+#     sp_val_neg = torch.ones(len(sp_ind_neg))
 
 
-    rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([c_size*len(batch),v_size*len(batch)]))
-    rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([c_size*len(batch),v_size*len(batch)]))
-    rc['ground'] = torch.from_numpy(np.stack(all_embs))
-    rc['label'] = torch.Tensor([x['label'] for x in batch]).long()
+#     rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([c_size*len(batch),v_size*len(batch)]))
+#     rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([c_size*len(batch),v_size*len(batch)]))
+#     rc['ground'] = torch.from_numpy(np.stack(all_embs))
+#     rc['label'] = torch.Tensor([x['label'] for x in batch]).long()
 
-    return rc
+#     return rc
 

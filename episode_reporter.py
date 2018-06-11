@@ -56,7 +56,7 @@ class PGEpisodeReporter(AbstractReporter):
 		print('Data for the 10 most common envs:')
 		for vals in totals[:10]:
 			s = vals[2][-DEF_WINDOW:]
-			print('Env %d appeared %d times, with moving (100) mean/std %f/%f:' % (vals[0], vals[1], np.mean(s), np.std(s)))
+			print('Env {} appeared {} times, with moving (100) mean/std {}/{}:'.format(vals[0], vals[1], np.mean(s), np.std(s)))
 			print(s)
 			print('\n\n')
 		

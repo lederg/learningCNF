@@ -18,6 +18,7 @@ from rl_utils import *
 from cadet_utils import *
 from episode_reporter import *
 from episode_manager import *
+from episode_data import *
 import torch.nn.utils as tutils
 
 all_episode_files = ['data/mvs.qdimacs']
@@ -185,9 +186,10 @@ def cadet_main():
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])
-  ds = QbfDataset(fnames=settings['rl_train_data'])
+  ed = EpisodeData(name=settings['name'], fname=settings['base_stats'])
+  ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   all_episode_files = ds.get_files_list()
-  em = EpisodeManager(all_episode_files, parallelism=settings['parallelism'],reporter=reporter)
+  em = EpisodeManager(ds, ed=ed, parallelism=settings['parallelism'],reporter=reporter)
   old_logits = None
   disallowed_loss = 0.
   max_iterations = len(ds)*100
@@ -383,6 +385,7 @@ def cadet_main():
 
     if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), total_steps))
+      ed.save_file()
     if i % TEST_EVERY == 0 and i>0:
       if settings['rl_validation_data']:
         print('Testing envs:')

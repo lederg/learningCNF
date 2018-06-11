@@ -204,7 +204,8 @@ def collate_transitions(batch, settings=None, packed=False):
   obs2 = collate_fn([x.next_state for x in batch], settings)
   rews = settings.FloatTensor([x.reward for x in batch])
   actions = settings.LongTensor([x.action for x in batch])
-  formulas = settings.LongTensor([x.formula for x in batch])
+  # formulas = settings.LongTensor([x.formula for x in batch])
+  formulas = [x.formula for x in batch]
   return Transition(obs1,actions,obs2,rews, formulas)
 
 def create_policy(settings=None, is_clone=False):

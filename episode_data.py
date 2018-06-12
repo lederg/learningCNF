@@ -46,9 +46,11 @@ class EpisodeData(object):
 
 class QbfCurriculumDataset(Dataset):
   def __init__(self, fnames=None, ed=None, max_variables=MAX_VARIABLES, max_clauses=MAX_CLAUSES):
+    self.settings = CnfSettings()
     self.samples = []
     self.max_vars = max_variables
     self.max_clauses = max_clauses       
+    self.stats_cover = False
     
     self.ed = ed if ed else EpisodeData()
     if fnames:
@@ -87,8 +89,21 @@ class QbfCurriculumDataset(Dataset):
 
 
   def recalc_weights(self):
-    a = self.get_files_list()
-    self.ed.
+    stats = [self.ed.data[x] if x in self.ed.data.keys() else [] for x in self.get_files_list()]
+
+    # If we don't have at least >1 attempts on all environments, try the ones that are still missing.
+    if not self.stats_cover:
+      if not [] in stats:
+        self.stats_cover = True
+      else:        
+        self.__weights_vector = np.array([0 if (x and len(x) > 1) else 1 for x in stats])
+        return
+    
+    moments = [[np.mean(x), np.std(x)] for x in stats]
+    m1 = np.mean(moments[:,0])
+    m2 = moments[:,1]
+
+    return self.__weights_vector
 
   def load_file(self,fname):
     if os.path.isdir(fname):

@@ -94,7 +94,7 @@ def cfg():
 	leaky = False  # deprecated
 	cadet_binary = './cadet'
 	# cadet_binary = './old_cadet' 			
-	do_test = True
+	do_test = False
 	test_iters = 100
 	fresh_seed = False  						# Use a fresh seed in cadet
 	adaptive_lr = False

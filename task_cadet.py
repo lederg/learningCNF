@@ -129,7 +129,7 @@ def handle_episode(**kwargs):
     reporter.log_env(env_id)
   entropies = []
 
-  for t in range(3000):  # Don't infinite loop while learning
+  for t in range(4000):  # Don't infinite loop while learning
     begin_time = time.time()
     action, logits = select_action(last_obs, **kwargs)    
     if logits is not None:

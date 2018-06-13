@@ -103,6 +103,7 @@ class QbfCurriculumDataset(Dataset):
     m1 = np.mean(moments[:,0])
     m2 = moments[:,1]
 
+    self.__weights_vector = np.ones(len(m2))
     return self.__weights_vector
 
   def load_file(self,fname):

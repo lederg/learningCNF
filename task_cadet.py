@@ -375,13 +375,8 @@ def cadet_main():
 
 
 
-    if settings['restart_cadet_every'] and not (i % settings['restart_cadet_every']) and i > 0:
-      if settings['parallelism'] > 1:
-        em.restart_all()
-      else:
-        env.restart_cadet()   # Restart cadet to deal with memory
-
-
+    if settings['restart_cadet_every'] and not (i % settings['restart_cadet_every']) and i > 0:      
+      em.restart_all()
 
     if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), total_steps))

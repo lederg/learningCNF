@@ -98,7 +98,7 @@ class QbfCurriculumDataset(Dataset):
         self.stats_cover = True
       m1, m2 = np.array([[np.mean(x[-60:]), np.std(x[-60:])] for x in stats]).transpose()
       m2 = (m2 - m2.mean()) / (m2.std() + float(np.finfo(np.float32).eps))
-      m2 = m2 + m2.min() + 1
+      m2 = m2 - m2.min() + 1
       if self.settings['use_curriculum']:
         rc = (self.settings['episode_cutoff'] - m1).clip(0)*m2
       else:

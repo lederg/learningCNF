@@ -38,6 +38,7 @@ class EpisodeManager(object):
     self.max_reroll = 0
     self.reporter = reporter
     self.bad_episodes = 0
+    self.reset_counter = 0
     self.bad_episodes_not_added = 0
     self.INVALID_ACTION_REWARDS = -10
 
@@ -87,15 +88,20 @@ class EpisodeManager(object):
       envstr.last_obs = None          # This lets step_all know its an "empty" env that got to be reset.
 
 # This discards everything from the old env
-  def reset_env(self, envstr, **kwargs):
+  def reset_env(self, envstr, fname=None, **kwargs):
+    self.reset_counter += 1
     if self.settings['restart_in_test']:
       envstr.env.restart_cadet(timeout=0)
-    last_obs, env_id, fname = new_episode(envstr.env, self.episodes_files, **kwargs)
+    if not fname:
+      if not self.reset_counter % 20:
+        self.ds.recalc_weights()
+      (fname,) = self.ds.weighted_sample()
+    last_obs, env_id = new_episode(envstr.env, fname=fname, **kwargs)
     envstr.last_obs = last_obs
     envstr.env_id = env_id
     envstr.curr_step = 0
     envstr.fname = fname
-    envstr.episode_memory = []    
+    envstr.episode_memory = []        
     return last_obs
 
 # Step the entire pipeline one step, reseting any new envs. 

@@ -58,6 +58,14 @@ def log_name(settings):
         settings['batch_size'], settings['embedding_dim'], 
         settings['max_iters'], settings['exp_time'])
 
+# Get a distribution p, return (1-eps)*p + eps*U 
+def epsilonize(p, eps):
+    n = len(p)
+    U = np.ones(n) / n
+    return (1-eps)*p + eps*U
+
+
+
 
 def normalize(input, p=2, dim=1, eps=1e-20):
     return input / input.norm(p, dim).clamp(min=eps).expand_as(input)

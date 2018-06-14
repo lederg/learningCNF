@@ -91,20 +91,25 @@ class QbfCurriculumDataset(Dataset):
   def recalc_weights(self):
     stats = [self.ed.data[x] if x in self.ed.data.keys() else [] for x in self.get_files_list()]
 
-    # If we don't have at least >1 attempts on all environments, try the ones that are still missing.
-    if not self.stats_cover:
-      if not [] in stats:
+    if self.stats_cover or not [] in stats:
+      if not self.stats_cover:
+        print('Covered dataset!')
         self.stats_cover = True
-      else:        
-        self.__weights_vector = np.array([0 if (x and len(x) > 1) else 1 for x in stats])
-        return
-    
-    moments = [[np.mean(x), np.std(x)] for x in stats]
-    m1 = np.mean(moments[:,0])
-    m2 = moments[:,1]
+      # ipdb.set_trace()      
+      m1, m2 = np.array([[np.mean(x), np.std(x)] for x in stats]).transpose()
+      rc = np.ones(len(m2))
 
-    self.__weights_vector = np.ones(len(m2))
+    # If we don't have at least >1 attempts on all environments, try the ones that are still missing.
+    else:      
+      rc = np.array([0 if (x and len(x) > 1) else 1 for x in stats])
+    
+    self.__weights_vector = epsilonize(rc / rc.sum(),0.01)
+
     return self.__weights_vector
+
+  def weighted_sample(self, n=1):
+    choices = np.random.choice(len(self.samples),size=n,p=self.weights_vector)
+    return [self.samples[i].qcnf['fname'] for i in choices]
 
   def load_file(self,fname):
     if os.path.isdir(fname):

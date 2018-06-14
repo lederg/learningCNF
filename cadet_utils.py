@@ -77,14 +77,10 @@ def process_observation(env, last_obs, env_obs, settings=None):
   return State(state,cmat_pos,cmat_neg,ground_embs, clabels)
 
 
-def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
+def new_episode(env, fname, settings=None, **kwargs):
   if not settings:
     settings = CnfSettings()
   env_gen = EnvIdGen()
-
-  if fname is None:
-    total_envs = len(all_episode_files)
-    fname = all_episode_files[random.randint(0,total_envs-1)]
   try:
     env_id = int(os.path.split(fname)[1].split('_')[-2])
   except:
@@ -115,7 +111,7 @@ def new_episode(env, all_episode_files, settings=None, fname=None, **kwargs):
   #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
   #   state, ground_embs = state.cuda(), ground_embs.cuda()
   rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels)
-  return rc, env_id, fname
+  return rc, env_id
 
 def get_ground_index(obs, idx, packed=False):
   if packed:

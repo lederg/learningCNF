@@ -90,18 +90,24 @@ class QbfCurriculumDataset(Dataset):
 
   def recalc_weights(self):
     stats = [self.ed.data[x] if x in self.ed.data.keys() else [] for x in self.get_files_list()]
+    not_seen = np.array([0 if (x and len(x) > 1) else 1 for x in stats])
 
-    if self.stats_cover or not [] in stats:
+    if self.stats_cover or not not_seen.any():
       if not self.stats_cover:
         print('Covered dataset!')
         self.stats_cover = True
-      # ipdb.set_trace()      
-      m1, m2 = np.array([[np.mean(x), np.std(x)] for x in stats]).transpose()
-      rc = np.ones(len(m2))
+      m1, m2 = np.array([[np.mean(x[-60:]), np.std(x[-60:])] for x in stats]).transpose()
+      m2 = (m2 - m2.mean()) / (m2.std() + float(np.finfo(np.float32).eps))
+      m2 = m2 + m2.min() + 1
+      if self.settings['use_curriculum']:
+        rc = (self.settings['episode_cutoff'] - m1).clip(0)*m2
+      else:
+        rc = np.ones(len(m2))
 
     # If we don't have at least >1 attempts on all environments, try the ones that are still missing.
     else:      
-      rc = np.array([0 if (x and len(x) > 1) else 1 for x in stats])
+      print('Number of unseen formulas is {}'.format(not_seen.sum()))
+      rc = not_seen
     
     self.__weights_vector = epsilonize(rc / rc.sum(),0.01)
 

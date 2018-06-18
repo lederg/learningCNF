@@ -1,3 +1,25 @@
+=== Per step information ===
+
+v <var> <const_value>
+uc <clause> <lit_or_zero>
+u+ <var>
+u- <var>
+s <nonnegative_value>,...,<nonnegative_value>
+d <var>,<decision_value>
+a <var>,<nonnegative_value>
+clause <clause> <learned> lits <lit> ... <lit>
+delete_clause <clause>
+conflict <var>
+
+Where:
+ - <var> is a variable ID
+ - <clause> is a clause ID
+ - <lit> is a either <var> or -<var>
+ - <lit_or_zero> is either <lit> or 0
+ - <const_value> is in {-1, 0, 1}
+ - <decision_value> is in {-1, 1}
+ - <nonnegative_value> is in [0, infty]
+ - <learned> indicates if the clause is learned or original
 
 
 

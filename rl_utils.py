@@ -113,7 +113,10 @@ class LinearSchedule(object):
         fraction  = min(float(t) / self.schedule_timesteps, 1.0)
         return self.initial_p + fraction * (self.final_p - self.initial_p)
 
-def discount_episode(ep, gamma):
+def discount_episode(ep, gamma, settings=None):
+  if not settings:
+    settings = CnfSettings()
+    
   _, _, _,rewards, _ = zip(*ep)
   r = discount(rewards, gamma)
   return [Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(ep, r)]
@@ -228,7 +231,7 @@ def create_policy(settings=None, is_clone=False):
       base_policy = policy_class(settings=base_settings)
       base_policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))      
       policy = policy_class(settings=settings)
-      policy.encoder.copy_from_encoder(base_policy.encoder)      
+      policy.encoder.copy_from_encoder(base_policy.encoder, freeze=True)
     else:
       model = QbfClassifier()
       model.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))

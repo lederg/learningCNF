@@ -25,7 +25,7 @@ def cfg():
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
 	base_model = None
-	base_mode = BaseMode.ALL  # deprecated?
+	base_mode = BaseMode.ITERS 
 	base_iters = 1
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
@@ -97,11 +97,12 @@ def cfg():
 	do_test = False
 	test_iters = 100
 	fresh_seed = False  						# Use a fresh seed in cadet
-	adaptive_lr = False
+	follow_kl = False
 	desired_kl = 1e-6
 	min_timesteps_per_batch = 400  # replace by number of formulas per batch after normalization
 	episodes_per_batch = 32
 	ac_baseline = False
+	stats_baseline = False
 	use_global_state = True
 	clause_learning = True
 	vars_set = True

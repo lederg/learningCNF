@@ -182,7 +182,7 @@ def cadet_main():
   mse_loss = nn.MSELoss()
   stepsize = settings['init_lr']
   policy = create_policy()
-  optimizer = optim.Adam(policy.parameters(), lr=stepsize)  
+  optimizer = optim.Adam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)  
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])
@@ -349,7 +349,7 @@ def cadet_main():
 
     # Change learning rate according to KL
 
-    if settings['adaptive_lr']:
+    if settings['follow_kl']:
       old_logits = logits
       logits, _ = policy(collated_batch.state)    
       kl = compute_kl(logits.data,old_logits.data)

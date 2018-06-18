@@ -302,12 +302,17 @@ class QbfNewEncoder(nn.Module):
 		self.B_C_params = nn.ParameterList(B_C_params)
 		
 					
-	def copy_from_encoder(self, other):
+	def copy_from_encoder(self, other, freeze=False):
 		for i in range(len(other.W_L_params)):
 			self.W_L_params[i] = other.W_L_params[i]
 			self.B_L_params[i] = other.B_L_params[i]
 			self.W_C_params[i] = other.W_C_params[i]
 			self.B_C_params[i] = other.B_C_params[i]
+			if freeze:
+				self.W_L_params[i].requires_grad=False
+				self.B_L_params[i].requires_grad=False
+				self.W_C_params[i].requires_grad=False
+				self.B_C_params[i].requires_grad=False
 			if self.settings['use_bn']:
 				for i, layer in enumerate(other.bn_layers):
 					self.bn_layers[i].load_state_dict(layer.state_dict())

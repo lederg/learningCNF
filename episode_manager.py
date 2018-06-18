@@ -50,16 +50,34 @@ class EpisodeManager(object):
       return not (len(self.completed_episodes) < self.settings['episodes_per_batch'])
     else:
       return not (self.episode_lengths() < self.settings['min_timesteps_per_batch'])
+
   def episode_lengths(self, num=0):
     rc = self.completed_episodes if num==0 else self.completed_episodes[:num]
     return sum([len(x) for x in rc])
+
+  def discount_episode(self, ep):
+
+    def compute_baseline(formula):
+      if not self.ds.stats_cover:
+        return 0
+      stats = self.ed.data[formula]
+      if len(stats) < 3:
+        return 0
+      steps, rewards = zip(*stats)
+      return np.mean(rewards)
+
+    gamma = self.settings['gamma']    
+    baseline = compute_baseline(ep[0].formula) if self.settings['stats_baseline'] else 0
+    _, _, _,rewards, _ = zip(*ep)
+    r = discount(rewards, gamma) - baseline
+    return [Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(ep, r)]
 
   def pop_min(self, num=0):
     if num == 0:
       num = self.settings['min_timesteps_per_batch']
     rc = []
     while len(rc) < num:
-      ep = discount_episode(self.completed_episodes.pop(0),self.settings['gamma'])
+      ep = self.discount_episode(self.completed_episodes.pop(0))
       rc.extend(ep)
 
     return rc
@@ -69,7 +87,7 @@ class EpisodeManager(object):
       num = self.settings['episodes_per_batch']
     rc = []
     for _ in range(num):
-      ep = discount_episode(self.completed_episodes.pop(0),self.settings['gamma'])
+      ep = self.discount_episode(self.completed_episodes.pop(0))
       rc.extend(ep)
 
     return rc
@@ -98,7 +116,7 @@ class EpisodeManager(object):
       (fname,) = self.ds.weighted_sample()
     last_obs, env_id = new_episode(envstr.env, fname=fname, **kwargs)
     envstr.last_obs = last_obs
-    envstr.env_id = env_id
+    envstr.env_id = fname
     envstr.curr_step = 0
     envstr.fname = fname
     envstr.episode_memory = []        
@@ -133,8 +151,8 @@ class EpisodeManager(object):
       env_id = envstr.env_id
       envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id))
       self.real_steps += 1
-      envstr.curr_step += 1
-      if allowed_actions[vp_ind[i]+actions[i][0]]:
+      envstr.curr_step += 1      
+      if ('cadet_test' in kwargs and kwargs['cadet_test']) or allowed_actions[vp_ind[i]+actions[i][0]]:
         env_obs = EnvObservation(*env.step(actions[i]))        
         done = env_obs.done
       else:
@@ -154,7 +172,7 @@ class EpisodeManager(object):
         if env.finished:
           self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
           if self.ed:
-            self.ed.add_stat(envstr.fname, len(envstr.episode_memory))
+            self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))
         else:        
           ipdb.set_trace()
       else:

@@ -21,7 +21,7 @@ from cadet_utils import *
 EnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active'])
 
-MAX_STEP = 2000
+MAX_STEP = 500
 
 class EpisodeManager(object):
   def __init__(self, ds, ed=None, parallelism=20, reporter=None):
@@ -58,13 +58,14 @@ class EpisodeManager(object):
   def discount_episode(self, ep):
 
     def compute_baseline(formula):
-      if not self.ds.stats_cover:
-        return 0
+      if not formula in self.ed.data.keys() or len(self.ed.data[formula]) < 3:
+        latest_stats = list(x for y in self.ed.data.values() for x in y[-20:])
+        _, r = zip(*latest_stats)        
+        return np.mean(r)
+
       stats = self.ed.data[formula]
-      if len(stats) < 3:
-        return 0
       steps, rewards = zip(*stats)
-      return np.mean(rewards)
+      return np.mean(rewards[-20:-1])
 
     gamma = self.settings['gamma']    
     baseline = compute_baseline(ep[0].formula) if self.settings['stats_baseline'] else 0
@@ -172,12 +173,16 @@ class EpisodeManager(object):
         if env.finished:
           self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
           if self.ed:
-            self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))
+            # Once for every episode going into completed_episodes, add it to stats
+            self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
         else:        
           ipdb.set_trace()
       else:
         if envstr.curr_step > MAX_STEP:
           print('Environment {} took too long, aborting it.'.format(envstr.fname))
+          if self.ed:
+            # We add to the statistics the envs that aborted, even though they're not learned from
+            self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
           rc.append((envnum,False))
         envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 

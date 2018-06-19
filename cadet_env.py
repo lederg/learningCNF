@@ -53,6 +53,8 @@ class CadetEnv:
         print('Using slim_state!')
       cadet_params.append('--rl_slim_state')
 
+    if self.debug:
+      print(' '.join([self.cadet_binary,  *cadet_params]))
     self.cadet_proc = Popen([self.cadet_binary,  *cadet_params], stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
     self.poll_obj = select.poll()
     self.poll_obj.register(self.cadet_proc.stdout, select.POLLIN)  
@@ -122,26 +124,28 @@ class CadetEnv:
 
   def read_line_with_timeout(self, timeout=10.):
     return self.cadet_proc.stdout.readline()
-    entry = time.time()
-    curr = entry
-    line = ''
-    while curr < entry + timeout:
-      p = self.poll_obj.poll(0) 
-      if p:
-        c = self.cadet_proc.stdout.read(1)
-        if c == '\n':
-          # ipdb.set_trace()
-          return line
-        line += c
-      else:
-        # print('Poll negative..')
-        pass
-      curr = time.time()
+    # entry = time.time()
+    # curr = entry
+    # line = ''
+    # while curr < entry + timeout:
+    #   p = self.poll_obj.poll(0) 
+    #   if p:
+    #     c = self.cadet_proc.stdout.read(1)
+    #     if c == '\n':
+    #       # ipdb.set_trace()
+    #       return line
+    #     line += c
+    #   else:
+    #     # print('Poll negative..')
+    #     pass
+    #   curr = time.time()
 
-    return None
+    # return None
 
   # This is where we go from 0-based to 1-based
   def write_action(self, a):
+    if self.debug:
+      print('Writing action {}'.format(a))
     if a == '?':
       self.write('?\n')
       return
@@ -236,6 +240,8 @@ class CadetEnv:
         decision[0] -= 1
       elif a[0] == 's':
         state = np.array([float(x) for x in a[2:].split(',')])
+        if self.debug:
+          print('Got state!')
         break
       elif a[0] == 'a':
         b = a[2:].split(',')

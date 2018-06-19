@@ -95,10 +95,8 @@ class QbfCurriculumDataset(Dataset):
       if not self.stats_cover:
         print('Covered dataset!')
         self.stats_cover = True
-      try:
-        steps, rewards = zip(*stats)
-      except:
-        ipdb.set_trace()
+      z = [list(zip(*x)) for x in stats]
+      steps, rewards = zip(*z)
       m1, m2 = np.array([[np.mean(x[-60:]), np.std(x[-60:])] for x in steps]).transpose()
       m2 = (m2 - m2.mean()) / (m2.std() + float(np.finfo(np.float32).eps))
       m2 = m2 - m2.min() + 1

@@ -50,5 +50,5 @@ average length of learnt clauses,
 number of literals removed from learnt clauses in minimization step, 
 ratio of removed literals in learnt clauses, 
 number of case distinctions (only relevant if specific optimizations are active). 
-
+max_activity
 

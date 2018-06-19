@@ -1,2 +1,0 @@
-['./generateCNF.py', '-n', '1000', '-u', '3', '-g', '8', '--repetitions', '50', '--min_hardness', '10', '--max_hardness', '50', '--maxvars', '50', '--maxclauses', '150', '-d', 'data/qbf_easy_test/', '-p', 'easy_']
-Namespace(directory='data/qbf_easy_test/', file_prefix='easy_', ground_vars=8, max_hardness=50, maxclauses=150, maxvars=50, min_hardness=10, num_generated=1000, repetitions=50, universals_num=3)

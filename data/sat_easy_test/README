@@ -1,2 +1,0 @@
-['./generateCNF.py', '-n', '1000', '-u', '0', '-g', '16', '--repetitions', '50', '--min_hardness', '30', '--max_hardness', '150', '--maxvars', '150', '--maxclauses', '600', '-d', 'data/sat_easy_test/', '-p', 'easy_']
-Namespace(directory='data/sat_easy_test/', file_prefix='easy_', ground_vars=16, max_hardness=150, maxclauses=600, maxvars=150, min_hardness=30, num_generated=1000, repetitions=50, universals_num=0)

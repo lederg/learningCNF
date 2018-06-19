@@ -1,2 +1,0 @@
-['./generate_words.py', '--min_hardness', '10', '--max_hardness', '100', '-n', '1000', '-r', '10', '-p', 'words_', '--maxvars', '100', '-d', '../data/words_easy_train/', '-e', '6']
-Namespace(directory='../data/words_easy_train/', expr_size=6, file_prefix='words_', max_hardness=100, maxvars=100, min_hardness=10, num_generated=1000, repetitions=10, seed=None, word_size=8)

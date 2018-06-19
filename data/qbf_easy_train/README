@@ -1,1 +1,0 @@
-./generateCNF.py -n 10000 -u 3 -r 10 -g 8 --repetitions 20 --min_hardness 10 --max_hardness 50 --maxvars 50 --maxclauses 150 -d data/easyQBF_train/ -p easy_

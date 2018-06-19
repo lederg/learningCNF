@@ -1,1 +1,0 @@
-./generateCNF.py -n 10000 -u 4 -g 10 --repetitions 10 --min_hardness 20 --max_hardness 500 --maxvars 100 --maxclauses 300 -d data/mediumQBF/ -p medium_

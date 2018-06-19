@@ -30,6 +30,7 @@ def cfg():
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
 	max_iters = 1
+	max_step = 500			# Maximum steps per formula
 	batch_size = 128  # deprecated
 	val_size = 100  # deprecated?
 	threshold = 10  # deprecated

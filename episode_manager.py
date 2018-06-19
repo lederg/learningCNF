@@ -21,13 +21,12 @@ from cadet_utils import *
 EnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active'])
 
-MAX_STEP = 500
-
 class EpisodeManager(object):
   def __init__(self, ds, ed=None, parallelism=20, reporter=None):
     self.settings = CnfSettings()
     self.debug = False
     self.parallelism = parallelism
+    self.max_step = self.settings['max_step']
     self.ds = ds
     self.ed = ed
     self.episodes_files = ds.get_files_list()
@@ -131,7 +130,7 @@ class EpisodeManager(object):
     active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
     for i in active_envs:
       envstr = self.envs[i]
-      if not envstr.last_obs or envstr.curr_step > MAX_STEP:
+      if not envstr.last_obs or envstr.curr_step > self.max_step:
         self.reset_env(envstr)
         # print('Started new Environment ({}).'.format(envstr.fname))
       step_obs.append(envstr.last_obs)
@@ -178,7 +177,7 @@ class EpisodeManager(object):
         else:        
           ipdb.set_trace()
       else:
-        if envstr.curr_step > MAX_STEP:
+        if envstr.curr_step > self.max_step:
           print('Environment {} took too long, aborting it.'.format(envstr.fname))
           if self.ed:
             # We add to the statistics the envs that aborted, even though they're not learned from

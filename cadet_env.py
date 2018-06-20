@@ -119,7 +119,9 @@ class CadetEnv:
     self.write(fname+'\n')
     self.done = False
     self.current_fname = fname
-    return self.read_state_update()     # Initial state
+    rc = self.read_state_update()     # Initial state
+    return rc
+    
 
 
   def read_line_with_timeout(self, timeout=10.):
@@ -174,8 +176,6 @@ class CadetEnv:
     decision = None
     vars_set = []
     while True:
-      pos_vars = np.where(self.vars_deterministic>0)[0]
-      neg_vars = np.where(self.vars_deterministic<0)[0]      
       a = self.read_line_with_timeout()
       if not a or a == '\n': continue
       self.tail.append(a)
@@ -286,6 +286,9 @@ class CadetEnv:
       ipdb.set_trace()
     if self.done:
       self.rewards = self.rewards + self.greedy_alpha*np.asarray(self.running_reward)
+
+    pos_vars = np.where(self.vars_deterministic>0)[0]
+    neg_vars = np.where(self.vars_deterministic<0)[0]      
 
     return state, pos_vars, neg_vars, self.activities, decision, clause, reward, np.array(vars_set), self.done
 

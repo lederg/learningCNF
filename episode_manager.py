@@ -181,7 +181,8 @@ class EpisodeManager(object):
           print('Environment {} took too long, aborting it.'.format(envstr.fname))
           if self.ed:
             # We add to the statistics the envs that aborted, even though they're not learned from
-            self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
+            if 'testing' not in kwargs or not kwargs['testing']:
+              self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
           rc.append((envnum,False))
         envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 

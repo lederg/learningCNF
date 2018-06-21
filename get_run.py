@@ -4,17 +4,26 @@ import re
 import sys
 import ipdb
 from pprint import pprint
-
+from config import *
+from settings import *
 from dispatch_utils import *
 
 def print_experiment(name, hostname, dbname):
+    settings = CnfSettings(cfg())
     with MongoClient(host=hostname) as client:
         db = client[dbname]
         runs = db['runs']
         k = re.compile(name)
         rc = runs.find({'experiment.name': k})
         for x in rc:
-            pprint(x['config'])
+            fc = {}
+            trivial = ['base_mode', 'seed', 'exp_time']
+            print('Experiment: {}'.format(x['experiment']['name']))
+            c = x['config']
+            for k in c.keys():
+                if k not in trivial and (k not in settings.hyperparameters.keys() or settings[k] != c[k]):
+                    fc[k] = c[k]
+            pprint(fc)
 
 
 def main():

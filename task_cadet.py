@@ -316,7 +316,6 @@ def cadet_main():
     except:
       ipdb.set_trace()
     entropies = (-probs*all_logprobs).sum(1)    
-    # ipdb.set_trace()
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
     if settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
@@ -384,10 +383,14 @@ def cadet_main():
     if i % TEST_EVERY == 0 and i>0:
       if settings['rl_validation_data']:
         print('Testing envs:')
-        val_average = test_envs(fnames=settings['rl_validation_data'], model=policy)
+        rc = em.test_envs(settings['rl_validation_data'], policy, iters=2)
+        z = np.array(list(rc.values()))
+        val_average = z.mean()
         log_value('Validation', val_average, total_steps)
       if settings['rl_test_data']:        
-        test_average = test_envs(fnames=settings['rl_test_data'], model=policy)
+        rc = em.test_envs(settings['rl_test_data'], policy, iters=2)
+        z = np.array(list(rc.values()))        
+        test_average = z.mean()
         log_value('Test', test_average, total_steps)
         # print('\n\n\nResults on VSIDS policy:\n\n\n')
         # val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, activity_test=True, iters=1)

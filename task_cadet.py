@@ -386,11 +386,13 @@ def cadet_main():
         rc = em.test_envs(settings['rl_validation_data'], policy, iters=2)
         z = np.array(list(rc.values()))
         val_average = z.mean()
+        print('Average on {}: {}'.format(settings['rl_validation_data'],val_average))
         log_value('Validation', val_average, total_steps)
       if settings['rl_test_data']:        
         rc = em.test_envs(settings['rl_test_data'], policy, iters=2)
         z = np.array(list(rc.values()))        
         test_average = z.mean()
+        print('Average on {}: {}'.format(settings['rl_test_data'],test_average))
         log_value('Test', test_average, total_steps)
         # print('\n\n\nResults on VSIDS policy:\n\n\n')
         # val_average = test_envs(fnames=settings['rl_validation_data'], model=policy, activity_test=True, iters=1)

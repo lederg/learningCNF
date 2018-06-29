@@ -115,6 +115,7 @@ def cfg():
 	parallelism = 1
 	full_pipeline = True
 	packed = True
+	masked_softmax = True 					# This chooses actions only from allowed actions
 	slim_state=False
 	episode_cutoff = 200
 

@@ -285,12 +285,12 @@ def cadet_main():
     # unpacked_logits = unpack_logits(logits, collated_batch.state.pack_indices[1])
     effective_bs = len(logits)
     flattened_logits = logits.contiguous().view(effective_bs,-1)
-    if settings['packed']:
+    if settings['masked_softmax']:
       allowed_mask = allowed_actions.unsqueeze(2).expand_as(logits).contiguous().view_as(flattened_logits).float()
       # probs, debug_probs = masked_softmax2d_loop(flattened_logits,allowed_mask)
       probs, debug_probs = masked_softmax2d(flattened_logits,allowed_mask)
     else:
-      probs = F.softmax(logits.contiguous().view(effective_bs,-1))
+      probs = F.softmax(flattened_logits)
     all_logprobs = safe_logprobs(probs)
     if settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
       aux_probs = F.softmax(logits.contiguous().view(effective_bs,-1)).view_as(logits)

@@ -31,6 +31,7 @@ class EpisodeManager(object):
     self.ed = ed
     self.episodes_files = ds.get_files_list()
     self.packed = self.settings['packed']
+    self.masked_softmax = self.settings['masked_softmax']
     self.envs = []
     self.completed_episodes = []
     self.real_steps = 0
@@ -152,7 +153,13 @@ class EpisodeManager(object):
       envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id))
       self.real_steps += 1
       envstr.curr_step += 1      
-      if ('cadet_test' in kwargs and kwargs['cadet_test']) or allowed_actions[vp_ind[i]+actions[i][0]]:
+      if ('cadet_test' in kwargs and kwargs['cadet_test']):
+        action_ok = True
+      elif self.packed:
+        action_ok = allowed_actions[vp_ind[i]+actions[i][0]]
+      else:
+        action_ok = allowed_actions[i][actions[i][0]]
+      if action_ok:
         env_obs = EnvObservation(*env.step(actions[i]))        
         done = env_obs.done
       else:
@@ -221,6 +228,20 @@ class EpisodeManager(object):
         print(obs.state)
         print(logits.squeeze().max(0))
         print('Got action {}'.format(action))
+    elif self.masked_softmax:     # Choose only within the logits of allowed actions
+      for i, ith_logits in enumerate(logits):
+        ith_allowed = allowed_actions[i]
+        allowed_idx = torch.from_numpy(np.where(ith_allowed.numpy())[0])
+        if self.settings['cuda']:
+          allowed_idx = allowed_idx.cuda()
+        l = ith_logits[allowed_idx]
+        probs = F.softmax(l.contiguous().view(1,-1))
+        dist = probs.data.cpu().numpy()[0]
+        choices = range(len(dist))
+        aux_action = np.random.choice(choices, p=dist)
+        aux_action = (int(aux_action/2),int(aux_action%2))
+        action = (allowed_idx[aux_action[0]], aux_action[1])
+        actions.append(action)
     else:
       probs = F.softmax(logits.contiguous().view(bs,-1)).view(bs,-1,2)
       all_dist = probs.data.cpu().numpy()

@@ -46,7 +46,7 @@ class EpisodeManager(object):
       self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None, None, None, True))
 
   def check_batch_finished(self):
-    if self.settings['normalize_episodes']:
+    if self.settings['episodes_per_batch']:
       return not (len(self.completed_episodes) < self.settings['episodes_per_batch'])
     else:
       return not (self.episode_lengths() < self.settings['min_timesteps_per_batch'])
@@ -219,7 +219,7 @@ class EpisodeManager(object):
     elif cadet_test:
       return ['?']*bs, None
 
-    logits, values = model(obs_batch, **kwargs)
+    logits, *_ = model(obs_batch, **kwargs)
     
     if testing:
       action = logits.squeeze().max(0)[1].data   # argmax when testing        

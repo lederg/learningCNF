@@ -123,7 +123,7 @@ def discount_episode(ep, gamma, settings=None):
 
 def collate_observations(batch, settings=None):
   if batch.count(None) == len(batch):
-    return State(None, None, None, None, None)
+    return State(None, None, None, None, None, None, None)
   if not settings:
     settings = CnfSettings()
   bs = len(batch)
@@ -137,7 +137,9 @@ def collate_observations(batch, settings=None):
   all_embs = []
   all_clabels = []
   i=0
-  for b in batch:
+  vmask = settings.zeros((len(batch),v_size))
+  cmask = settings.zeros((len(batch),c_size))
+  for i, b in enumerate(batch):
     if b:      
       states.append(b.state)
       ind_pos.append(b.cmat_pos.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
@@ -147,10 +149,12 @@ def collate_observations(batch, settings=None):
       embs = b.ground.squeeze()
       clabels = b.clabels.t()                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)
       l = len(embs)
+      vmask[i][:l]=1
       if l < v_size:
         embs = torch.cat([embs,torch.zeros([v_size-l,settings['ground_dim']])])
       all_embs.append(embs)
       l = len(clabels)
+      cmask[i][:l]=1
       if l < c_size:        
         clabels = torch.cat([clabels,torch.zeros([c_size-l,settings['clabel_dim']])])
       all_clabels.append(clabels)
@@ -161,7 +165,8 @@ def collate_observations(batch, settings=None):
   cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_size*i,v_size*i]))
   # if settings['cuda']:
   #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
-  return State(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.stack(all_embs), torch.stack(all_clabels))
+  return State(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.stack(all_embs), torch.stack(all_clabels),
+                vmask, cmask)
 
 def packed_collate_observations(batch, settings=None):
   if batch.count(None) == len(batch):

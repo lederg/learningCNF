@@ -74,7 +74,7 @@ def process_observation(env, last_obs, env_obs, settings=None):
 
   state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
   ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-  return State(state,cmat_pos,cmat_neg,ground_embs, clabels)
+  return State(state,cmat_pos,cmat_neg,ground_embs, clabels, last_obs.vmask, last_obs.cmask)
 
 
 def new_episode(env, fname, settings=None, **kwargs):
@@ -110,7 +110,7 @@ def new_episode(env, fname, settings=None, **kwargs):
   # if settings['cuda']:
   #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
   #   state, ground_embs = state.cuda(), ground_embs.cuda()
-  rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels)
+  rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels, None, None)
   return rc, env_id
 
 def get_ground_index(obs, idx, packed=False):

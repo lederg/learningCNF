@@ -69,12 +69,13 @@ def cfg():
 	restart_cadet_every = 3500
 	restart_in_test = False
 	non_linearity = 'F.relu'
+	attn_non_linearity = 'F.tanh'
 	test_every = 1000
 # RL - PG
 	static_ed='eps/random_easy_train.eps'
 	gamma = 0.99
 	entropy_alpha = 0.000
-	policy = 'NewDoublePolicy'
+	policy = 'AttnPolicy'
 	policy_dim1 = 64
 	policy_dim2 = 32
 	batch_backwards = False  # deprecated					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
@@ -113,8 +114,8 @@ def cfg():
 	use_curriculum = False
 	normalize_episodes = False
 	parallelism = 1
-	full_pipeline = True
-	packed = True
+	full_pipeline = False
+	packed = False
 	masked_softmax = True 					# This chooses actions only from allowed actions
 	slim_state=False
 	episode_cutoff = 200

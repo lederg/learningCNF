@@ -11,7 +11,7 @@ import ipdb
 # import pdb
 from qbf_data import *
 from batch_model import FactoredInnerIteration, GraphEmbedder
-from qbf_model import QbfEncoder, QbfNewEncoder
+from qbf_model import QbfEncoder, QbfNewEncoder, QbfAttention
 from settings import *
 
 INVALID_BIAS = -1000
@@ -311,3 +311,96 @@ class NewDoublePolicy(nn.Module):
 
 		value = None
 		return outputs, value
+
+
+class AttnPolicy(nn.Module):
+	def __init__(self, encoder=None, **kwargs):
+		super(AttnPolicy, self).__init__()
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()				
+		self.state_dim = self.settings['state_dim']
+		self.embedding_dim = self.settings['embedding_dim']
+		self.vemb_dim = self.settings['vemb_dim']
+		self.cemb_dim = self.settings['cemb_dim']
+		self.vlabel_dim = self.settings['vlabel_dim']
+		self.clabel_dim = self.settings['clabel_dim']
+		self.final_embedding_dim = 2*self.settings['max_iters']*self.vemb_dim+self.vlabel_dim
+		self.policy_dim1 = self.settings['policy_dim1']
+		self.policy_dim2 = self.settings['policy_dim2']		
+		if self.settings['ac_baseline']:
+			# self.graph_embedder = GraphEmbedder(settings=self.settings)
+			self.value_attn = QbfAttention(self.final_embedding_dim, settings=self.settings)
+			self.value_score = nn.Linear(self.state_dim+self.value_attn.n_heads*self.final_embedding_dim,1)
+		if encoder:
+			print('Bootstraping Policy from existing encoder')
+			self.encoder = encoder
+		else:
+			self.encoder = QbfNewEncoder(**kwargs)
+		if self.settings['use_global_state']:
+			self.linear1 = nn.Linear(self.state_dim+self.final_embedding_dim, self.policy_dim1)
+		else:
+			self.linear1 = nn.Linear(self.final_embedding_dim, self.policy_dim1)
+
+		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
+		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([self.settings['invalid_bias']]))
+		self.action_score = nn.Linear(self.policy_dim2,1)
+		if self.settings['leaky']:
+			self.activation = F.leaky_relu
+		else:
+			self.activation = eval(self.settings['non_linearity'])
+		self.saved_log_probs = []
+	
+	# state is just a (batched) vector of fixed size state_dim which should be expanded. 
+	# ground_embeddings are batch * max_vars * ground_embedding
+
+	# cmat_net and cmat_pos are already "batched" into a single matrix
+
+	def forward(self, obs, **kwargs):
+		state = obs.state
+		ground_embeddings = obs.ground
+		clabels = obs.clabels
+		cmat_pos = obs.cmat_pos		
+		cmat_neg = obs.cmat_neg
+
+		if self.settings['cuda']:
+			cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+			state, ground_embeddings = state.cuda(), ground_embeddings.cuda()			
+			if clabels is not None:
+				clabels = clabels.cuda()
+
+		size = ground_embeddings.size()
+		self.batch_size=size[0]
+		if 'vs' in kwargs.keys():
+			vs = kwargs['vs']		
+		else:						
+			pos_vars, neg_vars = self.encoder(ground_embeddings.view(-1,self.vlabel_dim), clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
+			vs_pos = pos_vars.view(self.batch_size,-1,self.final_embedding_dim)
+			vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
+			vs = torch.cat([vs_pos,vs_neg])
+			if 'do_debug' in kwargs:
+				ipdb.set_trace()
+
+		if self.settings['use_global_state']:
+			# if self.batch_size > 1:
+			# 	ipdb.set_trace()
+			a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
+			reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
+			inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
+		else:
+			inputs = vs.view(-1,self.final_embedding_dim)
+
+		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
+		outputs = outputs.view(2,self.batch_size,-1)
+		outputs = outputs.transpose(2,0).transpose(1,0)			# batch x numvars x pos-neg
+		# ipdb.set_trace()
+
+		if self.settings['pre_bias']:
+			missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])
+			valid = (1-(1-missing)*(1-ground_embeddings[:,:,IDX_VAR_DETERMINIZED]))*self.invalid_bias
+			outputs = outputs + valid.unsqueeze(2).expand_as(outputs)
+		if self.settings['ac_baseline'] and self.batch_size > 1:
+			embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)
+			graph_embedding, value_aux_loss = self.value_attn(state,embs,attn_mask=obs.vmask)
+			value = self.value_score(torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1))			
+		else:
+			value = None
+		return outputs, value, vs, [value_aux_loss]

@@ -182,10 +182,7 @@ def cadet_main():
   mse_loss = nn.MSELoss()
   stepsize = settings['init_lr']
   policy = create_policy()
-  value_params = [(name,param) for name, param in policy.named_parameters() if 'value' in name and param.requires_grad]
-  action_params = [(name, param) for name, param in policy.named_parameters() if 'value' not in name and param.requires_grad]
-  optimizer = optim.Adam(action_params, lr=stepsize)  
-  value_optimizer = optim.Adam(value_params, lr=stepsize)  
+  optimizer = optim.Adam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)  
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])
@@ -281,7 +278,7 @@ def cadet_main():
     begin_time = time.time()
     _, _, _, rewards, _ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
-    logits, values, vs, aux_losses = policy(collated_batch.state)
+    logits, values = policy(collated_batch.state)
     allowed_actions = Variable(get_allowed_actions(collated_batch.state))
     if settings['cuda']:
       allowed_actions = allowed_actions.cuda()
@@ -306,16 +303,8 @@ def cadet_main():
     returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
       adv_t = returns - values.squeeze().data
-      curr_values = values
-      print('Training value function:')
-      for _ in range(30):
-        value_loss = mse_loss(curr_values, Variable(returns)) + aux_losses.sum()        
-        print('Value loss is {}'.format(value_loss.data.numpy()))
-        value_optimizer.zero_grad()
-        value_loss.backward()
-        torch.nn.utils.clip_grad_norm(value_params, settings['grad_norm_clipping'])
-        value_optimizer.step()
-        _, curr_values, _, aux_losses = policy(collated_batch.state, vs=vs.detach())
+      value_loss = mse_loss(values, Variable(returns))    
+      print('Value loss is {}'.format(value_loss.data.numpy()))
     else:
       adv_t = returns
       value_loss = 0.
@@ -344,8 +333,7 @@ def cadet_main():
     # print('--------------------------------------------------------------')
     # print(disallowed_mass)
     # loss = value_loss + lambda_disallowed*disallowed_loss
-    # loss = pg_loss + value_loss + lambda_disallowed*disallowed_loss
-    loss = pg_loss  + lambda_disallowed*disallowed_loss
+    loss = pg_loss + value_loss + lambda_disallowed*disallowed_loss
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm(policy.parameters(), settings['grad_norm_clipping'])

@@ -403,4 +403,4 @@ class AttnPolicy(nn.Module):
 			value = self.value_score(torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1))			
 		else:
 			value = None
-		return outputs, value, vs, [value_aux_loss]
+		return outputs, value

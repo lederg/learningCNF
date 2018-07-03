@@ -111,6 +111,7 @@ def cfg():
 	vars_set = True
 	use_gru = False  # deprecated
 	use_bn = False
+	state_bn = False
 	use_curriculum = False
 	normalize_episodes = False
 	parallelism = 1
@@ -119,6 +120,7 @@ def cfg():
 	masked_softmax = True 					# This chooses actions only from allowed actions
 	slim_state=False
 	episode_cutoff = 200
+	use_state_in_vn = True	
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

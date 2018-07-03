@@ -326,11 +326,15 @@ class AttnPolicy(nn.Module):
 		self.final_embedding_dim = 2*self.settings['max_iters']*self.vemb_dim+self.vlabel_dim
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']		
+		self.state_bn = self.settings['state_bn']
 		if self.settings['ac_baseline']:
 			# self.graph_embedder = GraphEmbedder(settings=self.settings)
 			self.value_attn = QbfAttention(self.final_embedding_dim, settings=self.settings)
-			self.value_score = nn.Linear(self.state_dim+self.value_attn.n_heads*self.final_embedding_dim,1)
-			# self.value_score = nn.Linear(self.value_attn.n_heads*self.final_embedding_dim,1)
+			if self.settings['use_state_in_vn']:
+				self.value_score1 = nn.Linear(self.state_dim+self.value_attn.n_heads*self.final_embedding_dim,20)
+			else:
+				self.value_score1 = nn.Linear(self.value_attn.n_heads*self.final_embedding_dim,20)
+			self.value_score2 = nn.Linear(20,1)				
 		if encoder:
 			print('Bootstraping Policy from existing encoder')
 			self.encoder = encoder
@@ -344,7 +348,8 @@ class AttnPolicy(nn.Module):
 		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
 		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([self.settings['invalid_bias']]))
 		self.action_score = nn.Linear(self.policy_dim2,1)
-		self.state_bn = nn.BatchNorm1d(self.state_dim)
+		if self.state_bn:
+			self.state_bn = nn.BatchNorm1d(self.state_dim)
 		if self.settings['leaky']:
 			self.activation = F.leaky_relu
 		else:
@@ -381,10 +386,11 @@ class AttnPolicy(nn.Module):
 			if 'do_debug' in kwargs:
 				ipdb.set_trace()
 
+		if self.state_bn:
+			state = self.state_bn(state)
 		if self.settings['use_global_state']:
 			# if self.batch_size > 1:
 			# 	ipdb.set_trace()
-			state = self.state_bn(state)
 			a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
 			reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
 			inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
@@ -403,8 +409,11 @@ class AttnPolicy(nn.Module):
 		if self.settings['ac_baseline'] and self.batch_size > 1:
 			embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)
 			graph_embedding, value_aux_loss = self.value_attn(state,embs,attn_mask=obs.vmask)
-			# value = self.value_score(graph_embedding.view(self.batch_size,-1))			
-			value = self.value_score(torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1))			
+			if self.settings['use_state_in_vn']:
+				val_inp = torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1)
+			else:
+				val_inp = graph_embedding.view(self.batch_size,-1)
+			value = self.value_score2(self.activation(self.value_score1(val_inp)))
 		else:
 			value = None
 		return outputs, value

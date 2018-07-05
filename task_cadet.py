@@ -293,7 +293,7 @@ def cadet_main():
       probs = F.softmax(flattened_logits)
     all_logprobs = safe_logprobs(probs)
     if settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
-      aux_probs = F.softmax(logits.contiguous().view(effective_bs,-1)).view_as(logits)
+      aux_probs = F.softmax(logits.contiguous().view(effective_bs,-1),dim=1).view_as(logits)
       disallowed_actions = Variable(allowed_actions.data^1).float()
       if len(logits.size()) > len(disallowed_actions.size()):        
         disallowed_actions = disallowed_actions.unsqueeze(2).expand_as(logits)
@@ -336,7 +336,7 @@ def cadet_main():
     loss = pg_loss + value_loss + lambda_disallowed*disallowed_loss
     optimizer.zero_grad()
     loss.backward()
-    torch.nn.utils.clip_grad_norm(policy.parameters(), settings['grad_norm_clipping'])
+    torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       print('NaN in grads!')
       ipdb.set_trace()

@@ -53,8 +53,8 @@ class FactoredInnerIteration(nn.Module):
 		self.cuda = self.settings['cuda']		
 		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
-		nn_init.normal(self.vb)
-		nn_init.normal(self.cb)
+		nn_init.normal_(self.vb)
+		nn_init.normal_(self.cb)
 		
 	def forward(self, variables, v_mat, c_mat, ground_vars=None, v_block=None, c_block=None, **kwargs):		
 		if 'old_forward' in kwargs and kwargs['old_forward']:
@@ -131,13 +131,13 @@ class WeightedNegInnerIteration(nn.Module):
 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],self.embedding_dim)
 		self.cuda = self.settings['cuda']		
 		self.forward_backwards_block = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
-		nn_init.normal(self.forward_backwards_block)		
+		nn_init.normal_(self.forward_backwards_block)		
 		if self.settings['use_gru']:
 			self.gru = GruOperator(settings=self.settings)
 		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
-		nn_init.normal(self.vb)
-		nn_init.normal(self.cb)
+		nn_init.normal_(self.vb)
+		nn_init.normal_(self.cb)
 				
 	def forward(self, variables, v_mat, c_mat, ground_vars=None, cmat_pos=None, cmat_neg=None, **kwargs):				
 		bsize = kwargs['batch_size'] if 'batch_size' in kwargs else self.settings['batch_size']
@@ -211,9 +211,9 @@ class QbfEncoder(nn.Module):
 		self.ggn_core = eval(self.settings['ggn_core'])
 		self.inner_iteration = self.ggn_core(**kwargs)			
 		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
-		nn_init.normal(self.forward_pos_neg)		
+		nn_init.normal_(self.forward_pos_neg)		
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
-		nn_init.normal(self.backwards_pos_neg)		
+		nn_init.normal_(self.backwards_pos_neg)		
 					
 	# def expand_ground_to_state(self,v):
 	# 	# ipdb.set_trace()
@@ -289,10 +289,10 @@ class QbfNewEncoder(nn.Module):
 			B_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim)))
 			W_C_params.append(nn.Parameter(self.settings.FloatTensor(self.vemb_dim,self.clabel_dim+self.cemb_dim)))
 			B_C_params.append(nn.Parameter(self.settings.FloatTensor(self.vemb_dim)))
-			nn_init.normal(W_L_params[i])
-			nn_init.normal(B_L_params[i])		
-			nn_init.normal(W_C_params[i])				
-			nn_init.normal(B_C_params[i])
+			nn_init.normal_(W_L_params[i])
+			nn_init.normal_(B_L_params[i])		
+			nn_init.normal_(W_C_params[i])				
+			nn_init.normal_(B_C_params[i])
 			if self.settings['use_bn']:
 				self.bn_layers.append(nn.BatchNorm1d(self.vemb_dim))
 
@@ -362,7 +362,7 @@ class QbfAttention(nn.Module):
 		self.non_linearity = eval(self.settings['attn_non_linearity'])
 		self.n_heads = n_heads
 		self.w_qs = nn.Parameter(self.settings.FloatTensor(n_heads, self.emb_dim, self.seed_dim))
-		nn_init.xavier_normal(self.w_qs)
+		nn_init.xavier_normal_(self.w_qs)
 		
 		# embeddings are used as both keys and values, and are bs*(numvar pos+neg)*vemb_dim
 		# query seed is bs x seed_dim

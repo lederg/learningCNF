@@ -235,7 +235,7 @@ class EpisodeManager(object):
         if self.settings['cuda']:
           allowed_idx = allowed_idx.cuda()
         l = ith_logits[allowed_idx]
-        probs = F.softmax(l.contiguous().view(1,-1))
+        probs = F.softmax(l.contiguous().view(1,-1),dim=1)
         dist = probs.data.cpu().numpy()[0]
         choices = range(len(dist))
         aux_action = np.random.choice(choices, p=dist)

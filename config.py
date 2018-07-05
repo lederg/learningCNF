@@ -119,7 +119,7 @@ def cfg():
 	packed = False
 	masked_softmax = True 					# This chooses actions only from allowed actions
 	slim_state=False
-	episode_cutoff = 200
+	episode_cutoff = 300
 	use_state_in_vn = True	
 
 	grad_norm_clipping = 2

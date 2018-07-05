@@ -8,6 +8,7 @@ import time
 # import pandas as pd
 from tensorboard_logger import configure, log_value
 
+from shared_adam import SharedAdam
 from settings import *
 from cadet_env import *
 from rl_model import *
@@ -182,7 +183,7 @@ def cadet_main():
   mse_loss = nn.MSELoss()
   stepsize = settings['init_lr']
   policy = create_policy()
-  optimizer = optim.Adam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)  
+  optimizer = SharedAdam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)  
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])

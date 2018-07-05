@@ -120,12 +120,13 @@ def cfg():
 	masked_softmax = True 					# This chooses actions only from allowed actions
 	slim_state=False
 	episode_cutoff = 200
-	use_state_in_vn = True	
+	use_state_in_vn = False	
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate
 	disallowed_aux = False
 	lambda_disallowed = 1.
+	lambda_value = 1.
 	invalid_bias = -1000  # deprecate
 	# invalid_bias = 0
 	report_tensorboard = True

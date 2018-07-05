@@ -38,6 +38,7 @@ real_steps = 0
 inference_time = []
 total_inference_time = 0
 lambda_disallowed = settings['lambda_disallowed']
+lambda_value = settings['lambda_value']
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
 curr_lr = init_lr
@@ -303,6 +304,7 @@ def cadet_main():
     returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
       adv_t = returns - values.squeeze().data
+      ipdb.set_trace()
       value_loss = mse_loss(values, Variable(returns))    
       print('Value loss is {}'.format(value_loss.data.numpy()))
     else:
@@ -333,7 +335,7 @@ def cadet_main():
     # print('--------------------------------------------------------------')
     # print(disallowed_mass)
     # loss = value_loss + lambda_disallowed*disallowed_loss
-    loss = pg_loss + value_loss + lambda_disallowed*disallowed_loss
+    loss = pg_loss + lambda_value*value_loss + lambda_disallowed*disallowed_loss
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])

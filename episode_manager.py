@@ -301,7 +301,7 @@ class EpisodeManager(object):
     elif cadet_test:
       return ['?']*bs, None
 
-    logits, values = model(obs_batch, packed=self.packed, **kwargs)
+    logits, *_ = model(obs_batch, packed=self.packed, **kwargs)
     vp_ind = obs_batch.pack_indices[1]
     for i in range(len(vp_ind)-1):
       ith_allowed = allowed_actions[vp_ind[i]:vp_ind[i+1]]

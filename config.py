@@ -127,6 +127,7 @@ def cfg():
 	disallowed_aux = False
 	lambda_disallowed = 1.
 	lambda_value = 1.
+	lambda_aux = 1.
 	invalid_bias = -1000  # deprecate
 	# invalid_bias = 0
 	report_tensorboard = True

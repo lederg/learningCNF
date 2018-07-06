@@ -301,5 +301,5 @@ def compute_kl(logits, old_logits):
   s = logits.size(0)
   old_logits = old_logits.view(s,-1)
   logits = logits.view(s,-1)
-  totals = F.softmax(old_logits) * (F.log_softmax(old_logits) - F.log_softmax(logits))
+  totals = F.softmax(old_logits,dim=1) * (F.log_softmax(old_logits,dim=1) - F.log_softmax(logits,dim=1))
   return totals.sum(1).data

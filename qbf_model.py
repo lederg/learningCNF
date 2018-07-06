@@ -369,12 +369,13 @@ class QbfAttention(nn.Module):
 		# attn_mask is bs x num_vars
 	def forward(self, query_seed, embeddings, attn_mask=None, values=None, **kwargs):
 		def normalize_tensor(x):
+			# return x
 			return x / x.norm(2,2).unsqueeze(2).expand_as(x)
 		bs, varnum, _ = embeddings.size()
 		if not values:
 			values = embeddings
 		norm_embs = normalize_tensor(embeddings)
-		qs = torch.mm(self.w_qs.view(-1,self.seed_dim),query_seed.t()).t().contiguous().view(bs,self.n_heads,-1)			# bs*n_heads*emb_dim
+		qs = self.non_linearity(torch.mm(self.w_qs.view(-1,self.seed_dim),query_seed.t()).t().contiguous().view(bs,self.n_heads,-1))			# bs*n_heads*emb_dim
 		norm_qs = normalize_tensor(qs)
 
 		# We'd like the attention vectors in norm_qs to be mostly orthogonal, so we penalize norm(A^t*A-I)
@@ -385,7 +386,7 @@ class QbfAttention(nn.Module):
 		# Translate attention mask from bs*numvars to basically double that
 		softmax_mask = 1-torch.cat([attn_mask]*2,dim=1).unsqueeze(1).expand_as(attn)
 		attn.data.masked_fill_(softmax_mask.byte(), -float('inf'))
-		final_attn = F.softmax(attn.view(-1,varnum)).view(attn.size())
+		final_attn = F.softmax(attn.view(-1,varnum),dim=1).view(attn.size())
 		rc = torch.bmm(final_attn,values)
 
 		return rc, loss

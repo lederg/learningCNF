@@ -5,7 +5,6 @@ import ipdb
 import pdb
 import random
 import time
-# import pandas as pd
 from tensorboard_logger import configure, log_value
 
 from settings import *
@@ -39,6 +38,7 @@ inference_time = []
 total_inference_time = 0
 lambda_disallowed = settings['lambda_disallowed']
 lambda_value = settings['lambda_value']
+lambda_aux = settings['lambda_aux']
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
 curr_lr = init_lr
@@ -279,7 +279,7 @@ def cadet_main():
     begin_time = time.time()
     _, _, _, rewards, _ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
-    logits, values = policy(collated_batch.state)
+    logits, values, _, aux_losses = policy(collated_batch.state)
     allowed_actions = Variable(get_allowed_actions(collated_batch.state))
     if settings['cuda']:
       allowed_actions = allowed_actions.cuda()
@@ -304,9 +304,12 @@ def cadet_main():
     returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
       adv_t = returns - values.squeeze().data
-      ipdb.set_trace()
-      value_loss = mse_loss(values, Variable(returns))    
+      value_loss = mse_loss(values.squeeze(), Variable(returns))    
       print('Value loss is {}'.format(value_loss.data.numpy()))
+      print('Value Auxilliary loss is {}'.format(sum(aux_losses).data.numpy()))
+      if i>0 and i % 60 == 0:
+        vecs = {'returns': returns.numpy(), 'values': values.squeeze().data.numpy()}        
+        pprint_vectors(vecs)
     else:
       adv_t = returns
       value_loss = 0.
@@ -335,7 +338,10 @@ def cadet_main():
     # print('--------------------------------------------------------------')
     # print(disallowed_mass)
     # loss = value_loss + lambda_disallowed*disallowed_loss
-    loss = pg_loss + lambda_value*value_loss + lambda_disallowed*disallowed_loss
+    total_aux_loss = sum(aux_losses) if aux_losses else 0.
+    
+    # ipdb.set_trace()
+    loss = pg_loss + lambda_value*value_loss + lambda_disallowed*disallowed_loss + lambda_aux*total_aux_loss
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])
@@ -352,8 +358,8 @@ def cadet_main():
 
     if settings['follow_kl']:
       old_logits = logits
-      logits, _ = policy(collated_batch.state)    
-      kl = compute_kl(logits.data,old_logits.data)
+      logits, *_ = policy(collated_batch.state)    
+      kl = compute_kl(logits.data.contiguous().view(effective_bs,-1),old_logits.data.contiguous().view(effective_bs,-1))
       kl = kl.mean()      
       print('desired kl is {}, real one is {}'.format(settings['desired_kl'],kl))
       curr_kl = kl_schedule.value(total_steps)

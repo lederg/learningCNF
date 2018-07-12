@@ -326,10 +326,9 @@ class AttnPolicy(nn.Module):
 		self.final_embedding_dim = 2*self.settings['max_iters']*self.vemb_dim+self.vlabel_dim
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']		
-		self.state_bn = self.settings['state_bn']
+		self.state_bn = self.settings['state_bn']		
 		self.hidden_dim = 50
-		if self.settings['ac_baseline']:
-			# self.graph_embedder = GraphEmbedder(settings=self.settings)
+		if self.settings['ac_baseline']:			
 			self.value_attn = QbfAttention(self.final_embedding_dim, n_heads=20, settings=self.settings)
 			if self.settings['use_state_in_vn']:
 				self.value_score1 = nn.Linear(self.state_dim+self.value_attn.n_heads*self.final_embedding_dim,self.hidden_dim)
@@ -387,9 +386,10 @@ class AttnPolicy(nn.Module):
 			vs = torch.cat([vs_pos,vs_neg])
 			if 'do_debug' in kwargs:
 				ipdb.set_trace()
-
+		
 		if self.state_bn:
 			state = self.state_bn(state)
+
 		if self.settings['use_global_state']:
 			# if self.batch_size > 1:
 			# 	ipdb.set_trace()

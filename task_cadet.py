@@ -358,6 +358,7 @@ def cadet_main():
 
     if settings['follow_kl']:
       old_logits = logits
+      policy.eval()
       logits, *_ = policy(collated_batch.state)    
       kl = compute_kl(logits.data.contiguous().view(effective_bs,-1),old_logits.data.contiguous().view(effective_bs,-1))
       kl = kl.mean()      

@@ -345,9 +345,12 @@ class AttnPolicy(nn.Module):
 		else:
 			self.linear1 = nn.Linear(self.final_embedding_dim, self.policy_dim1)
 
-		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
+		if self.policy_dim2:
+			self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
+			self.action_score = nn.Linear(self.policy_dim2,1)
+		else:
+			self.action_score = nn.Linear(self.policy_dim1,1)
 		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([self.settings['invalid_bias']]))
-		self.action_score = nn.Linear(self.policy_dim2,1)
 		if self.state_bn:
 			self.state_bn = nn.BatchNorm1d(self.state_dim)
 		if self.settings['leaky']:
@@ -399,7 +402,10 @@ class AttnPolicy(nn.Module):
 		else:
 			inputs = vs.view(-1,self.final_embedding_dim)
 
-		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
+		if self.policy_dim2:			
+			outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
+		else:
+			outputs = self.action_score(self.activation(self.linear1(inputs)))
 		outputs = outputs.view(2,self.batch_size,-1)
 		outputs = outputs.transpose(2,0).transpose(1,0)			# batch x numvars x pos-neg
 		# ipdb.set_trace()

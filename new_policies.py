@@ -144,12 +144,14 @@ class Actor1Policy(PolicyBase):
     rc = rc.view(s[0],-1)
     return rc
 
+  def translate_action(self, action, **kwargs):
+    return (int(action/2),int(action%2))
+
   def select_action(self, obs_batch, **kwargs):
     logits, *_ = self.forward(obs_batch)
     allowed_actions = self.get_allowed_actions(obs_batch)
     actions = []
     for i, ith_logits in enumerate(logits):
-      ipdb.set_trace()
       ith_allowed = allowed_actions[i]
       allowed_idx = torch.from_numpy(np.where(ith_allowed.numpy())[0])
       if self.settings['cuda']:
@@ -159,8 +161,7 @@ class Actor1Policy(PolicyBase):
       dist = probs.data.cpu().numpy()[0]
       choices = range(len(dist))
       aux_action = np.random.choice(choices, p=dist)
-      aux_action = (int(aux_action/2),int(aux_action%2))
-      action = (allowed_idx[aux_action[0]], aux_action[1])
+      action = allowed_idx[aux_action]
       actions.append(action)
 
     return actions

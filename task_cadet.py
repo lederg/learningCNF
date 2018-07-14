@@ -46,124 +46,124 @@ curr_lr = init_lr
 max_reroll = 0
 
 
-def select_action(obs, model=None, testing=False, max_test=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
-  global max_reroll, real_steps
-  activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
-  if random_test:
-    choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
-    action = np.random.choice(choices)
-    return action, None
-  elif activity_test:
-    if np.any(activities):
-      action = np.argmax(activities)
-    else:
-      choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
-      action = choices[0]
-    return action, None
-  elif cadet_test:
-    return '?', None
+# def select_action(obs, model=None, testing=False, max_test=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):    
+#   global max_reroll, real_steps
+#   activities = obs.ground.data.numpy()[0,:,IDX_VAR_ACTIVITY]
+#   if random_test:
+#     choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
+#     action = np.random.choice(choices)
+#     return action, None
+#   elif activity_test:
+#     if np.any(activities):
+#       action = np.argmax(activities)
+#     else:
+#       choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
+#       action = choices[0]
+#     return action, None
+#   elif cadet_test:
+#     return '?', None
 
-  if False and not (real_steps % 500):
-    logits, values = model(obs, do_debug=True, **kwargs)
-  else:
-    logits, values = model(obs, **kwargs)
+#   if False and not (real_steps % 500):
+#     logits, values = model(obs, do_debug=True, **kwargs)
+#   else:
+#     logits, values = model(obs, **kwargs)
   
-  if max_test:
-    action = logits.squeeze().max(0)[1].data   # argmax when testing        
-    action = action[0]
-    if settings['debug_actions']:
-      print(obs.state)
-      print(logits.squeeze().max(0))
-      print('Got action {}'.format(action))
-  elif testing or settings['packed']:       # Don't resample, just choose only from the real data.
-    allowed = torch.from_numpy(np.where(get_allowed_actions(obs).squeeze().numpy())[0])
-    l = logits.squeeze()[allowed]
-    probs = F.softmax(l.contiguous().view(1,-1))
-    dist = probs.data.cpu().numpy()[0]
-    choices = range(len(dist))
-    aux_action = np.random.choice(choices, p=dist)
-    if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
-      aux_action = (int(aux_action/2),int(aux_action%2))
-      action = (allowed[aux_action[0]], aux_action[1])
-  else:
-    # probs = F.softmax(logits)
-    probs = F.softmax(logits.contiguous().view(1,-1))
-    real_steps += 1
-    # if not (real_steps % 500):
-    #   ipdb.set_trace()
-    dist = probs.data.cpu().numpy()[0]
-    choices = range(len(dist))
-    i = 0
-    while i<1000:
-      action = np.random.choice(choices, p=dist)
-      if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
-        action = (int(action/2),int(action%2))
-      if not settings['disallowed_aux'] or action_allowed(obs, action):
-        break
-      i = i+1
-    if i > max_reroll:
-      max_reroll = i
-      print('Had to roll {} times to come up with a valid action!'.format(max_reroll))
-    if i>600:
-      # ipdb.set_trace()
-      print("Couldn't choose an action within 600 re-samples. Printing probabilities:")            
-      allowed_mass = (probs.view_as(logits).sum(2).data*get_allowed_actions(obs).float()).sum(1)
-      print('total allowed mass is {}'.format(allowed_mass.sum()))
-      print(dist.max())
-    if i==1000 and testing:     # If we're testing, take random action
-      print('Could not choose an action in testing. Choosing at random!')
-      choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
-      action = np.random.choice(choices)
-      return action, None
+#   if max_test:
+#     action = logits.squeeze().max(0)[1].data   # argmax when testing        
+#     action = action[0]
+#     if settings['debug_actions']:
+#       print(obs.state)
+#       print(logits.squeeze().max(0))
+#       print('Got action {}'.format(action))
+#   elif testing or settings['packed']:       # Don't resample, just choose only from the real data.
+#     allowed = torch.from_numpy(np.where(get_allowed_actions(obs).squeeze().numpy())[0])
+#     l = logits.squeeze()[allowed]
+#     probs = F.softmax(l.contiguous().view(1,-1))
+#     dist = probs.data.cpu().numpy()[0]
+#     choices = range(len(dist))
+#     aux_action = np.random.choice(choices, p=dist)
+#     if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
+#       aux_action = (int(aux_action/2),int(aux_action%2))
+#       action = (allowed[aux_action[0]], aux_action[1])
+#   else:
+#     # probs = F.softmax(logits)
+#     probs = F.softmax(logits.contiguous().view(1,-1))
+#     real_steps += 1
+#     # if not (real_steps % 500):
+#     #   ipdb.set_trace()
+#     dist = probs.data.cpu().numpy()[0]
+#     choices = range(len(dist))
+#     i = 0
+#     while i<1000:
+#       action = np.random.choice(choices, p=dist)
+#       if len(logits.size()) > 2:    # logits is  > 1-dimensional, action must be > 1-dimensional too      
+#         action = (int(action/2),int(action%2))
+#       if not settings['disallowed_aux'] or action_allowed(obs, action):
+#         break
+#       i = i+1
+#     if i > max_reroll:
+#       max_reroll = i
+#       print('Had to roll {} times to come up with a valid action!'.format(max_reroll))
+#     if i>600:
+#       # ipdb.set_trace()
+#       print("Couldn't choose an action within 600 re-samples. Printing probabilities:")            
+#       allowed_mass = (probs.view_as(logits).sum(2).data*get_allowed_actions(obs).float()).sum(1)
+#       print('total allowed mass is {}'.format(allowed_mass.sum()))
+#       print(dist.max())
+#     if i==1000 and testing:     # If we're testing, take random action
+#       print('Could not choose an action in testing. Choosing at random!')
+#       choices = np.where(get_allowed_actions(obs).squeeze().numpy())[0]
+#       action = np.random.choice(choices)
+#       return action, None
 
 
 
-  return action, logits.contiguous()
+#   return action, logits.contiguous()
 
-def handle_episode(**kwargs):
-  episode_memory = ReplayMemory(5000)
+# def handle_episode(**kwargs):
+#   episode_memory = ReplayMemory(5000)
 
-  last_obs, env_id, _ = new_episode(env,all_episode_files, **kwargs)
-  if last_obs is None:      # env solved in 0 steps
-    print('Env {} solved in 0 steps, removing'.format(env_id))
-    return None, None, None
-  if settings['rl_log_all']:
-    reporter.log_env(env_id)
-  entropies = []
+#   last_obs, env_id, _ = new_episode(env,all_episode_files, **kwargs)
+#   if last_obs is None:      # env solved in 0 steps
+#     print('Env {} solved in 0 steps, removing'.format(env_id))
+#     return None, None, None
+#   if settings['rl_log_all']:
+#     reporter.log_env(env_id)
+#   entropies = []
 
-  for t in range(4000):  # Don't infinite loop while learning
-    begin_time = time.time()
-    action, logits = select_action(last_obs, **kwargs)    
-    if logits is not None:
-      probs = F.softmax(logits.data.view(1,-1))
-      a = probs[probs>0].data
-      entropy = -(a*a.log()).sum()
-      entropies.append(entropy)
-    inference_time.append(time.time()-begin_time)
-    if action_allowed(last_obs,action):
-      # try:
-        # ipdb.set_trace()
-      env_obs = EnvObservation(*env.step(action))        
-      state, vars_add, vars_remove, activities, decision, clause, reward, vars_set, done = env_obs      
-      # except Exception as e:
-      #   print(e)
-      #   ipdb.set_trace()
-    else:      
-      print('Chose an invalid action!')
-      print('Entropy for this step: {}'.format(entropy))
-      env.rewards = env.terminate()
-      env.rewards = np.append(env.rewards,INVALID_ACTION_REWARDS)
-      done = True
-    episode_memory.push(last_obs,action,None, None, env_id)
-    # if t % 1500 == 0 and t > 0:
-    #   print('In env {}, step {}'.format(env.current_fname,t))
-    if done:
-      return episode_memory, env_id, np.mean(entropies) if entropies else None
-    obs = process_observation(env,last_obs,env_obs)
-    last_obs = obs
+#   for t in range(4000):  # Don't infinite loop while learning
+#     begin_time = time.time()
+#     action, logits = select_action(last_obs, **kwargs)    
+#     if logits is not None:
+#       probs = F.softmax(logits.data.view(1,-1))
+#       a = probs[probs>0].data
+#       entropy = -(a*a.log()).sum()
+#       entropies.append(entropy)
+#     inference_time.append(time.time()-begin_time)
+#     if action_allowed(last_obs,action):
+#       # try:
+#         # ipdb.set_trace()
+#       env_obs = EnvObservation(*env.step(action))        
+#       state, vars_add, vars_remove, activities, decision, clause, reward, vars_set, done = env_obs      
+#       # except Exception as e:
+#       #   print(e)
+#       #   ipdb.set_trace()
+#     else:      
+#       print('Chose an invalid action!')
+#       print('Entropy for this step: {}'.format(entropy))
+#       env.rewards = env.terminate()
+#       env.rewards = np.append(env.rewards,INVALID_ACTION_REWARDS)
+#       done = True
+#     episode_memory.push(last_obs,action,None, None, env_id)
+#     # if t % 1500 == 0 and t > 0:
+#     #   print('In env {}, step {}'.format(env.current_fname,t))
+#     if done:
+#       return episode_memory, env_id, np.mean(entropies) if entropies else None
+#     obs = process_observation(env,last_obs,env_obs)
+#     last_obs = obs
 
-  print('Env {} took too long, aborting!'.format(env.current_fname))  
-  return None, None, None
+#   print('Env {} took too long, aborting!'.format(env.current_fname))  
+#   return None, None, None
 
 
 def ts_bonus(s):
@@ -233,35 +233,35 @@ def cadet_main():
       if settings['parallelism'] > 1 and not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
         em.reset_all()
 
-    else:
-      while time_steps_this_batch < settings['min_timesteps_per_batch']:      
-        episode, env_id, entropy = handle_episode(model=policy)
-        if episode is None:
-          continue
-        s = len(episode)
-        total_envs += [env_id]*s
-        total_steps += s
-        time_steps_this_batch += s      
-        if settings['rl_log_all']:
-          reporter.log_env(env_id)      
-        # episode is a list of half-empty Tranitions - (obs, action, None, None), we want to turn it to (obs,action,None, None)
-        if env.finished:
-          reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
-        else:        
-          print('Env {} did not finish!'.format(env_id))
-          bad_episodes += 1
-          try:
-            print(reporter.stats_dict[env_id])
-            steps = int(np.array([x[0] for x in reporter.stats_dict[env_id]]).mean())
-            reporter.add_stat(env_id,steps,sum(env.rewards), entropy, total_steps)
-            print('Added it with existing steps average: {}'.format(steps))
-          except:
-            bad_episodes_not_added += 1
-            print('Avrage does not exist yet, did not add.')
-          print('Total Bad episodes so far: {}. Bad episodes that were not counted: {}'.format(bad_episodes,bad_episodes_not_added))
+    # else:
+    #   while time_steps_this_batch < settings['min_timesteps_per_batch']:      
+    #     episode, env_id, entropy = handle_episode(model=policy)
+    #     if episode is None:
+    #       continue
+    #     s = len(episode)
+    #     total_envs += [env_id]*s
+    #     total_steps += s
+    #     time_steps_this_batch += s      
+    #     if settings['rl_log_all']:
+    #       reporter.log_env(env_id)      
+    #     # episode is a list of half-empty Tranitions - (obs, action, None, None), we want to turn it to (obs,action,None, None)
+    #     if env.finished:
+    #       reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
+    #     else:        
+    #       print('Env {} did not finish!'.format(env_id))
+    #       bad_episodes += 1
+    #       try:
+    #         print(reporter.stats_dict[env_id])
+    #         steps = int(np.array([x[0] for x in reporter.stats_dict[env_id]]).mean())
+    #         reporter.add_stat(env_id,steps,sum(env.rewards), entropy, total_steps)
+    #         print('Added it with existing steps average: {}'.format(steps))
+    #       except:
+    #         bad_episodes_not_added += 1
+    #         print('Avrage does not exist yet, did not add.')
+    #       print('Total Bad episodes so far: {}. Bad episodes that were not counted: {}'.format(bad_episodes,bad_episodes_not_added))
 
-        r = discount(env.rewards, settings['gamma'])
-        transition_data.extend([Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(episode, r)])
+    #     r = discount(env.rewards, settings['gamma'])
+    #     transition_data.extend([Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(episode, r)])
 
     total_inference_time = time.time() - begin_time
     print('Finished batch with total of %d steps in %f seconds' % (len(transition_data), total_inference_time))
@@ -281,26 +281,24 @@ def cadet_main():
     _, _, _, rewards, _ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
     logits, values, _, aux_losses = policy(collated_batch.state)
-    allowed_actions = Variable(get_allowed_actions(collated_batch.state))
+    allowed_actions = Variable(policy.get_allowed_actions(collated_batch.state))
     if settings['cuda']:
       allowed_actions = allowed_actions.cuda()
     # unpacked_logits = unpack_logits(logits, collated_batch.state.pack_indices[1])
-    effective_bs = len(logits)
-    flattened_logits = logits.contiguous().view(effective_bs,-1)
+    effective_bs = len(logits)    
+
     if settings['masked_softmax']:
-      allowed_mask = allowed_actions.unsqueeze(2).expand_as(logits).contiguous().view_as(flattened_logits).float()
-      # probs, debug_probs = masked_softmax2d_loop(flattened_logits,allowed_mask)
-      probs, debug_probs = masked_softmax2d(flattened_logits,allowed_mask)
+      allowed_mask = allowed_actions.float()      
+      probs, debug_probs = masked_softmax2d(logits,allowed_mask)
     else:
-      probs = F.softmax(flattened_logits)
+      probs = F.softmax(logits, dim=1)
     all_logprobs = safe_logprobs(probs)
     if settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
-      aux_probs = F.softmax(logits.contiguous().view(effective_bs,-1),dim=1).view_as(logits)
-      disallowed_actions = Variable(allowed_actions.data^1).float()
-      if len(logits.size()) > len(disallowed_actions.size()):        
-        disallowed_actions = disallowed_actions.unsqueeze(2).expand_as(logits)
-      disallowed_mass = (aux_probs*disallowed_actions).view(effective_bs,-1).sum(1)
+      aux_probs = F.softmax(logits,dim=1)
+      disallowed_actions = Variable(allowed_actions.data^1).float()      
+      disallowed_mass = (aux_probs*disallowed_actions).sum(1)
       disallowed_loss = disallowed_mass.sum()
+      print('Disallowed loss is {}'.format(disallowed_loss))
 
     returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
@@ -314,11 +312,9 @@ def cadet_main():
     else:
       adv_t = returns
       value_loss = 0.
-    flattened_actions = collated_batch.action
-    if len(flattened_actions.size()) > 1:
-      flattened_actions = 2*collated_batch.action[:,0] + collated_batch.action[:,1]    
+    actions = collated_batch.action    
     try:
-      logprobs = all_logprobs.gather(1,Variable(flattened_actions).view(-1,1)).squeeze()
+      logprobs = all_logprobs.gather(1,Variable(actions).view(-1,1)).squeeze()
     except:
       ipdb.set_trace()
     entropies = (-probs*all_logprobs).sum(1)    

@@ -144,7 +144,7 @@ class EpisodeManager(object):
     else:
       obs_batch = collate_observations(step_obs)
     allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed)
-    actions, logits = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, **kwargs)
+    actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, **kwargs)
     
     for i, envnum in enumerate(active_envs):
       envstr = self.envs[envnum]
@@ -158,9 +158,9 @@ class EpisodeManager(object):
       elif self.packed:
         action_ok = allowed_actions[vp_ind[i]+actions[i][0]]
       else:
-        action_ok = allowed_actions[i][actions[i][0]]
+        action_ok = allowed_actions[i][actions[i]]      # New policies
       if action_ok:
-        env_obs = EnvObservation(*env.step(actions[i]))        
+        env_obs = EnvObservation(*env.step(model.translate_action(actions[i])))        
         done = env_obs.done
       else:
         print('Chose an invalid action! In the packed version. That was not supposed to happen.')
@@ -218,7 +218,6 @@ class EpisodeManager(object):
     elif cadet_test:
       return ['?']*bs, None
     actions = model.select_action(obs_batch, **kwargs)    
-    ipdb.set_trace()
     return actions
 
   def packed_select_action(self, obs_batch, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):        

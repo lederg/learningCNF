@@ -3,9 +3,10 @@ import copy
 import torch
 from torch.autograd import Variable
 from settings import *
-from rl_model import *
 from rl_types import *
 from cadet_utils import *
+from rl_model import *
+from new_policies import Actor1Policy
 
 class ReplayMemory(object):
 

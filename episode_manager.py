@@ -143,7 +143,7 @@ class EpisodeManager(object):
       vp_ind = obs_batch.pack_indices[1]
     else:
       obs_batch = collate_observations(step_obs)
-    allowed_actions = get_allowed_actions(obs_batch,packed=self.packed)
+    allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed)
     actions, logits = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, **kwargs)
     
     for i, envnum in enumerate(active_envs):
@@ -200,13 +200,12 @@ class EpisodeManager(object):
   def select_action(self, obs_batch, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):        
     bs = len(obs_batch.ground)
     activities = obs_batch.ground.data.numpy()[:,:,IDX_VAR_ACTIVITY]
-    allowed_actions = get_allowed_actions(obs_batch)
+    allowed_actions = model.get_allowed_actions(obs_batch) if model else get_allowed_actions(obs_batch)
     actions = []
     if random_test:
       for allowed in allowed_actions:
         choices = np.where(allowed.numpy())[0]
         actions.append(np.random.choice(choices))
-
       return actions, None
     elif activity_test:
       for i,act in enumerate(activities):
@@ -218,59 +217,9 @@ class EpisodeManager(object):
       return actions, None
     elif cadet_test:
       return ['?']*bs, None
-
-    logits, *_ = model(obs_batch, **kwargs)
-    
-    if testing:
-      action = logits.squeeze().max(0)[1].data   # argmax when testing        
-      action = action[0]
-      if settings['debug_actions']:
-        print(obs.state)
-        print(logits.squeeze().max(0))
-        print('Got action {}'.format(action))
-    elif self.masked_softmax:     # Choose only within the logits of allowed actions
-      for i, ith_logits in enumerate(logits):
-        ith_allowed = allowed_actions[i]
-        allowed_idx = torch.from_numpy(np.where(ith_allowed.numpy())[0])
-        if self.settings['cuda']:
-          allowed_idx = allowed_idx.cuda()
-        l = ith_logits[allowed_idx]
-        probs = F.softmax(l.contiguous().view(1,-1),dim=1)
-        dist = probs.data.cpu().numpy()[0]
-        choices = range(len(dist))
-        aux_action = np.random.choice(choices, p=dist)
-        aux_action = (int(aux_action/2),int(aux_action%2))
-        action = (allowed_idx[aux_action[0]], aux_action[1])
-        actions.append(action)
-    else:
-      probs = F.softmax(logits.contiguous().view(bs,-1)).view(bs,-1,2)
-      all_dist = probs.data.cpu().numpy()
-      for j, dist in enumerate(all_dist):
-        i = 0
-        flattened_dist = dist.reshape(-1)
-        choices = range(len(flattened_dist))
-        while i<1000:
-          action = np.random.choice(choices, p=flattened_dist)
-          action = (int(action/2),int(action%2))
-          # ipdb.set_trace()
-          if not self.settings['disallowed_aux'] or allowed_actions[j][action[0]]:
-            break
-          i = i+1
-        if i > self.max_reroll:
-          self.max_reroll = i
-          print('Had to roll {} times to come up with a valid action!'.format(self.max_reroll))
-        if i>600:
-          # ipdb.set_trace()
-          print("Couldn't choose an action within 600 re-samples. Max probability:")            
-          # allowed_mass = (probs.view_as(logits).sum(2).data*get_allowed_actions(obs).float()).sum(1)
-          # print('total allowed mass is {}'.format(allowed_mass.sum()))
-          print(flattened_dist.max())
-
-        actions.append(action)
-        if (2*action[0]+action[1])>len(flattened_dist):
-          ipdb.set_trace()
-
-    return actions, logits
+    actions = model.select_action(obs_batch, **kwargs)    
+    ipdb.set_trace()
+    return actions
 
   def packed_select_action(self, obs_batch, model=None, testing=False, random_test=False, activity_test=False, cadet_test=False, **kwargs):        
     bs = len(obs_batch.ground)
@@ -300,23 +249,6 @@ class EpisodeManager(object):
       return actions, None
     elif cadet_test:
       return ['?']*bs, None
-
-    logits, *_ = model(obs_batch, packed=self.packed, **kwargs)
-    vp_ind = obs_batch.pack_indices[1]
-    for i in range(len(vp_ind)-1):
-      ith_allowed = allowed_actions[vp_ind[i]:vp_ind[i+1]]
-      ith_logits = logits[vp_ind[i]:vp_ind[i+1]]
-      allowed_idx = torch.from_numpy(np.where(ith_allowed.numpy())[0])
-      if self.settings['cuda']:
-        allowed_idx = allowed_idx.cuda()
-      l = ith_logits[allowed_idx]
-      probs = F.softmax(l.contiguous().view(1,-1))
-      dist = probs.data.cpu().numpy()[0]
-      choices = range(len(dist))
-      aux_action = np.random.choice(choices, p=dist)
-      aux_action = (int(aux_action/2),int(aux_action%2))
-      action = (allowed_idx[aux_action[0]], aux_action[1])
-      actions.append(action)
       
     return actions, logits
 

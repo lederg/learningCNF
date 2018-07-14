@@ -10,6 +10,7 @@ from tensorboard_logger import configure, log_value
 from settings import *
 from cadet_env import *
 from rl_model import *
+from new_policies import *
 from qbf_data import *
 from qbf_model import QbfClassifier
 from utils import *

@@ -17,6 +17,7 @@ from settings import *
 INVALID_BIAS = -1000
 SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
 
+
 class Policy(nn.Module):
 	def __init__(self, encoder=None, **kwargs):
 		super(Policy, self).__init__()

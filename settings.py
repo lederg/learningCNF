@@ -16,3 +16,7 @@ class CnfSettings(metaclass=Singleton):
 	def zeros(self,size):
 		rc = torch.zeros(size)
 		return rc.cuda() if self.hyperparameters['cuda'] else rc
+
+	def cudaize(self, func, *args, **kwargs):
+		rc = func(*args,**kwargs)
+		return rc.cuda() if self.hyperparameters['cuda'] else rc

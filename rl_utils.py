@@ -6,7 +6,7 @@ from settings import *
 from rl_types import *
 from cadet_utils import *
 from rl_model import *
-from new_policies import Actor1Policy
+from new_policies import Actor1Policy, RestartPolicy
 
 class ReplayMemory(object):
 

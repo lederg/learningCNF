@@ -391,5 +391,43 @@ class QbfAttention(nn.Module):
 
 		return rc, loss
 
+class QbfFlattendedAttention(nn.Module):
+	def __init__(self, emb_dim, n_heads=10, seed_dim=None, **kwargs):
+		super(QbfFlattendedAttention, self).__init__()        
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.emb_dim = emb_dim
+		self.seed_dim = seed_dim if seed_dim else self.settings['state_dim']
+		self.non_linearity = eval(self.settings['attn_non_linearity'])
+		self.n_heads = n_heads
+		self.w_qs = nn.Parameter(self.settings.FloatTensor(n_heads, self.emb_dim, self.seed_dim))
+		nn_init.xavier_normal_(self.w_qs)
+		
+		# embeddings are used as both keys and values, and are bs*(numvar pos+neg)*vemb_dim
+		# query seed is bs x seed_dim
+		# attn_mask is bs x (num_vars pos+neg)
+	def forward(self, query_seed, embeddings, attn_mask=None, values=None, **kwargs):
+		def normalize_tensor(x):
+			# return x
+			return x / x.norm(2,2).unsqueeze(2).expand_as(x)
+		bs, varnum, _ = embeddings.size()
+		if not values:
+			values = embeddings
+		norm_embs = normalize_tensor(embeddings)
+		qs = self.non_linearity(torch.mm(self.w_qs.view(-1,self.seed_dim),query_seed.t()).t().contiguous().view(bs,self.n_heads,-1))			# bs*n_heads*emb_dim
+		norm_qs = normalize_tensor(qs)
+
+		# We'd like the attention vectors in norm_qs to be mostly orthogonal, so we penalize norm(A^t*A-I)
+		diff = torch.bmm(norm_qs,norm_qs.transpose(1,2)) - Variable(torch.eye(self.n_heads))
+		loss = (diff*diff).sum() / bs
+
+		attn = torch.bmm(norm_qs,norm_embs.transpose(1,2))
+		# Translate attention mask from bs*numvars to basically double that
+		softmax_mask = 1-attn_mask.unsqueeze(1).expand_as(attn)
+		attn.data.masked_fill_(softmax_mask.byte(), -float('inf'))
+		final_attn = F.softmax(attn.view(-1,varnum),dim=1).view(attn.size())
+		rc = torch.bmm(final_attn,values)
+
+		return rc, loss
+
 		
 

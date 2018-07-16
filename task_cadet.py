@@ -297,7 +297,7 @@ def cadet_main():
       aux_probs = F.softmax(logits,dim=1)
       disallowed_actions = Variable(allowed_actions.data^1).float()      
       disallowed_mass = (aux_probs*disallowed_actions).sum(1)
-      disallowed_loss = disallowed_mass.sum()
+      disallowed_loss = disallowed_mass.mean()
       print('Disallowed loss is {}'.format(disallowed_loss))
 
     returns = settings.FloatTensor(rewards)

@@ -10,7 +10,7 @@ from collections import namedtuple
 import ipdb
 import cadet_utils
 from qbf_data import *
-from qbf_model import QbfEncoder, QbfNewEncoder, QbfAttention
+from qbf_model import QbfEncoder, QbfNewEncoder, QbfAttention, QbfFlattendedAttention
 from settings import *
 
 
@@ -146,6 +146,95 @@ class Actor1Policy(PolicyBase):
 
   def translate_action(self, action, **kwargs):
     return (int(action/2),int(action%2))
+
+  def select_action(self, obs_batch, **kwargs):
+    logits, *_ = self.forward(obs_batch)
+    allowed_actions = self.get_allowed_actions(obs_batch)
+    actions = []
+    for i, ith_logits in enumerate(logits):
+      ith_allowed = allowed_actions[i]
+      allowed_idx = torch.from_numpy(np.where(ith_allowed.numpy())[0])
+      if self.settings['cuda']:
+        allowed_idx = allowed_idx.cuda()
+      l = ith_logits[allowed_idx]
+      probs = F.softmax(l.contiguous().view(1,-1),dim=1)
+      dist = probs.data.cpu().numpy()[0]
+      choices = range(len(dist))
+      aux_action = np.random.choice(choices, p=dist)
+      action = allowed_idx[aux_action]
+      actions.append(action)
+
+    return actions
+
+
+
+class RestartPolicy(PolicyBase):
+  def __init__(self, encoder=None, **kwargs):
+    super(RestartPolicy, self).__init__(**kwargs)
+    self.final_embedding_dim = 2*self.max_iters*self.vemb_dim+self.vlabel_dim
+    self.hidden_dim = 50    
+    self.global_attn = QbfFlattendedAttention(self.final_embedding_dim, n_heads=20, settings=self.settings)
+    self.policy1 = nn.Linear(self.state_dim+self.global_attn.n_heads*self.final_embedding_dim,self.hidden_dim)
+    self.policy2 = nn.Linear(self.hidden_dim,2)
+    if encoder:
+      print('Bootstraping Policy from existing encoder')
+      self.encoder = encoder
+    else:
+      self.encoder = QbfNewEncoder(**kwargs)
+        
+    if self.state_bn:
+      self.state_bn = nn.BatchNorm1d(self.state_dim)
+    self.activation = eval(self.settings['non_linearity'])
+  
+  # state is just a (batched) vector of fixed size state_dim which should be expanded. 
+  # ground_embeddings are batch * max_vars * ground_embedding
+
+  # cmat_net and cmat_pos are already "batched" into a single matrix
+
+  def forward(self, obs, **kwargs):
+    state = obs.state
+    ground_embeddings = obs.ground
+    clabels = obs.clabels
+    cmat_pos = obs.cmat_pos   
+    cmat_neg = obs.cmat_neg
+    aux_losses = []
+
+    if self.settings['cuda']:
+      cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+      state, ground_embeddings = state.cuda(), ground_embeddings.cuda()     
+      if clabels is not None:
+        clabels = clabels.cuda()
+
+    size = ground_embeddings.size()
+    self.batch_size=size[0]
+    if 'vs' in kwargs.keys():
+      vs = kwargs['vs']   
+    else:           
+      pos_vars, neg_vars = self.encoder(ground_embeddings.view(-1,self.vlabel_dim), clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
+      vs_pos = pos_vars.view(self.batch_size,-1,self.final_embedding_dim)
+      vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
+      vs = torch.cat([vs_pos,vs_neg])
+      if 'do_debug' in kwargs:
+        ipdb.set_trace()
+    
+    if self.state_bn:
+      state = self.state_bn(state)
+
+    embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)
+    mask = torch.cat([obs.vmask]*2,dim=1)
+    graph_embedding, value_aux_loss = self.global_attn(state,embs,attn_mask=mask)
+    aux_losses.append(value_aux_loss)
+    inputs = torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1)
+    outputs = self.policy2(self.activation(self.policy1(inputs)))
+    value = None
+    return outputs, value, vs, aux_losses
+
+  def get_allowed_actions(self, obs, **kwargs):    
+    return torch.ones((1,2),dtype=torch.uint8)
+
+  def translate_action(self, action, **kwargs):
+    actions = ['?', 'r']    
+    return actions[action]
 
   def select_action(self, obs_batch, **kwargs):
     logits, *_ = self.forward(obs_batch)

@@ -219,7 +219,7 @@ def collate_transitions(batch, settings=None, packed=False):
   # formulas = settings.LongTensor([x.formula for x in batch])
   formulas = [x.formula for x in batch]
   prev_obs = [collate_observations(x,replace_none=True, c_size=obs1.cmask.shape[1], v_size=obs1.vmask.shape[1]) for x in zip(*[x.prev_obs for x in batch])]
-  if prev_obs[0].vmask.shape != obs1.vmask.shape:
+  if prev_obs and prev_obs[0].vmask.shape != obs1.vmask.shape:
     ipdb.set_trace()
   return Transition(obs1,actions,obs2,rews, formulas, prev_obs)
 

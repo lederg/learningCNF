@@ -6,7 +6,7 @@ import os
 import sys
 import signal
 import select
-from collections import namedtuple
+from collections import namedtuple, deque
 from namedlist import namedlist
 
 
@@ -19,7 +19,7 @@ from cadet_utils import *
 
 
 EnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active'])
+                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
 
 class EpisodeManager(object):
   def __init__(self, ds, ed=None, parallelism=20, reporter=None):
@@ -27,6 +27,7 @@ class EpisodeManager(object):
     self.debug = False
     self.parallelism = parallelism
     self.max_step = self.settings['max_step']
+    self.rnn_iters = self.settings['rnn_iters']
     self.ds = ds
     self.ed = ed
     self.episodes_files = ds.get_files_list()
@@ -43,7 +44,8 @@ class EpisodeManager(object):
     self.INVALID_ACTION_REWARDS = -10
 
     for i in range(parallelism):
-      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), None, None, None, None, None, True))
+      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), 
+        None, None, None, None, None, True, deque(maxlen=self.rnn_iters)))
 
   def check_batch_finished(self):
     if self.settings['episodes_per_batch']:
@@ -69,9 +71,9 @@ class EpisodeManager(object):
 
     gamma = self.settings['gamma']    
     baseline = compute_baseline(ep[0].formula) if self.settings['stats_baseline'] else 0
-    _, _, _,rewards, _ = zip(*ep)
+    _, _, _,rewards, *_ = zip(*ep)
     r = discount(rewards, gamma) - baseline
-    return [Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(ep, r)]
+    return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
 
   def pop_min(self, num=0):
     if num == 0:
@@ -120,13 +122,18 @@ class EpisodeManager(object):
     envstr.env_id = fname
     envstr.curr_step = 0
     envstr.fname = fname
-    envstr.episode_memory = []        
+    envstr.episode_memory = []     
+    # Set up the previous observations to be None followed by the last_obs   
+    envstr.prev_obs.clear()    
+    for i in range(self.rnn_iters):
+      envstr.prev_obs.append(None)
     return last_obs
 
 # Step the entire pipeline one step, reseting any new envs. 
 
   def step_all(self, model, **kwargs):
     step_obs = []
+    prev_obs = []
     rc = []     # the env structure indices that finished and got to be reset (or will reset automatically next step)
     active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
     for i in active_envs:
@@ -134,7 +141,8 @@ class EpisodeManager(object):
       if not envstr.last_obs or envstr.curr_step > self.max_step:
         self.reset_env(envstr)
         # print('Started new Environment ({}).'.format(envstr.fname))
-      step_obs.append(envstr.last_obs)
+      step_obs.append(envstr.last_obs)      
+      prev_obs.append(list(envstr.prev_obs))
 
     if step_obs.count(None) == len(step_obs):
       return rc
@@ -143,14 +151,15 @@ class EpisodeManager(object):
       vp_ind = obs_batch.pack_indices[1]
     else:
       obs_batch = collate_observations(step_obs)
+      prev_obs_batch = [collate_observations(x,replace_none=True) for x in zip(*prev_obs)]
     allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed)
-    actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, **kwargs)
+    actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, prev_obs=prev_obs_batch, **kwargs)
     
     for i, envnum in enumerate(active_envs):
       envstr = self.envs[envnum]
       env = envstr.env
       env_id = envstr.env_id
-      envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id))
+      envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id, prev_obs[i]))
       self.real_steps += 1
       envstr.curr_step += 1      
       if ('cadet_test' in kwargs and kwargs['cadet_test']):
@@ -191,7 +200,9 @@ class EpisodeManager(object):
             if 'testing' not in kwargs or not kwargs['testing']:
               self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
           rc.append((envnum,False))
+        envstr.prev_obs.append(envstr.last_obs)
         envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
+
 
     return rc
 

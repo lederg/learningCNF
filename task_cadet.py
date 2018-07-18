@@ -278,9 +278,9 @@ def cadet_main():
       continue
     policy.train()
     begin_time = time.time()
-    _, _, _, rewards, _ = zip(*transition_data)
+    _, _, _, rewards, *_ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=settings)
-    logits, values, _, aux_losses = policy(collated_batch.state)
+    logits, values, _, aux_losses = policy(collated_batch.state, prev_obs=collated_batch.prev_obs)
     allowed_actions = Variable(policy.get_allowed_actions(collated_batch.state))
     if settings['cuda']:
       allowed_actions = allowed_actions.cuda()

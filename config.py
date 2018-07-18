@@ -25,7 +25,8 @@ def cfg():
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
 	base_model = None
-	base_mode = BaseMode.ITERS 
+	# base_mode = BaseMode.ITERS 
+	base_mode = BaseMode.ALL
 	base_iters = 1
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
@@ -121,6 +122,7 @@ def cfg():
 	slim_state=False
 	episode_cutoff = 200
 	use_state_in_vn = False	
+	rnn_iters = 3
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

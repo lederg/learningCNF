@@ -112,6 +112,7 @@ def cfg():
 	vars_set = True
 	use_gru = False  # deprecated
 	use_bn = False
+	use_ln = False
 	state_bn = False
 	use_curriculum = False
 	normalize_episodes = False
@@ -122,7 +123,7 @@ def cfg():
 	slim_state=False
 	episode_cutoff = 200
 	use_state_in_vn = False	
-	rnn_iters = 3
+	rnn_iters = 0
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

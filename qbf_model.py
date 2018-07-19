@@ -283,7 +283,7 @@ class QbfNewEncoder(nn.Module):
 		W_C_params = []
 		B_C_params = []
 		# if self.settings['use_bn']:
-		self.bn_layers = nn.ModuleList([])
+		self.vnorm_layers = nn.ModuleList([])
 		for i in range(self.max_iters):
 			W_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim,self.vlabel_dim+2*i*self.vemb_dim)))
 			B_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim)))
@@ -294,7 +294,9 @@ class QbfNewEncoder(nn.Module):
 			nn_init.normal_(W_C_params[i])				
 			nn_init.normal_(B_C_params[i])
 			if self.settings['use_bn']:
-				self.bn_layers.append(nn.BatchNorm1d(self.vemb_dim))
+				self.vnorm_layers.append(nn.BatchNorm1d(self.vemb_dim))
+			if self.settings['use_ln']:
+				self.vnorm_layers.append(nn.LayerNorm(self.vemb_dim))
 
 		self.W_L_params = nn.ParameterList(W_L_params)
 		self.B_L_params = nn.ParameterList(B_L_params)
@@ -314,8 +316,8 @@ class QbfNewEncoder(nn.Module):
 				self.W_C_params[i].requires_grad=False
 				self.B_C_params[i].requires_grad=False
 			if self.settings['use_bn']:
-				for i, layer in enumerate(other.bn_layers):
-					self.bn_layers[i].load_state_dict(layer.state_dict())
+				for i, layer in enumerate(other.vnorm_layers):
+					self.vnorm_layers[i].load_state_dict(layer.state_dict())
 
 
 # vlabels are (batch,maxvars,vlabel_dim)
@@ -342,9 +344,9 @@ class QbfNewEncoder(nn.Module):
 			nv = torch.mm(vmat_neg,c_t).t()
 			pv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],pv).t() + self.B_C_params[t])
 			nv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],nv).t() + self.B_C_params[t])
-			if self.settings['use_bn']:
-				pv_t_pre = self.bn_layers[t](pv_t_pre.contiguous())
-				nv_t_pre = self.bn_layers[t](nv_t_pre.contiguous())
+			if self.settings['use_bn'] or self.settings['use_ln']:
+				pv_t_pre = self.vnorm_layers[t](pv_t_pre.contiguous())
+				nv_t_pre = self.vnorm_layers[t](nv_t_pre.contiguous())			
 			# if bs>1:
 			# 	ipdb.set_trace()			
 			pos_vars = torch.cat([pos_vars,pv_t_pre,nv_t_pre],dim=1)

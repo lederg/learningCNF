@@ -151,7 +151,9 @@ class EpisodeManager(object):
       vp_ind = obs_batch.pack_indices[1]
     else:
       obs_batch = collate_observations(step_obs)
-      prev_obs_batch = [collate_observations(x,replace_none=True) for x in zip(*prev_obs)]
+      prev_obs_batch = [collate_observations(x,replace_none=True, c_size=obs_batch.cmask.shape[1], v_size=obs_batch.vmask.shape[1]) for x in zip(*prev_obs)]
+      if prev_obs_batch and prev_obs_batch[0].vmask is not None and prev_obs_batch[0].vmask.shape != obs_batch.vmask.shape:
+        ipdb.set_trace()
     allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed)
     actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, prev_obs=prev_obs_batch, **kwargs)
     

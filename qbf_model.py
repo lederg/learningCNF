@@ -403,7 +403,7 @@ class QbfFlattendedAttention(nn.Module):
 		self.n_heads = n_heads
 		self.w_qs = nn.Parameter(self.settings.FloatTensor(n_heads, self.emb_dim, self.seed_dim))
 		nn_init.xavier_normal_(self.w_qs)
-		
+				
 		# embeddings are used as both keys and values, and are bs*(numvar pos+neg)*vemb_dim
 		# query seed is bs x seed_dim
 		# attn_mask is bs x (num_vars pos+neg)

@@ -323,7 +323,7 @@ def cadet_main():
     if settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
       adv_t = adv_t*settings.FloatTensor(episodes_weights)    
-    pg_loss = (-Variable(adv_t)*logprobs).sum()
+    pg_loss = (-Variable(adv_t)*logprobs).mean()
     # pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
     # print('--------------------------------------------------------------')
     # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))

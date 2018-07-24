@@ -154,8 +154,8 @@ class CadetEnv:
   def write_action(self, a):
     if self.debug:
       print('Writing action {}'.format(a))
-    if a == '?':
-      self.write('?\n')
+    if a in ['?','r']:
+      self.write('{}\n'.format(a))
       return
     if type(a) is tuple:
       cadet_action = int(a[0]) + 1
@@ -300,11 +300,11 @@ class CadetEnv:
 
   def step(self, action):
     assert(not self.done)
+    # if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:      
+    #   rewards = self.terminate() + self.greedy_alpha*np.asarray(self.running_reward)
+    #   self.rewards = np.concatenate([rewards, [DQN_DEF_COST]])    # Average action
+    #   return None, None, None, None, None, None, DQN_DEF_COST, None, True    
     self.timestep += 1
-    if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:      
-      rewards = self.terminate() + self.greedy_alpha*np.asarray(self.running_reward)
-      self.rewards = np.concatenate([rewards, [DQN_DEF_COST]])    # Average action
-      return None, None, None, None, None, None, DQN_DEF_COST, None, True    
     self.write_action(action)
     return self.read_state_update()
             

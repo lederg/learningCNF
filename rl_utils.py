@@ -3,9 +3,10 @@ import copy
 import torch
 from torch.autograd import Variable
 from settings import *
-from rl_model import *
 from rl_types import *
 from cadet_utils import *
+from rl_model import *
+from new_policies import *
 
 class ReplayMemory(object):
 
@@ -119,16 +120,18 @@ def discount_episode(ep, gamma, settings=None):
     
   _, _, _,rewards, _ = zip(*ep)
   r = discount(rewards, gamma)
-  return [Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(ep, r)]
+  return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
 
-def collate_observations(batch, settings=None):
+def collate_observations(batch, settings=None, replace_none=False, c_size=None, v_size=None):
   if batch.count(None) == len(batch):
     return State(None, None, None, None, None, None, None)
   if not settings:
     settings = CnfSettings()
   bs = len(batch)
-  c_size = max([x.cmat_neg.size(0) for x in batch if x])
-  v_size = max([x.cmat_neg.size(1) for x in batch if x])
+  if not c_size:
+    c_size = max([x.cmat_neg.size(0) for x in batch if x])
+  if not v_size:
+    v_size = max([x.cmat_neg.size(1) for x in batch if x])
   states = []
   ind_pos = []
   ind_neg = []
@@ -151,20 +154,21 @@ def collate_observations(batch, settings=None):
       l = len(embs)
       vmask[i][:l]=1
       if l < v_size:
-        embs = torch.cat([embs,torch.zeros([v_size-l,settings['ground_dim']])])
+        embs = torch.cat([embs,torch.zeros([v_size-l,settings['vlabel_dim']])])
       all_embs.append(embs)
       l = len(clabels)
       cmask[i][:l]=1
       if l < c_size:        
         clabels = torch.cat([clabels,torch.zeros([c_size-l,settings['clabel_dim']])])
       all_clabels.append(clabels)
-      i += 1    
-      # states.append(Variable(settings.zeros([1,settings['state_dim']])))
-      # all_embs.append(Variable(settings.zeros([v_size,settings['ground_dim']])))
-  cmat_pos = torch.sparse.FloatTensor(torch.cat(ind_pos,1),torch.cat(val_pos),torch.Size([c_size*i,v_size*i]))
-  cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_size*i,v_size*i]))
-  # if settings['cuda']:
-  #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+    elif replace_none:
+      states.append(torch.zeros([1,settings['state_dim']]))
+      all_embs.append(torch.zeros([v_size,settings['vlabel_dim']]))
+      all_clabels.append(torch.zeros([c_size,settings['clabel_dim']]))
+  
+  cmat_pos = torch.sparse.FloatTensor(torch.cat(ind_pos,1),torch.cat(val_pos),torch.Size([c_size*(i+1),v_size*(i+1)]))
+  cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_size*(i+1),v_size*(i+1)]))
+
   return State(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.stack(all_embs), torch.stack(all_clabels),
                 vmask, cmask)
 
@@ -214,7 +218,10 @@ def collate_transitions(batch, settings=None, packed=False):
   actions = settings.LongTensor([x.action for x in batch])
   # formulas = settings.LongTensor([x.formula for x in batch])
   formulas = [x.formula for x in batch]
-  return Transition(obs1,actions,obs2,rews, formulas)
+  prev_obs = [collate_observations(x,replace_none=True, c_size=obs1.cmask.shape[1], v_size=obs1.vmask.shape[1]) for x in zip(*[x.prev_obs for x in batch])]
+  if prev_obs and prev_obs[0].vmask.shape != obs1.vmask.shape:
+    ipdb.set_trace()
+  return Transition(obs1,actions,obs2,rews, formulas, prev_obs)
 
 def create_policy(settings=None, is_clone=False):
   if not settings:
@@ -301,5 +308,5 @@ def compute_kl(logits, old_logits):
   s = logits.size(0)
   old_logits = old_logits.view(s,-1)
   logits = logits.view(s,-1)
-  totals = F.softmax(old_logits) * (F.log_softmax(old_logits) - F.log_softmax(logits))
+  totals = F.softmax(old_logits,dim=1) * (F.log_softmax(old_logits,dim=1) - F.log_softmax(logits,dim=1))
   return totals.sum(1).data

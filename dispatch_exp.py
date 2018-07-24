@@ -84,6 +84,7 @@ def main():
 		a.insert(0, '--name %s-%d-%d' % (str(args.name),i,conf_num))
 		a.insert(0, '-m %s' % mongo_addr)
 		a.insert(0, '%s' % args.command)
+		a.insert(0, 'python')
 
 		mname = base_mname+'-{}'.format(i)
 		p = async_dispatch_chain(mname,a, args.instance_type, args.rm, args.commit)

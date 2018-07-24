@@ -53,8 +53,8 @@ class FactoredInnerIteration(nn.Module):
 		self.cuda = self.settings['cuda']		
 		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
-		nn_init.normal(self.vb)
-		nn_init.normal(self.cb)
+		nn_init.normal_(self.vb)
+		nn_init.normal_(self.cb)
 		
 	def forward(self, variables, v_mat, c_mat, ground_vars=None, v_block=None, c_block=None, **kwargs):		
 		if 'old_forward' in kwargs and kwargs['old_forward']:
@@ -131,13 +131,13 @@ class WeightedNegInnerIteration(nn.Module):
 		self.ground_combiner = self.ground_comb_type(self.settings['ground_dim'],self.embedding_dim)
 		self.cuda = self.settings['cuda']		
 		self.forward_backwards_block = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
-		nn_init.normal(self.forward_backwards_block)		
+		nn_init.normal_(self.forward_backwards_block)		
 		if self.settings['use_gru']:
 			self.gru = GruOperator(settings=self.settings)
 		self.vb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
 		self.cb = nn.Parameter(self.settings.FloatTensor(self.embedding_dim,1))
-		nn_init.normal(self.vb)
-		nn_init.normal(self.cb)
+		nn_init.normal_(self.vb)
+		nn_init.normal_(self.cb)
 				
 	def forward(self, variables, v_mat, c_mat, ground_vars=None, cmat_pos=None, cmat_neg=None, **kwargs):				
 		bsize = kwargs['batch_size'] if 'batch_size' in kwargs else self.settings['batch_size']
@@ -211,9 +211,9 @@ class QbfEncoder(nn.Module):
 		self.ggn_core = eval(self.settings['ggn_core'])
 		self.inner_iteration = self.ggn_core(**kwargs)			
 		self.forward_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))
-		nn_init.normal(self.forward_pos_neg)		
+		nn_init.normal_(self.forward_pos_neg)		
 		self.backwards_pos_neg = nn.Parameter(self.settings.FloatTensor(2,self.embedding_dim,self.embedding_dim))		
-		nn_init.normal(self.backwards_pos_neg)		
+		nn_init.normal_(self.backwards_pos_neg)		
 					
 	# def expand_ground_to_state(self,v):
 	# 	# ipdb.set_trace()
@@ -283,18 +283,20 @@ class QbfNewEncoder(nn.Module):
 		W_C_params = []
 		B_C_params = []
 		# if self.settings['use_bn']:
-		self.bn_layers = nn.ModuleList([])
+		self.vnorm_layers = nn.ModuleList([])
 		for i in range(self.max_iters):
 			W_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim,self.vlabel_dim+2*i*self.vemb_dim)))
 			B_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim)))
 			W_C_params.append(nn.Parameter(self.settings.FloatTensor(self.vemb_dim,self.clabel_dim+self.cemb_dim)))
 			B_C_params.append(nn.Parameter(self.settings.FloatTensor(self.vemb_dim)))
-			nn_init.normal(W_L_params[i])
-			nn_init.normal(B_L_params[i])		
-			nn_init.normal(W_C_params[i])				
-			nn_init.normal(B_C_params[i])
+			nn_init.normal_(W_L_params[i])
+			nn_init.normal_(B_L_params[i])		
+			nn_init.normal_(W_C_params[i])				
+			nn_init.normal_(B_C_params[i])
 			if self.settings['use_bn']:
-				self.bn_layers.append(nn.BatchNorm1d(self.vemb_dim))
+				self.vnorm_layers.append(nn.BatchNorm1d(self.vemb_dim))
+			if self.settings['use_ln']:
+				self.vnorm_layers.append(nn.LayerNorm(self.vemb_dim))
 
 		self.W_L_params = nn.ParameterList(W_L_params)
 		self.B_L_params = nn.ParameterList(B_L_params)
@@ -314,8 +316,8 @@ class QbfNewEncoder(nn.Module):
 				self.W_C_params[i].requires_grad=False
 				self.B_C_params[i].requires_grad=False
 			if self.settings['use_bn']:
-				for i, layer in enumerate(other.bn_layers):
-					self.bn_layers[i].load_state_dict(layer.state_dict())
+				for i, layer in enumerate(other.vnorm_layers):
+					self.vnorm_layers[i].load_state_dict(layer.state_dict())
 
 
 # vlabels are (batch,maxvars,vlabel_dim)
@@ -342,9 +344,9 @@ class QbfNewEncoder(nn.Module):
 			nv = torch.mm(vmat_neg,c_t).t()
 			pv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],pv).t() + self.B_C_params[t])
 			nv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],nv).t() + self.B_C_params[t])
-			if self.settings['use_bn']:
-				pv_t_pre = self.bn_layers[t](pv_t_pre.contiguous())
-				nv_t_pre = self.bn_layers[t](nv_t_pre.contiguous())
+			if self.settings['use_bn'] or self.settings['use_ln']:
+				pv_t_pre = self.vnorm_layers[t](pv_t_pre.contiguous())
+				nv_t_pre = self.vnorm_layers[t](nv_t_pre.contiguous())			
 			# if bs>1:
 			# 	ipdb.set_trace()			
 			pos_vars = torch.cat([pos_vars,pv_t_pre,nv_t_pre],dim=1)
@@ -362,19 +364,20 @@ class QbfAttention(nn.Module):
 		self.non_linearity = eval(self.settings['attn_non_linearity'])
 		self.n_heads = n_heads
 		self.w_qs = nn.Parameter(self.settings.FloatTensor(n_heads, self.emb_dim, self.seed_dim))
-		nn_init.xavier_normal(self.w_qs)
+		nn_init.xavier_normal_(self.w_qs)
 		
 		# embeddings are used as both keys and values, and are bs*(numvar pos+neg)*vemb_dim
 		# query seed is bs x seed_dim
 		# attn_mask is bs x num_vars
 	def forward(self, query_seed, embeddings, attn_mask=None, values=None, **kwargs):
 		def normalize_tensor(x):
+			# return x
 			return x / x.norm(2,2).unsqueeze(2).expand_as(x)
 		bs, varnum, _ = embeddings.size()
 		if not values:
 			values = embeddings
 		norm_embs = normalize_tensor(embeddings)
-		qs = torch.mm(self.w_qs.view(-1,self.seed_dim),query_seed.t()).t().contiguous().view(bs,self.n_heads,-1)			# bs*n_heads*emb_dim
+		qs = self.non_linearity(torch.mm(self.w_qs.view(-1,self.seed_dim),query_seed.t()).t().contiguous().view(bs,self.n_heads,-1))			# bs*n_heads*emb_dim
 		norm_qs = normalize_tensor(qs)
 
 		# We'd like the attention vectors in norm_qs to be mostly orthogonal, so we penalize norm(A^t*A-I)
@@ -385,7 +388,45 @@ class QbfAttention(nn.Module):
 		# Translate attention mask from bs*numvars to basically double that
 		softmax_mask = 1-torch.cat([attn_mask]*2,dim=1).unsqueeze(1).expand_as(attn)
 		attn.data.masked_fill_(softmax_mask.byte(), -float('inf'))
-		final_attn = F.softmax(attn.view(-1,varnum)).view(attn.size())
+		final_attn = F.softmax(attn.view(-1,varnum),dim=1).view(attn.size())
+		rc = torch.bmm(final_attn,values)
+
+		return rc, loss
+
+class QbfFlattendedAttention(nn.Module):
+	def __init__(self, emb_dim, n_heads=10, seed_dim=None, **kwargs):
+		super(QbfFlattendedAttention, self).__init__()        
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.emb_dim = emb_dim
+		self.seed_dim = seed_dim if seed_dim else self.settings['state_dim']
+		self.non_linearity = eval(self.settings['attn_non_linearity'])
+		self.n_heads = n_heads
+		self.w_qs = nn.Parameter(self.settings.FloatTensor(n_heads, self.emb_dim, self.seed_dim))
+		nn_init.xavier_normal_(self.w_qs)
+				
+		# embeddings are used as both keys and values, and are bs*(numvar pos+neg)*vemb_dim
+		# query seed is bs x seed_dim
+		# attn_mask is bs x (num_vars pos+neg)
+	def forward(self, query_seed, embeddings, attn_mask=None, values=None, **kwargs):
+		def normalize_tensor(x):
+			# return x
+			return x / x.norm(2,2).unsqueeze(2).expand_as(x)
+		bs, varnum, _ = embeddings.size()
+		if not values:
+			values = embeddings
+		norm_embs = normalize_tensor(embeddings)
+		qs = self.non_linearity(torch.mm(self.w_qs.view(-1,self.seed_dim),query_seed.t()).t().contiguous().view(bs,self.n_heads,-1))			# bs*n_heads*emb_dim
+		norm_qs = normalize_tensor(qs)
+
+		# We'd like the attention vectors in norm_qs to be mostly orthogonal, so we penalize norm(A^t*A-I)
+		diff = torch.bmm(norm_qs,norm_qs.transpose(1,2)) - Variable(torch.eye(self.n_heads))
+		loss = (diff*diff).sum() / bs
+
+		attn = torch.bmm(norm_qs,norm_embs.transpose(1,2))
+		# Translate attention mask from bs*numvars to basically double that
+		softmax_mask = 1-attn_mask.unsqueeze(1).expand_as(attn)
+		attn.data.masked_fill_(softmax_mask.byte(), -float('inf'))
+		final_attn = F.softmax(attn.view(-1,varnum),dim=1).view(attn.size())
 		rc = torch.bmm(final_attn,values)
 
 		return rc, loss

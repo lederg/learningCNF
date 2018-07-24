@@ -25,7 +25,8 @@ def cfg():
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
 	base_model = None
-	base_mode = BaseMode.ITERS 
+	# base_mode = BaseMode.ITERS 
+	base_mode = BaseMode.ALL
 	base_iters = 1
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
@@ -111,6 +112,7 @@ def cfg():
 	vars_set = True
 	use_gru = False  # deprecated
 	use_bn = False
+	use_ln = False
 	state_bn = False
 	use_curriculum = False
 	normalize_episodes = False
@@ -119,13 +121,16 @@ def cfg():
 	packed = False
 	masked_softmax = True 					# This chooses actions only from allowed actions
 	slim_state=False
-	episode_cutoff = 300
-	use_state_in_vn = True	
+	episode_cutoff = 200
+	use_state_in_vn = False	
+	rnn_iters = 0
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate
 	disallowed_aux = False
 	lambda_disallowed = 1.
+	lambda_value = 1.
+	lambda_aux = 1.
 	invalid_bias = -1000  # deprecate
 	# invalid_bias = 0
 	report_tensorboard = True

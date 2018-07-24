@@ -2,6 +2,7 @@ import torch
 import itertools
 import numpy as np
 from torch.autograd import Variable
+import pandas as pd
 import scipy.signal
 import getopt
 import sys
@@ -17,6 +18,11 @@ class BaseMode(Enum):
     EMBEDDING = 2
     ITERS = 3
 
+
+def pprint_vectors(vecs_dict):
+    x = pd.DataFrame(vecs_dict)
+    pd.options.display.max_rows = 2000
+    print(x)
 
 def where(cond, x_1, x_2):
     cond = cond.float()    

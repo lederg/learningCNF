@@ -11,7 +11,7 @@ PackedState = namedtuple('PackedState',
                     ['state', 'cmat_pos', 'cmat_neg', 'ground', 'clabels', 'pack_indices'])
 
 Transition = namedlist('Transition',
-                        ['state', 'action', 'next_state', 'reward', 'formula'])
+                        ['state', 'action', 'next_state', 'reward', 'formula', 'prev_obs'])
 
 
 EnvObservation = namedtuple('EnvObservation', 

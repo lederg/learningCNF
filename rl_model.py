@@ -17,6 +17,7 @@ from settings import *
 INVALID_BIAS = -1000
 SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
 
+
 class Policy(nn.Module):
 	def __init__(self, encoder=None, **kwargs):
 		super(Policy, self).__init__()
@@ -326,15 +327,15 @@ class AttnPolicy(nn.Module):
 		self.final_embedding_dim = 2*self.settings['max_iters']*self.vemb_dim+self.vlabel_dim
 		self.policy_dim1 = self.settings['policy_dim1']
 		self.policy_dim2 = self.settings['policy_dim2']		
-		self.state_bn = self.settings['state_bn']
-		if self.settings['ac_baseline']:
-			# self.graph_embedder = GraphEmbedder(settings=self.settings)
-			self.value_attn = QbfAttention(self.final_embedding_dim, settings=self.settings)
+		self.state_bn = self.settings['state_bn']		
+		self.hidden_dim = 50
+		if self.settings['ac_baseline']:			
+			self.value_attn = QbfAttention(self.final_embedding_dim, n_heads=20, settings=self.settings)
 			if self.settings['use_state_in_vn']:
-				self.value_score1 = nn.Linear(self.state_dim+self.value_attn.n_heads*self.final_embedding_dim,20)
+				self.value_score1 = nn.Linear(self.state_dim+self.value_attn.n_heads*self.final_embedding_dim,self.hidden_dim)
 			else:
-				self.value_score1 = nn.Linear(self.value_attn.n_heads*self.final_embedding_dim,20)
-			self.value_score2 = nn.Linear(20,1)				
+				self.value_score1 = nn.Linear(self.value_attn.n_heads*self.final_embedding_dim,self.hidden_dim)
+			self.value_score2 = nn.Linear(self.hidden_dim,1)				
 		if encoder:
 			print('Bootstraping Policy from existing encoder')
 			self.encoder = encoder
@@ -345,9 +346,12 @@ class AttnPolicy(nn.Module):
 		else:
 			self.linear1 = nn.Linear(self.final_embedding_dim, self.policy_dim1)
 
-		self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
+		if self.policy_dim2:
+			self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
+			self.action_score = nn.Linear(self.policy_dim2,1)
+		else:
+			self.action_score = nn.Linear(self.policy_dim1,1)
 		self.invalid_bias = nn.Parameter(self.settings.FloatTensor([self.settings['invalid_bias']]))
-		self.action_score = nn.Linear(self.policy_dim2,1)
 		if self.state_bn:
 			self.state_bn = nn.BatchNorm1d(self.state_dim)
 		if self.settings['leaky']:
@@ -367,6 +371,7 @@ class AttnPolicy(nn.Module):
 		clabels = obs.clabels
 		cmat_pos = obs.cmat_pos		
 		cmat_neg = obs.cmat_neg
+		aux_losses = []
 
 		if self.settings['cuda']:
 			cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
@@ -385,9 +390,10 @@ class AttnPolicy(nn.Module):
 			vs = torch.cat([vs_pos,vs_neg])
 			if 'do_debug' in kwargs:
 				ipdb.set_trace()
-
+		
 		if self.state_bn:
 			state = self.state_bn(state)
+
 		if self.settings['use_global_state']:
 			# if self.batch_size > 1:
 			# 	ipdb.set_trace()
@@ -397,7 +403,10 @@ class AttnPolicy(nn.Module):
 		else:
 			inputs = vs.view(-1,self.final_embedding_dim)
 
-		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
+		if self.policy_dim2:			
+			outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
+		else:
+			outputs = self.action_score(self.activation(self.linear1(inputs)))
 		outputs = outputs.view(2,self.batch_size,-1)
 		outputs = outputs.transpose(2,0).transpose(1,0)			# batch x numvars x pos-neg
 		# ipdb.set_trace()
@@ -409,6 +418,7 @@ class AttnPolicy(nn.Module):
 		if self.settings['ac_baseline'] and self.batch_size > 1:
 			embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)
 			graph_embedding, value_aux_loss = self.value_attn(state,embs,attn_mask=obs.vmask)
+			aux_losses.append(value_aux_loss)
 			if self.settings['use_state_in_vn']:
 				val_inp = torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1)
 			else:
@@ -416,4 +426,4 @@ class AttnPolicy(nn.Module):
 			value = self.value_score2(self.activation(self.value_score1(val_inp)))
 		else:
 			value = None
-		return outputs, value
+		return outputs, value, vs, aux_losses

@@ -393,9 +393,9 @@ class QbfAttention(nn.Module):
 
 		return rc, loss
 
-class QbfFlattendedAttention(nn.Module):
+class QbfFlattenedAttention(nn.Module):
 	def __init__(self, emb_dim, n_heads=10, seed_dim=None, **kwargs):
-		super(QbfFlattendedAttention, self).__init__()        
+		super(QbfFlattenedAttention, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.emb_dim = emb_dim
 		self.seed_dim = seed_dim if seed_dim else self.settings['state_dim']

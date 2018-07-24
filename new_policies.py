@@ -48,7 +48,7 @@ class Actor1Policy(PolicyBase):
     self.final_embedding_dim = 2*self.max_iters*self.vemb_dim+self.vlabel_dim
     self.hidden_dim = 50
     if self.settings['ac_baseline']:      
-      self.value_attn = QbfAttention(self.final_embedding_dim, n_heads=20, settings=self.settings)
+      self.value_attn = QbfFlattenedAttention(self.final_embedding_dim, n_heads=10, settings=self.settings)
       if self.settings['use_state_in_vn']:
         self.value_score1 = nn.Linear(self.state_dim+self.value_attn.n_heads*self.final_embedding_dim,self.hidden_dim)
       else:
@@ -126,7 +126,8 @@ class Actor1Policy(PolicyBase):
     outputs = outputs.contiguous().view(self.batch_size,-1)
     if self.settings['ac_baseline'] and self.batch_size > 1:
       embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)
-      graph_embedding, value_aux_loss = self.value_attn(state,embs,attn_mask=obs.vmask)
+      mask = torch.cat([obs.vmask]*2,dim=1)
+      graph_embedding, value_aux_loss = self.value_attn(state,embs,attn_mask=mask)
       aux_losses.append(value_aux_loss)
       if self.settings['use_state_in_vn']:
         val_inp = torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1)
@@ -165,6 +166,8 @@ class Actor1Policy(PolicyBase):
       actions.append(action)
 
     return actions
+
+# RNN policy
 
 
 class Actor2Policy(PolicyBase):
@@ -313,7 +316,7 @@ class RestartPolicy(PolicyBase):
     super(RestartPolicy, self).__init__(**kwargs)
     self.final_embedding_dim = 2*self.max_iters*self.vemb_dim+self.vlabel_dim
     self.hidden_dim = 50    
-    self.global_attn = QbfFlattendedAttention(self.final_embedding_dim, n_heads=20, settings=self.settings)
+    self.global_attn = QbfFlattenedAttention(self.final_embedding_dim, n_heads=20, settings=self.settings)
     self.policy1 = nn.Linear(self.state_dim+self.global_attn.n_heads*self.final_embedding_dim,self.hidden_dim)
     self.policy2 = nn.Linear(self.hidden_dim,2)
     if encoder:
@@ -402,7 +405,7 @@ class ExtendedStatePolicy(PolicyBase):
     self.final_embedding_dim = 2*self.max_iters*self.vemb_dim+self.vlabel_dim
     self.hidden_dim = 50
     self.ln_layer = nn.LayerNorm(self.final_embedding_dim)
-    self.state_attn = QbfFlattendedAttention(self.final_embedding_dim, n_heads=5, settings=self.settings)
+    self.state_attn = QbfFlattenedAttention(self.final_embedding_dim, n_heads=5, settings=self.settings)
     self.ext_state_dim = self.state_dim+self.final_embedding_dim*self.state_attn.n_heads
     if self.settings['ac_baseline']:      
       self.value_attn = QbfAttention(self.final_embedding_dim, n_heads=20, settings=self.settings)
@@ -489,7 +492,7 @@ class ExtendedStatePolicy(PolicyBase):
     outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
     outputs = outputs.contiguous().view(self.batch_size,-1)
     if self.settings['ac_baseline'] and self.batch_size > 1:
-      embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)
+      embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)      
       graph_embedding, value_aux_loss = self.value_attn(state,embs,attn_mask=obs.vmask)
       aux_losses.append(value_aux_loss)
       if self.settings['use_state_in_vn']:

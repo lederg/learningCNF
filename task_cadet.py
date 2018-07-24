@@ -303,7 +303,7 @@ def cadet_main():
 
     returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
-      adv_t = returns - values.squeeze().data
+      adv_t = returns - values.squeeze().data      
       value_loss = mse_loss(values.squeeze(), Variable(returns))    
       print('Value loss is {}'.format(value_loss.data.numpy()))
       print('Value Auxilliary loss is {}'.format(sum(aux_losses).data.numpy()))

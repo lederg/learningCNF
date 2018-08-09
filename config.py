@@ -30,6 +30,7 @@ def cfg():
 	base_iters = 1
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
+	training_steps = 100000000
 	max_iters = 1
 	max_step = 500			# Maximum steps per formula
 	batch_size = 128  # deprecated
@@ -93,6 +94,7 @@ def cfg():
 	# rl_clip_episode_at = 100
 	debug_actions = False
 	debug = False
+	profiling = False
 	use_old_rewards = True					#  Must be false if using old cadet
 	use_vsids_rewards = False
 	leaky = False  # deprecated

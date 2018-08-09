@@ -11,7 +11,9 @@ import functools
 import weakref
 import signal
 import os
+import pdb
 from enum import Enum
+
 
 class BaseMode(Enum):
     ALL = 1
@@ -149,3 +151,37 @@ class EnvIdGen(metaclass=Singleton):
         rc = self.initial_id
         self.initial_id += 1
         return rc
+
+class ForkablePdb(pdb.Pdb):
+
+    _original_stdin_fd = sys.stdin.fileno()
+    _original_stdin = None
+
+    def __init__(self):
+        pdb.Pdb.__init__(self, nosigint=True)
+
+    def _cmdloop(self):
+        current_stdin = sys.stdin
+        try:
+            if not self._original_stdin:
+                self._original_stdin = os.fdopen(self._original_stdin_fd)
+            sys.stdin = self._original_stdin
+            self.cmdloop()
+        finally:
+            sys.stdin = current_stdin
+
+
+def set_proc_name(newname):
+    from ctypes import cdll, byref, create_string_buffer
+    libc = cdll.LoadLibrary('libc.so.6')
+    buff = create_string_buffer(len(newname)+1)
+    buff.value = newname
+    libc.prctl(15, byref(buff), 0, 0, 0)
+
+def get_proc_name():
+    from ctypes import cdll, byref, create_string_buffer
+    libc = cdll.LoadLibrary('libc.so.6')
+    buff = create_string_buffer(128)
+    # 16 == PR_GET_NAME from <linux/prctl.h>
+    libc.prctl(16, byref(buff), 0, 0, 0)
+    return buff.value

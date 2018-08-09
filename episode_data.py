@@ -18,7 +18,7 @@ from cadet_utils import *
 class EpisodeData(object):
   def __init__(self, name=None, fname=None):
     self.settings = CnfSettings()
-    self.data = {}
+    self.data_ = {}
     if fname is not None:
       self.load_file(fname)
     elif name is not None:
@@ -29,19 +29,22 @@ class EpisodeData(object):
   def add_stat(self, key, stat):
     if type(stat) is not list:
       return self.add_stat(key,[stat])
-    if key not in self.data.keys():
-      self.data[key] = []
-    self.data[key].extend(stat)
+    if key not in self.data_.keys():
+      self.data_[key] = []
+    self.data_[key].extend(stat)
+
+  def get_data(self):
+    return self.data_
 
   def load_file(self, fname):
     with open(fname,'rb') as f:
-      self.name, self.data = pickle.load(f)
+      self.name, self.data_ = pickle.load(f)
 
   def save_file(self, fname=None):
     if not fname:
       fname = 'eps/{}.eps'.format(self.name)
     with open(fname,'wb') as f:
-      pickle.dump((self.name,self.data),f)
+      pickle.dump((self.name,self.data_),f)
 
 
 class QbfCurriculumDataset(Dataset):
@@ -92,7 +95,8 @@ class QbfCurriculumDataset(Dataset):
   def recalc_weights(self):
     if not self.use_cl:      
       return self.__weights_vector
-    stats = [self.ed.data[x] if x in self.ed.data.keys() else [] for x in self.get_files_list()]
+    d = self.ed.get_data()
+    stats = [d[x] if x in d.keys() else [] for x in self.get_files_list()]
     not_seen = np.array([0 if (x and len(x) > 1) else 1 for x in stats])
     if self.stats_cover or not not_seen.any():
       if not self.stats_cover:

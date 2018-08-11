@@ -3,6 +3,7 @@ import numpy as np
 import multiprocessing as mp
 from torch.multiprocessing import Manager
 from tensorboard_logger import configure, log_value
+from utils import *
 import ipdb
 import shelve
 
@@ -51,6 +52,7 @@ class PGReporterServer(mp.Process):
 	def run(self):
 		obj = None
 		print('Reporter on pid {}'.format(os.getpid()))
+		set_proc_name(str.encode('a3c_reporter'))
 		while True:
 			cmd, obj = self.queue.get()
 			if cmd == CMD_ADDSTAT:
@@ -92,7 +94,7 @@ class PGEpisodeReporter(SPReporter):
 
 	def report_stats(self, total_steps, total_envs):
 		_, steps, rewards, ents = zip(*self.stats)
-		DEF_BIG_WINDOW = total_envs*60
+		DEF_BIG_WINDOW = total_envs*5
 		print('Total episodes so far: %d' % len(steps))
 		print('Total steps learned from so far: %d' % sum(steps))
 		print('Total rewards so far: %f' % sum(rewards))

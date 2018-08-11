@@ -191,7 +191,7 @@ class EpisodeManager(object):
           self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
           if self.ed:
             # Once for every episode going into completed_episodes, add it to stats
-            self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
+            self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
         else:        
           ipdb.set_trace()
       else:
@@ -200,7 +200,7 @@ class EpisodeManager(object):
           if self.ed:
             # We add to the statistics the envs that aborted, even though they're not learned from
             if 'testing' not in kwargs or not kwargs['testing']:
-              self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
+              self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
           rc.append((envnum,False))
         envstr.prev_obs.append(envstr.last_obs)
         envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
@@ -311,7 +311,7 @@ class EpisodeManager(object):
             print('Env {} took too long on Solver #{}!'.format(fname,i))
             res = len(self.envs[i].episode_memory)
           if ed is not None:
-            ed.add_stat(fname,res)
+            ed.ed_add_stat(fname,res)
           if fname not in rc.keys():
             rc[fname] = []
           rc[fname].append(res)

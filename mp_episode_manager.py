@@ -56,7 +56,7 @@ class WorkerEnv(mp.Process):
     if self.settings['restart_in_test'] or (self.reset_counter % self.restart_cadet_every == 0):
       self.envstr.env.restart_cadet(timeout=0)
     if not fname:
-      if not self.reset_counter % 20:
+      if not self.reset_counter % 200:
         self.ds.recalc_weights()
       (fname,) = self.ds.weighted_sample()
     last_obs, env_id = new_episode(self.envstr.env, fname=fname, **kwargs)
@@ -97,7 +97,7 @@ class WorkerEnv(mp.Process):
           self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
         if self.ed:
           # Once for every episode going into completed_episodes, add it to stats
-          self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
+          self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
       else:        
         ipdb.set_trace()
 
@@ -107,7 +107,7 @@ class WorkerEnv(mp.Process):
         if self.ed:
           # We add to the statistics the envs that aborted, even though they're not learned from
           if 'testing' not in kwargs or not kwargs['testing']:
-            self.ed.add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))         
+            self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))         
       envstr.prev_obs.append(envstr.last_obs)
       envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 

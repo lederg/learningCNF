@@ -136,6 +136,7 @@ def cfg():
 	invalid_bias = -1000  # deprecate
 	# invalid_bias = 0
 	report_tensorboard = True
+	mp=False
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

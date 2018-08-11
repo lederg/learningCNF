@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 import time
@@ -14,37 +15,78 @@ from utils import *
 from rl_utils import *
 from cadet_utils import *
 
+ED_RECALC_THRESHOLD = 50
 
 class EpisodeData(object):
   def __init__(self, name=None, fname=None):
     self.settings = CnfSettings()
-    self.data_ = {}
+    self.stats_cover = False
+    self.flist = None
+    self.data_ = {}    
+    self.total_stats = 0
+    self.last_recalc = 0
+    self.__weights_vector = None
     if fname is not None:
       self.load_file(fname)
     elif name is not None:
       self.name = name
     else:
       self.name = self.settings['name']
+    if self.settings['mp']:
+      print('MultiProcessing: {} (pid: {})'.format(self.settings['mp'],os.getpid()))
+      set_proc_name(str.encode('a3c_ed'))
 
-  def add_stat(self, key, stat):
+  def ed_add_stat(self, key, stat):
     if type(stat) is not list:
-      return self.add_stat(key,[stat])
+      return self.ed_add_stat(key,[stat])
     if key not in self.data_.keys():
       self.data_[key] = []
     self.data_[key].extend(stat)
+    self.total_stats += len(stat)
 
-  def get_data(self):
-    return self.data_
+  def set_file_list(self,flist):
+    self.flist = flist
 
   def load_file(self, fname):
     with open(fname,'rb') as f:
       self.name, self.data_ = pickle.load(f)
+    self.total_stats = sum([len(x) for x in self.data_.values()])
 
   def save_file(self, fname=None):
     if not fname:
       fname = 'eps/{}.eps'.format(self.name)
     with open(fname,'wb') as f:
       pickle.dump((self.name,self.data_),f)
+
+  def recalc_weights(self):
+    if not self.flist:
+      return None    
+    if self.total_stats - self.last_recalc < ED_RECALC_THRESHOLD and self.__weights_vector is not None:
+      return self.__weights_vector
+    stats = [self.data_[x] if x in self.data_.keys() else [] for x in self.flist]
+    not_seen = np.array([0 if (x and len(x) > 1) else 1 for x in stats])
+    if self.stats_cover or not not_seen.any():
+      if not self.stats_cover:
+        print('Covered dataset!')
+        self.stats_cover = True
+      z = [list(zip(*x)) for x in stats]
+      steps, rewards = zip(*z)
+      m1, m2 = np.array([[np.mean(x[-60:]), np.std(x[-60:])] for x in steps]).transpose()
+      m2 = (m2 - m2.mean()) / (m2.std() + float(np.finfo(np.float32).eps))
+      m2 = m2 - m2.min() + 1      
+      rc = (self.settings['episode_cutoff'] - m1).clip(0)*m2
+    # If we don't have at least >1 attempts on all environments, try the ones that are still missing.
+    else:      
+      print('Number of unseen formulas is {}'.format(not_seen.sum()))
+      rc = not_seen
+    
+    self.__weights_vector = epsilonize(rc / rc.sum(),0.01)
+    self.last_recalc = self.total_stats
+    # print('Recalculating formulas weights in EpisodeData, length of vector is {}'.format(len(self.__weights_vector)))
+    # print('Largest value is {}'.format(self.__weights_vector.max()))
+
+    return self.__weights_vector
+
 
 
 class QbfCurriculumDataset(Dataset):
@@ -56,12 +98,14 @@ class QbfCurriculumDataset(Dataset):
     self.stats_cover = False
     self.use_cl = self.settings['use_curriculum']
     
-    self.ed = ed if ed else EpisodeData()
+    self.ed = ed if ed else EpisodeData()    
     if fnames:
       if type(fnames) is list:
         self.load_files(fnames)
       else:
         self.load_files([fnames])
+
+    self.ed.set_file_list(self.get_files_list())
 
   def load_dir(self, directory):
     self.load_files([join(directory, f) for f in listdir(directory)])
@@ -75,6 +119,9 @@ class QbfCurriculumDataset(Dataset):
     self.samples.extend([x for x in rc if x and x.num_vars <= self.max_vars and x.num_clauses < self.max_clauses\
                                                          and x.num_clauses > 0 and x.num_vars > 0])
     
+    self.ed.set_file_list(self.get_files_list())
+    print ('Just set the file list from pid ({}):'.format(os.getpid()))
+    print(self.get_files_list()[:10])
     try:
       del self.__weights_vector
     except:
@@ -95,25 +142,10 @@ class QbfCurriculumDataset(Dataset):
   def recalc_weights(self):
     if not self.use_cl:      
       return self.__weights_vector
-    d = self.ed.get_data()
-    stats = [d[x] if x in d.keys() else [] for x in self.get_files_list()]
-    not_seen = np.array([0 if (x and len(x) > 1) else 1 for x in stats])
-    if self.stats_cover or not not_seen.any():
-      if not self.stats_cover:
-        print('Covered dataset!')
-        self.stats_cover = True
-      z = [list(zip(*x)) for x in stats]
-      steps, rewards = zip(*z)
-      m1, m2 = np.array([[np.mean(x[-60:]), np.std(x[-60:])] for x in steps]).transpose()
-      m2 = (m2 - m2.mean()) / (m2.std() + float(np.finfo(np.float32).eps))
-      m2 = m2 - m2.min() + 1      
-      rc = (self.settings['episode_cutoff'] - m1).clip(0)*m2
-    # If we don't have at least >1 attempts on all environments, try the ones that are still missing.
-    else:      
-      print('Number of unseen formulas is {}'.format(not_seen.sum()))
-      rc = not_seen
     
-    self.__weights_vector = epsilonize(rc / rc.sum(),0.01)
+    self.__weights_vector = self.ed.recalc_weights()
+    # print('recalculated weights vector in pid ({})'.format(os.getpid()))
+    print(self.get_files_list()[:10])
 
     return self.__weights_vector
 

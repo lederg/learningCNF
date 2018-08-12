@@ -57,6 +57,7 @@ def a3c_main():
   reporter.start()
   ed = manager.EpisodeData(name=settings['name'], fname=settings['base_stats'])
   ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
+  all_episode_files = ds.get_files_list()
   policy = create_policy()
   policy.share_memory()
   optimizer = SharedAdam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)    
@@ -92,7 +93,7 @@ def a3c_main():
   while True:
     time.sleep(UNIT_LENGTH)
     if i % REPORT_EVERY == 0 and i>0:
-      reporter.proxy().report_stats(total_steps, 10000)
+      reporter.proxy().report_stats(global_steps.value, len(all_episode_files))
     if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), global_steps.value))
       ed.save_file()      

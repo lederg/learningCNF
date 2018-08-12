@@ -94,6 +94,6 @@ def a3c_main():
     if i % REPORT_EVERY == 0 and i>0:
       reporter.proxy().report_stats(total_steps, 10000)
     if i % SAVE_EVERY == 0 and i>0:
-      torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), global_steps))
+      torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), global_steps.value))
       ed.save_file()      
     i += 1

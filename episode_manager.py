@@ -367,7 +367,7 @@ class EpisodeManager(object):
           self.reset_env(envstr,fname=fname)
           finished_envs = []
           while not finished_envs:      # Just one (the ith) env is actually active and running
-            finished_envs = self.step_all(model)
+            finished_envs = self.step_all(model,**kwargs)
           finished = finished_envs[0][1]
           if finished:
             if self.debug:
@@ -400,8 +400,8 @@ class EpisodeManager(object):
         envstr = self.envs[i]
         fname = envstr.fname
         rc[fname].append(res)
-        if ed is not None:
-          ed.add_stat(fname,res)
+        # if ed is not None:
+        #   ed.ed_add_stat(fname,res)
         if len(rc[fname]) == iters:
           print('Finished {}, results are: {}, Average/Min are {}/{}'.format(fname,rc[fname],
             np.mean(rc[fname]),min(rc[fname])))

@@ -63,15 +63,18 @@ def a3c_main():
   policy.share_memory()
   optimizer = SharedAdam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)    
   max_iterations = len(ds)*100  
-  num_steps = len(ds)*15000
+  num_steps = 100000000
+  # num_steps = len(ds)*15000
+  curr_lr = init_lr
   lr_schedule = PiecewiseSchedule([
                                        (0,                   init_lr),
-                                       (num_steps / 10, init_lr),
+                                       (num_steps / 20, init_lr),
+                                       (num_steps / 10, init_lr * 0.75),
                                        (num_steps / 5,  init_lr * 0.5),
                                        (num_steps / 3,  init_lr * 0.25),
                                        (num_steps / 2,  init_lr * 0.1),
                                   ],
-                                  outside_value=init_lr * 0.02) 
+                                  outside_value = init_lr * 0.02) 
 
   kl_schedule = PiecewiseSchedule([
                                        (0,                   desired_kl),
@@ -93,11 +96,19 @@ def a3c_main():
 
   while True:
     time.sleep(UNIT_LENGTH)
+    gsteps = global_steps.value
     if i % REPORT_EVERY == 0 and i>0:
-      reporter.proxy().report_stats(global_steps.value, len(all_episode_files))
+      reporter.proxy().report_stats(gsteps, len(all_episode_files))
       eps = global_episodes.value
       print('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
     if i % SAVE_EVERY == 0 and i>0:
-      torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), global_steps.value))
-      ed.save_file()      
+      torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), gsteps))
+      ed.save_file()
+    if settings['rl_decay']:
+      new_lr = lr_schedule.value(gsteps)
+      if new_lr != curr_lr:
+        utils.set_lr(optimizer,new_lr)
+        print('setting new learning rate to {}'.format(new_lr))
+        curr_lr = new_lr
+
     i += 1

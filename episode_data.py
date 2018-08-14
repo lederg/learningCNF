@@ -33,7 +33,7 @@ class EpisodeData(object):
     else:
       self.name = self.settings['name']
     if self.settings['mp']:
-      print('MultiProcessing: {} (pid: {})'.format(self.settings['mp'],os.getpid()))
+      print('EpisodeData: MultiProcessing: {} (pid: {})'.format(self.settings['mp'],os.getpid()))
       set_proc_name(str.encode('a3c_ed'))
 
   def ed_add_stat(self, key, stat):
@@ -145,7 +145,7 @@ class QbfCurriculumDataset(Dataset):
     
     self.__weights_vector = self.ed.recalc_weights()
     # print('recalculated weights vector in pid ({})'.format(os.getpid()))
-    print(self.get_files_list()[:10])
+    # print(self.get_files_list()[:10])
 
     return self.__weights_vector
 

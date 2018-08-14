@@ -119,17 +119,17 @@ class PGEpisodeReporter(SPReporter):
 				db['stats'] = self.stats
 				db['stats_dict'] = self.stats_dict
 
-		if not self.tensorboard:
-			return
-		if not self.tb_configured:
-			print('Configuring tensorboard for the first time with pid {}'.format(os.getpid()))
-			configure(self.fname, flush_secs=5)
-			self.tb_configured = True
+		if self.tensorboard:
+			if not self.tb_configured:
+				print('Configuring tensorboard for the first time with pid {}'.format(os.getpid()))
+				configure(self.fname, flush_secs=5)
+				self.tb_configured = True
 
-		log_value('Mean steps for last {} episodes'.format(DEF_BIG_WINDOW), np.mean(steps[-DEF_BIG_WINDOW:]), total_steps)
-		log_value('Mean reward for last {} episodes'.format(DEF_BIG_WINDOW), np.mean(rewards[-DEF_BIG_WINDOW:]), total_steps)
+			log_value('Mean steps for last {} episodes'.format(DEF_BIG_WINDOW), np.mean(steps[-DEF_BIG_WINDOW:]), total_steps)
+			log_value('Mean reward for last {} episodes'.format(DEF_BIG_WINDOW), np.mean(rewards[-DEF_BIG_WINDOW:]), total_steps)
 
-		print('Total steps are {}'.format(total_steps))
+			print('Total steps are {}'.format(total_steps))
+		return len(steps)
 		# for id in self.ids_to_log:
 		# 	try:
 		# 		stats = self.stats_dict[id][-DEF_WINDOW:]

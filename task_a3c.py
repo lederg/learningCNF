@@ -51,6 +51,7 @@ def a3c_main():
   total_steps = 0
   global_steps = mp.Value('i', 0)
   global_grad_steps = mp.Value('i', 0)
+  global_episodes = mp.Value('i', 0)
   manager = MyManager()
   reporter = PGReporterServer(PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard']))
   manager.start()
@@ -81,7 +82,7 @@ def a3c_main():
                                   ],
                                   outside_value=desired_kl * 0.02) 
 
-  workers = [WorkerEnv(settings,policy,optimizer,ds,ed,global_steps, global_grad_steps, i, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
+  workers = [WorkerEnv(settings,policy,optimizer,ds,ed,global_steps, global_grad_steps, global_episodes, i, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
   print('Running for {} iterations..'.format(max_iterations))
   for w in workers:
     w.start()  
@@ -94,6 +95,8 @@ def a3c_main():
     time.sleep(UNIT_LENGTH)
     if i % REPORT_EVERY == 0 and i>0:
       reporter.proxy().report_stats(global_steps.value, len(all_episode_files))
+      eps = global_episodes.value
+      print('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
     if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), global_steps.value))
       ed.save_file()      

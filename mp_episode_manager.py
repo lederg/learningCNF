@@ -26,11 +26,12 @@ MPEnvStruct = namedlist('EnvStruct',
 
 
 class WorkerEnv(mp.Process):
-  def __init__(self, settings, model, opt, ds, ed, global_steps, global_grad_steps, name, reporter=None):
+  def __init__(self, settings, model, opt, ds, ed, global_steps, global_grad_steps, global_episodes, name, reporter=None):
     super(WorkerEnv, self).__init__()
     self.name = 'a3c_worker%i' % name
     self.g_steps = global_steps
     self.g_grad_steps = global_grad_steps
+    self.g_episodes = global_episodes
     self.settings = settings
     self.ds = ds
     self.ed = ed
@@ -148,21 +149,24 @@ class WorkerEnv(mp.Process):
     if num == 0:
       num = self.settings['min_timesteps_per_batch']
     rc = []
+    i=0
     while len(rc) < num:
-      ep = self.discount_episode(self.completed_episodes.pop(0))
+      ep = self.discount_episode(self.completed_episodes.pop(0))      
       rc.extend(ep)
+      i += 1
 
-    return rc
+    return rc, i
 
   def pop_min_normalized(self, num=0):
     if num == 0:
       num = self.settings['episodes_per_batch']
     rc = []
+    i=0
     for _ in range(num):
       ep = self.discount_episode(self.completed_episodes.pop(0))
       rc.extend(ep)
 
-    return rc
+    return rc, num
 
   def init_proc(self):
     set_proc_name(str.encode(self.name))
@@ -246,8 +250,9 @@ class WorkerEnv(mp.Process):
 
   def run_loop(self):
     self.init_proc()
-    SYNC_STATS_EVERY = 20+np.random.randint(15)
+    SYNC_STATS_EVERY = 5+np.random.randint(10)
     total_step = 0
+    total_eps = 0
     local_env_steps = 0
     global_steps = 0
     self.episodes_files = self.ds.get_files_list()
@@ -258,8 +263,8 @@ class WorkerEnv(mp.Process):
       while (not rc) or (not self.check_batch_finished()):
         rc = self.step()
       total_inference_time = time.time() - begin_time
-      transition_data = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
-      print('Got batch with length {} in {} seconds!'.format(len(transition_data),total_inference_time))
+      transition_data, num_eps = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
+      print('Forward pass in {} got batch with length {} in {} seconds!'.format(self.name,len(transition_data),total_inference_time))
       begin_time = time.time()
       self.train(transition_data)
       total_train_time = time.time() - begin_time
@@ -268,9 +273,13 @@ class WorkerEnv(mp.Process):
       # Sync to global step counts
       total_step += 1
       local_env_steps += len(transition_data)
+      total_eps += num_eps
       if total_step % SYNC_STATS_EVERY == 0:
         with self.g_grad_steps.get_lock():
           self.g_grad_steps.value += SYNC_STATS_EVERY
+        with self.g_episodes.get_lock():
+          self.g_episodes.value += total_eps
+          total_eps = 0
         with self.g_steps.get_lock():
           self.g_steps.value += local_env_steps
           local_env_steps = 0

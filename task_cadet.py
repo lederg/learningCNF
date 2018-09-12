@@ -299,7 +299,7 @@ def cadet_main():
       disallowed_actions = Variable(allowed_actions.data^1).float()      
       disallowed_mass = (aux_probs*disallowed_actions).sum(1)
       disallowed_loss = disallowed_mass.mean()
-      print('Disallowed loss is {}'.format(disallowed_loss))
+      # print('Disallowed loss is {}'.format(disallowed_loss))
 
     returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
@@ -323,6 +323,7 @@ def cadet_main():
     if settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
       adv_t = adv_t*settings.FloatTensor(episodes_weights)    
+    # pg_loss = (-Variable(adv_t)*logprobs).sum()
     pg_loss = (-Variable(adv_t)*logprobs).mean()
     # pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
     # print('--------------------------------------------------------------')
@@ -342,6 +343,11 @@ def cadet_main():
     loss = pg_loss + lambda_value*value_loss + lambda_disallowed*disallowed_loss + lambda_aux*total_aux_loss
     optimizer.zero_grad()
     loss.backward()
+    if i % 5 == 0 and i>0:
+      print('losses:')
+      print(pg_loss,disallowed_loss)
+    if i % 10 == 0 and i>0:
+      ipdb.set_trace()
     torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       print('NaN in grads!')
@@ -349,7 +355,7 @@ def cadet_main():
     # tutils.clip_grad_norm(policy.parameters(), 40)
     optimizer.step()
     end_time = time.time()
-    print('Backward computation done in %f seconds' % (end_time-begin_time))
+    # print('Backward computation done in %f seconds' % (end_time-begin_time))
 
 
     # Change learning rate according to KL

@@ -8,6 +8,8 @@ from config import *
 from settings import *
 from dispatch_utils import *
 
+MONGO_MACHINE = 'russell'
+
 def print_experiment(name, hostname, dbname):
     settings = CnfSettings(cfg())
     with MongoClient(host=hostname) as client:
@@ -32,13 +34,13 @@ def main():
                         help='an integer for the accumulator')
     parser.add_argument('--host', type=str, help='Host address') 
     parser.add_argument('-d', '--db', type=str, default='rl_exp', help='Database name')    
-    parser.add_argument('-r', '--remote', action='store_true', default=False, help='Use default remote machine (aws01)') 
+    parser.add_argument('-r', '--remote', action='store_true', default=False, help='Use default remote machine ({})'.format(MONGO_MACHINE)) 
     args = parser.parse_args()
 
     assert(len(args.params)>0)
     expname = args.params[0]
     if args.remote:
-        hostname = get_mongo_addr('aws01')+':27017'
+        hostname = get_mongo_addr(MONGO_MACHINE)+':27017'
     elif args.host:
         hostname = args.host
     else:

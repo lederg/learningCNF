@@ -95,6 +95,7 @@ def cfg():
 	debug = False
 	use_old_rewards = True					#  Must be false if using old cadet
 	use_vsids_rewards = False
+	use_sum = False
 	leaky = False  # deprecated
 	cadet_binary = './cadet'
 	# cadet_binary = './old_cadet' 			

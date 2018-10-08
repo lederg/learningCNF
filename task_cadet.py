@@ -323,8 +323,10 @@ def cadet_main():
     if settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
       adv_t = adv_t*settings.FloatTensor(episodes_weights)    
-    # pg_loss = (-Variable(adv_t)*logprobs).sum()
-    pg_loss = (-Variable(adv_t)*logprobs).mean()
+    if settings['use_sum']:
+      pg_loss = (-Variable(adv_t)*logprobs).sum()
+    else:
+      pg_loss = (-Variable(adv_t)*logprobs).mean()
     # pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
     # print('--------------------------------------------------------------')
     # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))
@@ -346,8 +348,8 @@ def cadet_main():
     if i % 5 == 0 and i>0:
       print('losses:')
       print(pg_loss,disallowed_loss)
-    if i % 10 == 0 and i>0:
-      ipdb.set_trace()
+    # if i % 10 == 0 and i>0:
+    #   ipdb.set_trace()
     torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       print('NaN in grads!')

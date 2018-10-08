@@ -31,7 +31,7 @@ def cfg():
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
 	max_iters = 1
-	max_step = 500			# Maximum steps per formula
+	max_step = 250			# Maximum steps per formula
 	batch_size = 128  # deprecated
 	val_size = 100  # deprecated?
 	threshold = 10  # deprecated
@@ -71,6 +71,7 @@ def cfg():
 	restart_in_test = False
 	non_linearity = 'F.relu'
 	attn_non_linearity = 'F.tanh'
+	episode_provider = 'UniformEpisodeProvider'
 	test_every = 1000
 # RL - PG
 	static_ed='eps/random_easy_train.eps'
@@ -105,7 +106,7 @@ def cfg():
 	follow_kl = False
 	desired_kl = 1e-6
 	min_timesteps_per_batch = 400  # replace by number of formulas per batch after normalization
-	episodes_per_batch = 32
+	episodes_per_batch = 16
 	ac_baseline = False
 	stats_baseline = False
 	use_global_state = True
@@ -125,6 +126,7 @@ def cfg():
 	episode_cutoff = 200
 	use_state_in_vn = False	
 	rnn_iters = 0
+	learn_from_aborted = False
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

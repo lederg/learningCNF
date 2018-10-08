@@ -231,8 +231,11 @@ def cadet_main():
         em.step_all(policy)
       transition_data = em.pop_min_normalized() if settings['episodes_per_batch'] else em.pop_min()
       total_steps = em.real_steps
-      if settings['parallelism'] > 1 and not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
+      if not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
         em.reset_all()
+      if len(transition_data) == settings['episodes_per_batch']*(settings['max_step']+1):
+        print('A lost batch, moving on')
+        continue
 
     # else:
     #   while time_steps_this_batch < settings['min_timesteps_per_batch']:      
@@ -320,6 +323,7 @@ def cadet_main():
       ipdb.set_trace()
     entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
+    # ipdb.set_trace()
     if settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
       adv_t = adv_t*settings.FloatTensor(episodes_weights)    

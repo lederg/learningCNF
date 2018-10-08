@@ -121,6 +121,7 @@ class CadetEnv:
     self.timestep = 0
     self.finished = False
     self.running_reward = []
+    self.rewards = None
 
     self.write(fname+'\n')
     self.done = False
@@ -213,7 +214,9 @@ class CadetEnv:
         state = None
         break
       elif a.startswith('rewards') or a.startswith('SATrewards') or a.startswith('UNSATrewards'):
-        self.rewards = np.asarray(list(map(float,a.split()[1:])))                
+        self.rewards = np.asarray(list(map(float,a.split()[1:])))
+        if self.debug:
+          ipdb.set_trace()
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():
             ipdb.set_trace()
@@ -288,6 +291,8 @@ class CadetEnv:
       if self.greedy_rewards:
         reward += self.greedy_alpha*self.running_reward[-1]
     self.last_total_determinized = np.count_nonzero(self.total_vars_deterministic)
+    # if self.timestep > 200:
+    #   self.debug = True
     if sum(self.running_reward) < -1:
       ipdb.set_trace()
     if self.done:

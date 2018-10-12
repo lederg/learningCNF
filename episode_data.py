@@ -167,3 +167,39 @@ class QbfCurriculumDataset(Dataset):
 
   def __getitem__(self, idx):
     return self.samples[idx].as_np_dict()
+
+
+class AbstractEpisodeProvider(object):
+  def __init__(self,ds):
+    self.ds = ds
+    self.items = self.ds.get_files_list()
+    self.settings = CnfSettings()
+
+  def reset(self):
+    pass
+
+  def sample(self):
+    pass
+  def __iter__(self):
+    return self
+
+class UniformEpisodeProvider(AbstractEpisodeProvider):
+  def __init__(self,ds):
+    super(UniformEpisodeProvider, self).__init__(ds) 
+    self.current = self.sample()
+
+  def sample(self):
+    return np.random.choice(self.items)
+
+  def reset(self):
+    self.current = self.sample()
+
+  def __next__(self):
+    return self.current
+    
+class RandomEpisodeProvider(AbstractEpisodeProvider):
+  def sample(self):
+    return np.random.choice(self.items)
+  def __next__(self):
+    return self.sample()
+

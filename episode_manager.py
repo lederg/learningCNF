@@ -12,6 +12,7 @@ from namedlist import namedlist
 
 from cadet_env import *
 from qbf_data import *
+from episode_data import *
 from settings import *
 from utils import *
 from rl_utils import *
@@ -22,41 +23,6 @@ DEF_COST = -1.000e-04
 
 EnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
-
-class AbstractEpisodeProvider(object):
-  def __init__(self,ds):
-    self.ds = ds
-    self.items = self.ds.get_files_list()
-    self.settings = CnfSettings()
-
-  def reset(self):
-    pass
-
-  def sample(self):
-    pass
-  def __iter__(self):
-    return self
-
-class UniformEpisodeProvider(AbstractEpisodeProvider):
-  def __init__(self,ds):
-    super(UniformEpisodeProvider, self).__init__(ds) 
-    self.current = self.sample()
-
-  def sample(self):
-    return np.random.choice(self.items)
-
-  def reset(self):
-    self.current = self.sample()
-
-  def __next__(self):
-    return self.current
-    
-class RandomEpisodeProvider(AbstractEpisodeProvider):
-  def sample(self):
-    return np.random.choice(self.items)
-  def __next__(self):
-    return self.sample()
-
 
 
 class EpisodeManager(object):

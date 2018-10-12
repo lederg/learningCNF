@@ -231,8 +231,11 @@ def cadet_main():
         em.step_all(policy)
       transition_data = em.pop_min_normalized() if settings['episodes_per_batch'] else em.pop_min()
       total_steps = em.real_steps
-      if settings['parallelism'] > 1 and not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
+      if not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
         em.reset_all()
+      if len(transition_data) == settings['episodes_per_batch']*(settings['max_step']+1):
+        print('A lost batch, moving on')
+        continue
 
     # else:
     #   while time_steps_this_batch < settings['min_timesteps_per_batch']:      
@@ -299,7 +302,7 @@ def cadet_main():
       disallowed_actions = Variable(allowed_actions.data^1).float()      
       disallowed_mass = (aux_probs*disallowed_actions).sum(1)
       disallowed_loss = disallowed_mass.mean()
-      print('Disallowed loss is {}'.format(disallowed_loss))
+      # print('Disallowed loss is {}'.format(disallowed_loss))
 
     returns = settings.FloatTensor(rewards)
     if settings['ac_baseline']:
@@ -320,10 +323,14 @@ def cadet_main():
       ipdb.set_trace()
     entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
+    # ipdb.set_trace()
     if settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
       adv_t = adv_t*settings.FloatTensor(episodes_weights)    
-    pg_loss = (-Variable(adv_t)*logprobs).mean()
+    if settings['use_sum']:
+      pg_loss = (-Variable(adv_t)*logprobs).sum()
+    else:
+      pg_loss = (-Variable(adv_t)*logprobs).mean()
     # pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
     # print('--------------------------------------------------------------')
     # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))
@@ -342,6 +349,11 @@ def cadet_main():
     loss = pg_loss + lambda_value*value_loss + lambda_disallowed*disallowed_loss + lambda_aux*total_aux_loss
     optimizer.zero_grad()
     loss.backward()
+    if i % 5 == 0 and i>0:
+      print('losses:')
+      print(pg_loss,disallowed_loss)
+    # if i % 10 == 0 and i>0:
+    #   ipdb.set_trace()
     torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       print('NaN in grads!')
@@ -349,7 +361,7 @@ def cadet_main():
     # tutils.clip_grad_norm(policy.parameters(), 40)
     optimizer.step()
     end_time = time.time()
-    print('Backward computation done in %f seconds' % (end_time-begin_time))
+    # print('Backward computation done in %f seconds' % (end_time-begin_time))
 
 
     # Change learning rate according to KL

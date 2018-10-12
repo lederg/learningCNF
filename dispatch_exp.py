@@ -12,15 +12,27 @@ from gridparams import *
 
 NAME = 'DEBUG_TEST'
 LOCAL_CMD = ['python', 'run_exp.py']
-MONGO_MACHINE = 'aws01'
+MONGO_MACHINE = 'russell'
 MONGO_SFX = ':27017:'
 EXP_CNF_SFX = 'graph_exp'
 EXP_QBF_SFX = 'qbf_exp'
 EXP_RL_SFX = 'rl_exp'
 
+dop_machines = ['wessel', 'russell']
 all_machines = []
 
 loop = asyncio.get_event_loop()
+
+def make_safe(f, blacklist):
+	def wrapper(x):
+		if x in blacklist:
+			return x
+		else:
+			return f(x)
+	return wrapper
+
+safe_remove_machine = make_safe(remove_machine,dop_machines)
+safe_async_remove_machine = make_safe(async_remove_machine,dop_machines)
 
 def cleanup_handler(signame):
 	print('Got ctrl-c, cleaning up synchronously')
@@ -28,7 +40,7 @@ def cleanup_handler(signame):
 	loop.stop()
 	loop.close()
 	for mname in all_machines:
-		remove_machine(mname)
+		safe_remove_machine(mname)
 
 	exit()
 
@@ -86,7 +98,7 @@ def main():
 		a.insert(0, '%s' % args.command)
 		a.insert(0, 'python')
 
-		mname = base_mname+'-{}'.format(i)
+		mname = args.machine if args.machine else base_mname+'-{}'.format(i)
 		p = async_dispatch_chain(mname,a, args.instance_type, args.rm, args.commit)
 		all_executions.append(p)
 
@@ -108,13 +120,14 @@ async def async_dispatch_chain(mname, params, instance_type, rm, commit_name):
 		print('Provisioning machine %s...' % mname)
 		rc = await async_provision_machine(mname,instance_type,commit_name)
 	else:
-		print('Machine already exists, hmm...')
+		print('Machine already exists, setting up...')
+		rc = await async_setup_machine(mname,commit_name)
 	print('Running experiment %s on machine %s...' % (params[0],mname))
 	p = await async_execute_machine(mname," ".join(params))
 	print('Experiment {} finished!'.format(mname))
-	if rm:
+	if rm and mname not in dop_machines:
 		print('Removing machine %s ...' % mname)
-		await async_remove_machine(mname)
+		await safe_async_remove_machine(mname)
 		print('Removed machine %s ...' % mname)
 
 if __name__=='__main__':

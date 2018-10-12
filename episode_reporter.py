@@ -94,7 +94,8 @@ class PGEpisodeReporter(SPReporter):
 
 	def report_stats(self, total_steps, total_envs):
 		_, steps, rewards, ents = zip(*self.stats)
-		DEF_BIG_WINDOW = total_envs*5
+		DEF_BIG_WINDOW = 50000
+		# DEF_BIG_WINDOW = total_envs*60
 		print('Total episodes so far: %d' % len(steps))
 		print('Total steps learned from so far: %d' % sum(steps))
 		print('Total rewards so far: %f' % sum(rewards))

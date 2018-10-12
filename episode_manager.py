@@ -18,8 +18,46 @@ from rl_utils import *
 from cadet_utils import *
 
 
+DEF_COST = -1.000e-04
+
 EnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
+
+class AbstractEpisodeProvider(object):
+  def __init__(self,ds):
+    self.ds = ds
+    self.items = self.ds.get_files_list()
+    self.settings = CnfSettings()
+
+  def reset(self):
+    pass
+
+  def sample(self):
+    pass
+  def __iter__(self):
+    return self
+
+class UniformEpisodeProvider(AbstractEpisodeProvider):
+  def __init__(self,ds):
+    super(UniformEpisodeProvider, self).__init__(ds) 
+    self.current = self.sample()
+
+  def sample(self):
+    return np.random.choice(self.items)
+
+  def reset(self):
+    self.current = self.sample()
+
+  def __next__(self):
+    return self.current
+    
+class RandomEpisodeProvider(AbstractEpisodeProvider):
+  def sample(self):
+    return np.random.choice(self.items)
+  def __next__(self):
+    return self.sample()
+
+
 
 class EpisodeManager(object):
   def __init__(self, ds, ed=None, parallelism=20, reporter=None):
@@ -30,6 +68,9 @@ class EpisodeManager(object):
     self.rnn_iters = self.settings['rnn_iters']
     self.ds = ds
     self.ed = ed
+    self.ProviderClass = eval(self.settings['episode_provider'])
+    self.provider = iter(self.ProviderClass(self.ds))
+    # self.provider = iter(RandomEpisodeProvider(self.ds))
     self.episodes_files = ds.get_files_list()
     self.packed = self.settings['packed']
     self.masked_softmax = self.settings['masked_softmax']
@@ -96,8 +137,9 @@ class EpisodeManager(object):
     return rc
 
   def reset_all(self):
+    self.provider.reset()
     for envstr in self.envs:
-      self.reset_env(envstr)
+      self.reset_env(envstr,fname=next(self.provider))
 
 
   def restart_all(self):
@@ -139,7 +181,7 @@ class EpisodeManager(object):
     for i in active_envs:
       envstr = self.envs[i]
       if not envstr.last_obs or envstr.curr_step > self.max_step:
-        self.reset_env(envstr)
+        self.reset_env(envstr,fname=next(self.provider))
         # print('Started new Environment ({}).'.format(envstr.fname))
       step_obs.append(envstr.last_obs)      
       prev_obs.append(list(envstr.prev_obs))
@@ -197,11 +239,20 @@ class EpisodeManager(object):
       else:
         if envstr.curr_step > self.max_step:
           print('Environment {} took too long, aborting it.'.format(envstr.fname))
+          try:
+            for record in envstr.episode_memory:
+              record.reward = DEF_COST
+            env.rewards = [DEF_COST]*len(envstr.episode_memory)            
+          except:
+            ipdb.set_trace()
+
           if self.ed:
             # We add to the statistics the envs that aborted, even though they're not learned from
             if 'testing' not in kwargs or not kwargs['testing']:
               self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
           rc.append((envnum,False))
+          if self.settings['learn_from_aborted']:
+            self.completed_episodes.append(envstr.episode_memory)
         envstr.prev_obs.append(envstr.last_obs)
         envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 

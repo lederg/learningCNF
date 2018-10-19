@@ -36,7 +36,6 @@ class EpisodeManager(object):
     self.ed = ed
     self.ProviderClass = eval(self.settings['episode_provider'])
     self.provider = iter(self.ProviderClass(self.ds))
-    # self.provider = iter(RandomEpisodeProvider(self.ds))
     self.episodes_files = ds.get_files_list()
     self.packed = self.settings['packed']
     self.masked_softmax = self.settings['masked_softmax']
@@ -218,9 +217,10 @@ class EpisodeManager(object):
               self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
           rc.append((envnum,False))
           if self.settings['learn_from_aborted']:
-            self.completed_episodes.append(envstr.episode_memory)
-        envstr.prev_obs.append(envstr.last_obs)
-        envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
+            self.completed_episodes.append(envstr.episode_memory)          
+        else:
+          envstr.prev_obs.append(envstr.last_obs)
+          envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 
 
     return rc

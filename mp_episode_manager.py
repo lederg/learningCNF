@@ -19,7 +19,9 @@ from settings import *
 from utils import *
 from rl_utils import *
 from cadet_utils import *
+from episode_data import *
 
+DEF_COST = -1.000e-04
 
 MPEnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
@@ -50,6 +52,9 @@ class WorkerEnv(mp.Process):
     self.reset_counter = 0
     self.env_steps = 0
     self.real_steps = 0
+    self.ProviderClass = eval(self.settings['episode_provider'])
+    self.provider = iter(self.ProviderClass(self.ds))
+
 
 # This discards everything from the old env
   def reset_env(self, fname=None, **kwargs):
@@ -76,7 +81,7 @@ class WorkerEnv(mp.Process):
     envstr = self.envstr
     env = envstr.env
     if not envstr.last_obs or envstr.curr_step > self.max_step:
-      self.reset_env()    
+      self.reset_env(fname=next(self.provider))    
     [action] = self.lmodel.select_action(envstr.last_obs, **kwargs)
     envstr.episode_memory.append(Transition(envstr.last_obs,action,None, None, envstr.env_id, envstr.prev_obs))
     allowed_actions = self.lmodel.get_allowed_actions(envstr.last_obs).squeeze()
@@ -87,6 +92,9 @@ class WorkerEnv(mp.Process):
     else:
       print('Chose invalid action, thats not supposed to happen.')
       assert(action_allowed(envstr.last_obs,action))
+
+    self.real_steps += 1
+    envstr.curr_step += 1
 
     if done:
       for j,r in enumerate(env.rewards):
@@ -105,15 +113,23 @@ class WorkerEnv(mp.Process):
     else:
       if envstr.curr_step > self.max_step:
         print('Environment {} took too long, aborting it.'.format(envstr.fname))
+        try:
+          for record in envstr.episode_memory:
+            record.reward = DEF_COST
+          env.rewards = [DEF_COST]*len(envstr.episode_memory)            
+        except:
+          ipdb.set_trace()
         if self.ed:
-          # We add to the statistics the envs that aborted, even though they're not learned from
           if 'testing' not in kwargs or not kwargs['testing']:
-            self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))         
+            self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))
+        if self.settings['learn_from_aborted']:
+          self.completed_episodes.append(envstr.episode_memory)
+        envstr.last_obs = None
+        return True        
+
       envstr.prev_obs.append(envstr.last_obs)
       envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
 
-    self.real_steps += 1
-    envstr.curr_step += 1
 
     return done
 
@@ -264,6 +280,9 @@ class WorkerEnv(mp.Process):
         rc = self.step()
       total_inference_time = time.time() - begin_time
       transition_data, num_eps = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
+      # After the batch is finished, advance the iterator
+      self.provider.reset()
+      self.reset_env(fname=next(self.provider))
       print('Forward pass in {} got batch with length {} in {} seconds!'.format(self.name,len(transition_data),total_inference_time))
       begin_time = time.time()
       self.train(transition_data)

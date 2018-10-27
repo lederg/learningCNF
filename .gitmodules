@@ -1,0 +1,3 @@
+[submodule "sat-rl"]
+	path = sat-rl
+	url = https://github.com/CpHaddock/sat-rl

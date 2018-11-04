@@ -109,7 +109,7 @@ def dqn_main():
     
     # prepare the next observation
     if not done:
-      obs = process_observation(env,last_obs,env_obs)
+      obs = env.process_observation(last_obs,env_obs)
     
     else:
       s = total_steps - time_last_episode

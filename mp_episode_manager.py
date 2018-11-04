@@ -128,7 +128,7 @@ class WorkerEnv(mp.Process):
         return True        
 
       envstr.prev_obs.append(envstr.last_obs)
-      envstr.last_obs = process_observation(env,envstr.last_obs,env_obs)
+      envstr.last_obs = env.process_observation(envstr.last_obs,env_obs)
 
 
     return done

@@ -5,6 +5,7 @@ import ipdb
 import time
 from settings import *
 from qbf_data import *
+from cadet_utils import *
 
 DEF_GREEDY_ALPHA = 0.01
 MAX_EPISODE_LENGTH = 200
@@ -302,6 +303,44 @@ class CadetEnv:
     neg_vars = np.where(self.vars_deterministic<0)[0]      
 
     return state, pos_vars, neg_vars, self.activities, decision, clause, reward, np.array(vars_set), self.done
+
+  # This gets a tuple from stepping the environment:
+  # state, vars_add, vars_remove, activities, decision, clause, reward, done = env.step(action)
+  # And it returns the next observation.
+
+  def process_observation(self, last_obs, env_obs, settings=None):
+    if not settings:
+      settings = CnfSettings()
+
+    if env_obs.clause:
+      # ipdb.set_trace()
+      cmat_pos, cmat_neg = get_input_from_qbf(self.qbf, settings)
+      clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0))
+    else:
+      cmat_pos, cmat_neg, clabels = last_obs.cmat_pos, last_obs.cmat_neg, last_obs.clabels
+    ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
+    if env_obs.decision:
+      ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
+    if len(env_obs.vars_add):
+      ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_add] = True
+    if len(env_obs.vars_remove):
+      ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_remove] = False
+      ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][env_obs.vars_remove] = False
+    ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
+    if len(env_obs.vars_set):
+      a = env_obs.vars_set
+      idx = a[:,0][np.where(a[:,1]==1)[0]]
+      ground_embs[:,IDX_VAR_SET_POS][idx] = True
+      idx = a[:,0][np.where(a[:,1]==-1)[0]]
+      ground_embs[:,IDX_VAR_SET_NEG][idx] = True
+      idx = a[:,0][np.where(a[:,1]==0)[0]]
+      ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][idx] = False  
+
+    state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
+    ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
+    return State(state,cmat_pos,cmat_neg,ground_embs, clabels, last_obs.vmask, last_obs.cmask)
+
+
 
   def step(self, action):
     assert(not self.done)

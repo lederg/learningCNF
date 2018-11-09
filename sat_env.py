@@ -10,9 +10,11 @@ import logging
 import multiprocessing as mp
 from settings import *
 from qbf_data import *
-from abstract_env import *
+from envbase import *
 
 LOG_SIZE = 200
+DEF_STEP_REWARD = -1			# Temporary reward until Pash sends something from minisat
+log = mp.get_logger()
 
 class SatActiveEnv:
 	def __init__(self, debug=False, server=None, **kwargs):
@@ -28,7 +30,7 @@ class SatActiveEnv:
 	
 	def start_solver(self, fname=None):
 		def thunk(cl_label_arr, rows_arr, cols_arr, data_arr):			
-			return self.__callback(cl_label_arr, rows_arr, cols_arr, data_arr)
+			return self.__callback(cl_label_arr, rows_arr, cols_arr, data_arr, DEF_STEP_REWARD)
 			
 
 		if self.solver is None:
@@ -39,15 +41,16 @@ class SatActiveEnv:
 			f1 = CNF(fname)
 			self.solver.append_formula(f1.clauses)
 
-	def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr):
+	def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
 		# adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
 
-		if self.server:
+		if not self.server:
 			log.info('Running a test version of SatEnv')
 			utility = cl_label_arr[:,3] # just return the lbd
+			ipdb.set_trace()
 			return utility
 		else:
-			return self.server.__callback(cl_label_arr, rows_arr, cols_arr, data_arr)
+			return self.server.__callback(cl_label_arr, rows_arr, cols_arr, data_arr, reward)
 
 	def step(self, action):
 		return None
@@ -102,11 +105,18 @@ class SatEnvServer(mp.Process):
 
 			self.env.solver.solve()
 
-			if self.cmd == EnvCommands.CMD_STEP
+			if self.cmd == EnvCommands.CMD_STEP:
+				pass
+				# We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
+			elif self.cmd == EnvCommands.CMD_RESET:
+				pass
+				# We are here because the episode was aborted.
 
 
 	def __callback(self, *args):
 		if self.cmd == EnvCommands.CMD_RESET:
+			# If this is the reply to a RESET add all existing (permanent) clauses
+			args += self.env.solver.get_cl_arr()
 			ack = EnvCommands.ACK_RESET
 		elif self.cmd == EnvCommands.CMD_STEP:
 			ack = EnvCommands.ACK_STEP
@@ -119,4 +129,6 @@ class SatEnvServer(mp.Process):
 			return rc
 		elif self.cmd == EnvCommands.CMD_RESET:
 			self.current_fname = rc
+		elif self.cmd == EnvCommands.CMD_EXIT:
+
 

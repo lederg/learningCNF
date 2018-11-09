@@ -185,3 +185,21 @@ def get_proc_name():
     # 16 == PR_GET_NAME from <linux/prctl.h>
     libc.prctl(16, byref(buff), 0, 0, 0)
     return buff.value
+
+# We return either one sparse matrix (P+N) or (|P|,|N|) if split=True
+def csr_to_pytorch(m, split=True):
+    size = m.shape
+    if not split:
+        np_ind = m.nonzero()
+        indices = torch.from_numpy(np.stack(np_ind)).long()
+        vals = torch.from_numpy(m[np_ind]).float().squeeze()
+        return torch.sparse.FloatTensor(indices,vals,size)
+    else:
+        indices = torch.from_numpy(np.stack((m==1).nonzero())).long()
+        vals = torch.ones(indices.shape[1])
+        pos_rc = torch.sparse.FloatTensor(indices,vals,size)
+        indices = torch.from_numpy(np.stack((m==-1).nonzero())).long()
+        vals = torch.ones(indices.shape[1])
+        neg_rc = torch.sparse.FloatTensor(indices,vals,size)
+        return pos_rc, neg_rc
+

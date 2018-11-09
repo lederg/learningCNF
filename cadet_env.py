@@ -1,5 +1,6 @@
 from subprocess import Popen, PIPE, STDOUT
 from collections import deque
+from collections import namedtuple
 import select
 import ipdb
 import time

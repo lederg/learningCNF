@@ -78,7 +78,7 @@ def cfg():
 	static_ed='eps/random_easy_train.eps'
 	gamma = 0.99
 	entropy_alpha = 0.000
-	policy = 'AttnPolicy'
+	policy = 'Actor1Policy'
 	policy_dim1 = 64
 	policy_dim2 = 32
 	batch_backwards = False  # deprecated					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
@@ -128,7 +128,7 @@ def cfg():
 	episode_cutoff = 200
 	use_state_in_vn = False	
 	rnn_iters = 0
-	learn_from_aborted = False
+	learn_from_aborted = True
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

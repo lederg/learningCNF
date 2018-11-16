@@ -27,6 +27,10 @@ class CadetEnv:
   def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, slim_state=False,
                 use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, 
                 use_vsids_rewards = False, **kwargs):
+    self.EnvObservation = namedtuple('EnvObservation', 
+                    ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
+                      'reward', 'vars_set', 'done'])
+
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
@@ -303,7 +307,7 @@ class CadetEnv:
     pos_vars = np.where(self.vars_deterministic>0)[0]
     neg_vars = np.where(self.vars_deterministic<0)[0]      
 
-    return state, pos_vars, neg_vars, self.activities, decision, clause, reward, np.array(vars_set), self.done
+    return self.EnvObservation(state, pos_vars, neg_vars, self.activities, decision, clause, reward, np.array(vars_set), self.done)
 
   # This gets a tuple from stepping the environment:
   # state, vars_add, vars_remove, activities, decision, clause, reward, done = env.step(action)

@@ -2,6 +2,7 @@ from pysat.solvers import Minisat22
 from pysat.formula import CNF
 from subprocess import Popen, PIPE, STDOUT
 from collections import deque
+from namedlist import namedlist
 from scipy.sparse import csr_matrix
 import select
 import ipdb
@@ -18,10 +19,13 @@ log = mp.get_logger()
 
 class SatActiveEnv:
 	def __init__(self, debug=False, server=None, **kwargs):
+    self.EnvObservation = namedlist('SatEnvObservation', 
+                ['orig_clauses', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'])
 		self.debug = debug
 		self.tail = deque([],LOG_SIZE)
 		self.solver = None
 		self.server = server
+		self.current_step = 0
 		self._name = 'SatEnv'
 
 	@property
@@ -36,13 +40,19 @@ class SatActiveEnv:
 		if self.solver is None:
 			self.solver = Minisat22(callback=thunk)
 		else:
+			self.solver.delete()
 			self.solver.new(callback=thunk)
 		if fname:
 			f1 = CNF(fname)
 			self.solver.append_formula(f1.clauses)
+		self.current_step = 0
+
+	def get_orig_clauses(self):
+		return self.solver.get_cl_arr()
 
 	def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
-		# adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
+		self.current_step += 1
+		adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
 
 		if not self.server:
 			log.info('Running a test version of SatEnv')
@@ -50,7 +60,7 @@ class SatActiveEnv:
 			ipdb.set_trace()
 			return utility
 		else:
-			return self.server.__callback(cl_label_arr, rows_arr, cols_arr, data_arr, reward)
+			return self.server.__callback(cl_label_arr, adj_matrix, reward)
 
 	def step(self, action):
 		return None
@@ -85,14 +95,12 @@ class SatEnvServer(mp.Process):
 	def proxy(self):
 		return SatEnvProxy(self.queue_out, self.queue_in)
 
-	def handle_reset(self, fname):
-		self.env.start_solver(fname)
-
 	def run(self):
 		print('Env {} on pid {}'.format(self.env.name, os.getpid()))
 		set_proc_name(str.encode('{}_{}'.format(self.env.name,os.getpid())))
 		while True:
 			if self.cmd == EnvCommands.CMD_RESET:
+				# We get here only after a CMD_RESET aborted a running episode and requested a new file.
 				fname = self.current_fname
 			else:
 				self.cmd, fname = self.queue_in.get()
@@ -109,26 +117,38 @@ class SatEnvServer(mp.Process):
 				pass
 				# We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
 			elif self.cmd == EnvCommands.CMD_RESET:
-				pass
-				# We are here because the episode was aborted.
+				if self.env.current_step == 0:
+					# This is a degenerate episodes with no GC
+				else:
+					# We are here because the episode was aborted. We can just move on, the client already has everything.
+			elif self.cmd == EnvCommands.CMD_EXIT:
+				break
 
 
-	def __callback(self, *args):
+	def __callback(self, cl_label_arr, adj_matrix, reward):
+		self.current_step += 1
+		msg = self.env.EnvObservation(None, adj_matrix, None, cl_label_arr, reward, False)
 		if self.cmd == EnvCommands.CMD_RESET:
 			# If this is the reply to a RESET add all existing (permanent) clauses
-			args += self.env.solver.get_cl_arr()
+			msg['orig_clauses'] = self.env.get_orig_clauses()
 			ack = EnvCommands.ACK_RESET
 		elif self.cmd == EnvCommands.CMD_STEP:
 			ack = EnvCommands.ACK_STEP
 		else:
 			assert True, 'Invalid last command detected'
 
-		self.queue_out.put((ack,args))
+		self.queue_out.put((ack,msg))
 		self.cmd, rc = self.queue_in.get()
 		if self.cmd == EnvCommands.CMD_STEP:
+			# We got back an array of decisions
 			return rc
 		elif self.cmd == EnvCommands.CMD_RESET:
+			# We were asked to abort the current episode. Notify the solver and continue as usual
+			self.env.solver.terminate()
 			self.current_fname = rc
+			return None
 		elif self.cmd == EnvCommands.CMD_EXIT:
-
+			self.env.solver.terminate()
+			log.info('Got CMD_EXIT')
+			return None
 

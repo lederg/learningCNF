@@ -12,8 +12,3 @@ PackedState = namedtuple('PackedState',
 
 Transition = namedlist('Transition',
                         ['state', 'action', 'next_state', 'reward', 'formula', 'prev_obs'])
-
-
-EnvObservation = namedtuple('EnvObservation', 
-                    ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
-                    	'reward', 'vars_set', 'done'])

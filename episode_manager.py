@@ -178,7 +178,7 @@ class EpisodeManager(object):
       else:
         action_ok = allowed_actions[i][actions[i]]      # New policies
       if action_ok:
-        env_obs = EnvObservation(*env.step(model.translate_action(actions[i])))        
+        env_obs = env.step(model.translate_action(actions[i]))
         done = env_obs.done
       else:
         print('Chose an invalid action! In the packed version. That was not supposed to happen.')

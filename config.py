@@ -140,6 +140,8 @@ def cfg():
 	# invalid_bias = 0
 	report_tensorboard = True
 	mp=False
+	def_step_cost = -1.000e-04
+	cadet_completion_reward = 1.
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

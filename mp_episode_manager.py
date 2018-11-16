@@ -21,7 +21,7 @@ from rl_utils import *
 from cadet_utils import *
 from episode_data import *
 
-DEF_COST = -1.000e-04
+# DEF_COST = -1.000e-04
 
 MPEnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
@@ -52,6 +52,7 @@ class WorkerEnv(mp.Process):
     self.reset_counter = 0
     self.env_steps = 0
     self.real_steps = 0
+    self.def_step_cost = self.settings['def_step_cost']
     self.ProviderClass = eval(self.settings['episode_provider'])
     self.provider = iter(self.ProviderClass(self.ds))
 
@@ -115,8 +116,8 @@ class WorkerEnv(mp.Process):
         print('Environment {} took too long, aborting it.'.format(envstr.fname))
         try:
           for record in envstr.episode_memory:
-            record.reward = DEF_COST
-          env.rewards = [DEF_COST]*len(envstr.episode_memory)            
+            record.reward = self.def_step_cost
+          env.rewards = [self.def_step_cost]*len(envstr.episode_memory)            
         except:
           ipdb.set_trace()
         if self.ed:

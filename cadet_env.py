@@ -44,8 +44,8 @@ class CadetEnv:
     
 
   def start_cadet(self):
-    cadet_params = ['--rl', '--cegar', '--sat_by_qbf', '--rl_reward_per_decision="{}"'.format(self.def_step_cost), 
-                      '--rl_completion_reward="{}"'.format(self.cadet_completion_reward)]
+    cadet_params = ['--rl', '--cegar', '--sat_by_qbf', '--rl_reward_per_decision', '{}'.format(self.def_step_cost), 
+                      '--rl_completion_reward', '{}'.format(self.cadet_completion_reward)]
     if not self.use_old_rewards:
       if self.debug:
         print('Using new rewards!')

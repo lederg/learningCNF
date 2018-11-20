@@ -178,7 +178,7 @@ class EpisodeManager(object):
       else:
         action_ok = allowed_actions[i][actions[i]]      # New policies
       if action_ok:
-        env_obs = EnvObservation(*env.step(model.translate_action(actions[i])))        
+        env_obs = EnvObservation(*env.step(model.translate_action(actions[i])))
         done = env_obs.done
       else:
         print('Chose an invalid action! In the packed version. That was not supposed to happen.')
@@ -232,11 +232,12 @@ class EpisodeManager(object):
     activities = obs_batch.ground.data.numpy()[:,:,IDX_VAR_ACTIVITY]
     allowed_actions = model.get_allowed_actions(obs_batch) if model else get_allowed_actions(obs_batch)
     actions = []
+    # ipdb.set_trace()
     if random_test:
       for allowed in allowed_actions:
         choices = np.where(allowed.numpy())[0]
         actions.append(np.random.choice(choices))
-      return actions, None
+      return actions
     elif activity_test:
       for i,act in enumerate(activities):
         if np.any(act):
@@ -246,7 +247,7 @@ class EpisodeManager(object):
           actions.append(np.random.choice(choices))
       return actions, None
     elif cadet_test:
-      return ['?']*bs, None
+      return ['?']*bs
     actions = model.select_action(obs_batch, **kwargs)    
     return actions
 

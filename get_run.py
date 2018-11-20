@@ -10,23 +10,24 @@ from dispatch_utils import *
 
 MONGO_MACHINE = 'russell'
 
-def print_experiment(name, hostname, dbname):
+def get_experiment_config(name, hostname, dbname):
     settings = CnfSettings(cfg())
     with MongoClient(host=hostname) as client:
         db = client[dbname]
         runs = db['runs']
         k = re.compile(name)
-        rc = runs.find({'experiment.name': k})
-        for x in rc:
+        matches = runs.find({'experiment.name': k})
+        rc = {}
+        for x in matches:
             fc = {}
             trivial = ['base_mode', 'seed', 'exp_time']
-            print('Experiment: {}'.format(x['experiment']['name']))
             c = x['config']
             for k in c.keys():
                 if k not in trivial and (k not in settings.hyperparameters.keys() or settings[k] != c[k]):
                     fc[k] = c[k]
-            pprint(fc)
+            rc[x['experiment']['name']]=fc
 
+        return rc
 
 def main():
     parser = argparse.ArgumentParser(description='Process some params.')
@@ -46,6 +47,7 @@ def main():
     else:
         hostname = None
 
-    print_experiment(expname,hostname,args.db)
+    rc = get_experiment_config(expname,hostname,args.db)    
+    pprint(rc)
 if __name__=='__main__':
     main()

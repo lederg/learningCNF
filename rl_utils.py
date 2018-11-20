@@ -232,7 +232,8 @@ def create_policy(settings=None, is_clone=False):
     print('Loading parameters from {}'.format(base_model))
     if settings['base_mode'] == BaseMode.ALL:
       policy = policy_class(settings=settings)
-      policy.load_state_dict(torch.load('{}/{}'.format(settings['model_dir'],base_model)))
+      fname = base_model if os.path.exists(base_model) else '{}/{}'.format(settings['model_dir'],base_model)
+      policy.load_state_dict(torch.load(fname))
     elif settings['base_mode'] == BaseMode.ITERS:
       base_iters = settings['base_iters']
       if base_iters != settings['max_iters']:

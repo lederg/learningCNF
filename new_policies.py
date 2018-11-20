@@ -146,6 +146,11 @@ class Actor1Policy(PolicyBase):
     return rc
 
   def translate_action(self, action, **kwargs):
+    try:
+      if action in ['?']:
+        return action
+    except:
+      pass
     return (int(action/2),int(action%2))
 
   def select_action(self, obs_batch, **kwargs):

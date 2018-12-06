@@ -1,3 +1,6 @@
 [submodule "sat-rl"]
 	path = sat-rl
 	url = https://github.com/CpHaddock/sat-rl
+[submodule "synthetic_qbf_formulas"]
+	path = synthetic_qbf_formulas
+	url = https://github.com/MarkusRabe/synthetic_qbf_formulas

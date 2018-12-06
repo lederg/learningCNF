@@ -216,7 +216,7 @@ class EpisodeManager(object):
             if 'testing' not in kwargs or not kwargs['testing']:
               self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
           rc.append((envnum,False))
-          if self.settings['learn_from_aborted']:
+          if ('testing' not in kwargs or not kwargs['testing']) and self.settings['learn_from_aborted']:
             self.completed_episodes.append(envstr.episode_memory)          
         else:
           envstr.prev_obs.append(envstr.last_obs)
@@ -290,6 +290,7 @@ class EpisodeManager(object):
     total_srate = 0.
     total_scored = 0
     rc = {}
+    kwargs['testing']=True
     self.restart_all()
     available_envs = list(range(self.parallelism))    
     tasks = []

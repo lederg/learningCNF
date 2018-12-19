@@ -21,6 +21,9 @@ class EnvBase(object):
 	def reset(self,fname):
 		pass
 
+	def restart_env(self, timeout=0):
+		pass
+
 	@property
 	def name(self):
 		return 'EnvBase'

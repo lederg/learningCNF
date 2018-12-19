@@ -20,6 +20,7 @@ from utils import *
 from rl_utils import *
 from cadet_utils import *
 from episode_data import *
+from env_factory import *
 
 DEF_COST = -1.000e-04
 
@@ -28,22 +29,22 @@ MPEnvStruct = namedlist('EnvStruct',
 
 
 class WorkerEnv(mp.Process):
-  def __init__(self, settings, model, opt, ds, ed, global_steps, global_grad_steps, global_episodes, name, reporter=None):
+  def __init__(self, settings, model, opt, provider, ed, global_steps, global_grad_steps, global_episodes, name, reporter=None):
     super(WorkerEnv, self).__init__()
     self.name = 'a3c_worker%i' % name
     self.g_steps = global_steps
     self.g_grad_steps = global_grad_steps
     self.g_episodes = global_episodes
     self.settings = settings
-    self.ds = ds
+    # self.ds = ds
     self.ed = ed
     self.completed_episodes = []
     self.reporter = reporter
     self.max_step = self.settings['max_step']
     self.rnn_iters = self.settings['rnn_iters']
     self.training_steps = self.settings['training_steps']
-    self.restart_cadet_every = self.settings['restart_cadet_every']
-    self.envstr = MPEnvStruct(CadetEnv(**self.settings.hyperparameters), 
+    self.restart_solver_every = self.settings['restart_solver_every']    
+    self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))
     # self.gnet, self.opt = gnet, opt
     # self.lnet = Net(N_S, N_A)           # local network
@@ -52,21 +53,21 @@ class WorkerEnv(mp.Process):
     self.reset_counter = 0
     self.env_steps = 0
     self.real_steps = 0
-    self.ProviderClass = eval(self.settings['episode_provider'])
-    self.provider = iter(self.ProviderClass(self.ds))
+    self.provider = provider
 
 
 # This discards everything from the old env
-  def reset_env(self, fname=None, **kwargs):
+  def reset_env(self, fname, **kwargs):
     self.reset_counter += 1
-    if self.settings['restart_in_test'] or (self.reset_counter % self.restart_cadet_every == 0):
-      self.envstr.env.restart_cadet(timeout=0)
-    if not fname:
-      if not self.reset_counter % 200:
-        self.ds.recalc_weights()
-      (fname,) = self.ds.weighted_sample()
-    last_obs, env_id = new_episode(self.envstr.env, fname=fname, **kwargs)
-    self.envstr.last_obs = last_obs
+    if self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0):
+      self.envstr.env.restart_env(timeout=0)
+    # if not fname:
+    #   if not self.reset_counter % 200:
+    #     self.ds.recalc_weights()
+    #   (fname,) = self.ds.weighted_sample()
+    # last_obs, env_id = self.envstr.env.new_episode(fname=fname, **kwargs)
+    env_obs, env_id = self.envstr.env.new_episode(fname=fname, **kwargs)
+    self.envstr.last_obs = self.envstr.env.process_observation(None,env_obs)
     self.envstr.env_id = fname
     self.envstr.curr_step = 0
     self.envstr.fname = fname
@@ -75,7 +76,7 @@ class WorkerEnv(mp.Process):
     self.envstr.prev_obs.clear()    
     for i in range(self.rnn_iters):
       self.envstr.prev_obs.append(None)
-    return last_obs
+    return self.envstr.last_obs
 
   def step(self, **kwargs):
     envstr = self.envstr
@@ -271,7 +272,7 @@ class WorkerEnv(mp.Process):
     total_eps = 0
     local_env_steps = 0
     global_steps = 0
-    self.episodes_files = self.ds.get_files_list()
+    # self.episodes_files = self.ds.get_files_list()
     while global_steps < self.training_steps:
       self.lmodel.eval()
       begin_time = time.time()

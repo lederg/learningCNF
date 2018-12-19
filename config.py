@@ -68,7 +68,7 @@ def cfg():
 	run_task = 'train'
 	do_not_run = False
 	do_not_learn = False
-	restart_cadet_every = 3500
+	restart_solver_every = 3500
 	restart_in_test = False
 	non_linearity = 'F.relu'
 	attn_non_linearity = 'F.tanh'
@@ -78,7 +78,7 @@ def cfg():
 	static_ed='eps/random_easy_train.eps'
 	gamma = 0.99
 	entropy_alpha = 0.000
-	policy = 'AttnPolicy'
+	policy = 'Actor1Policy'
 	policy_dim1 = 64
 	policy_dim2 = 32
 	batch_backwards = False  # deprecated					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
@@ -101,6 +101,7 @@ def cfg():
 	use_sum = False
 	leaky = False  # deprecated
 	cadet_binary = './cadet'
+	solver = 'cadet'
 	# cadet_binary = './old_cadet' 			
 	do_test = False
 	test_iters = 100
@@ -117,7 +118,7 @@ def cfg():
 	use_gru = False  # deprecated
 	use_bn = False
 	use_ln = False
-	state_bn = False
+	state_bn = True
 	use_curriculum = False
 	normalize_episodes = False
 	parallelism = 1
@@ -128,7 +129,7 @@ def cfg():
 	episode_cutoff = 200
 	use_state_in_vn = False	
 	rnn_iters = 0
-	learn_from_aborted = False
+	learn_from_aborted = True
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

@@ -190,14 +190,16 @@ def cadet_main():
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])
   ed = EpisodeData(name=settings['name'], fname=settings['base_stats'])
-  ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
-  em = EpisodeManager(ds, ed=ed, parallelism=settings['parallelism'],reporter=reporter)
-  all_episode_files = ds.get_files_list()
+  ProviderClass = eval(settings['episode_provider'])
+  provider = iter(ProviderClass(settings['rl_train_data']))
+  # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
+  em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter)
+  # all_episode_files = ds.get_files_list()
   old_logits = None
   disallowed_loss = 0.
-  max_iterations = len(ds)*100
+  max_iterations = len(provider)*100
   settings.env = env
-  num_steps = len(ds)*15000
+  num_steps = len(provider)*15000
   lr_schedule = PiecewiseSchedule([
                                        (0,                   init_lr),
                                        (num_steps / 10, init_lr),
@@ -393,7 +395,7 @@ def cadet_main():
 
 
 
-    if settings['restart_cadet_every'] and not (i % settings['restart_cadet_every']) and i > 0:      
+    if settings['restart_solver_every'] and not (i % settings['restart_solver_every']) and i > 0:      
       em.restart_all()
 
     if i % SAVE_EVERY == 0 and i>0:

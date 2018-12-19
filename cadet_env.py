@@ -83,7 +83,7 @@ class CadetEnv:
     self.cadet_proc = None
     self.poll_obj = None
 
-  def restart_cadet(self, timeout=5):
+  def restart_env(self, timeout=5):
     if self.debug:
       print('Stopping cadet...')
     self.stop_cadet(timeout)
@@ -317,13 +317,18 @@ class CadetEnv:
     if not settings:
       settings = CnfSettings()
 
-    if env_obs.clause:
+    if env_obs.clause or not last_obs:
       # ipdb.set_trace()
       cmat_pos, cmat_neg = get_input_from_qbf(self.qbf, settings)
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0))
+      ground_embs = self.qbf.get_base_embeddings()
+      vmask = None
+      cmask = None
     else:
       cmat_pos, cmat_neg, clabels = last_obs.cmat_pos, last_obs.cmat_neg, last_obs.clabels
-    ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
+      ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
+      vmask = last_obs.vmask
+      cmask = last_obs.cmask
     if env_obs.decision:
       ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
     if len(env_obs.vars_add):
@@ -343,8 +348,47 @@ class CadetEnv:
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state,cmat_pos,cmat_neg,ground_embs, clabels, last_obs.vmask, last_obs.cmask)
+    return State(state,cmat_pos,cmat_neg,ground_embs, clabels, vmask, cmask)
 
+
+# This returns already a State (higher-level) observation, not EnvObs.
+
+  def new_episode(self, fname, settings=None, **kwargs):
+    if not settings:
+      settings = CnfSettings()
+    try:
+      env_id = int(os.path.split(fname)[1].split('_')[-2])
+    except:
+      env_id = os.path.split(fname)[1]
+    # Set up ground_embeddings and adjacency matrices
+    obs = self.reset(fname)
+    # state, vars_add, vars_remove, activities, _, _ , _, vars_set, _ = self.reset(fname)
+    if obs.state is None:   # Env solved in 0 steps
+      return None, env_id, fname
+    else:
+      return obs, env_id
+    # assert(len(state)==settings['state_dim'])
+    # ground_embs = self.qbf.get_base_embeddings()
+    # ground_embs[:,IDX_VAR_DETERMINIZED][vars_add] = True
+    # ground_embs[:,IDX_VAR_ACTIVITY] = activities
+    # if len(vars_set):
+    #   a = vars_set
+    #   idx = a[:,0][np.where(a[:,1]==1)[0]]
+    #   ground_embs[:,IDX_VAR_SET_POS][idx] = True
+    #   idx = a[:,0][np.where(a[:,1]==-1)[0]]
+    #   ground_embs[:,IDX_VAR_SET_NEG][idx] = True
+    #   idx = a[:,0][np.where(a[:,1]==0)[0]]
+    #   ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][idx] = False  
+    # cmat_pos, cmat_neg = get_input_from_qbf(self.qbf, settings)
+    
+    # state = Variable(torch.from_numpy(state).float().unsqueeze(0))
+    # ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
+    # clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0))
+    # # if settings['cuda']:
+    # #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+    # #   state, ground_embs = state.cuda(), ground_embs.cuda()
+    # rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels, None, None)
+    # return rc, env_id
 
 
   def step(self, action):
@@ -357,3 +401,4 @@ class CadetEnv:
     self.write_action(action)
     return self.read_state_update()
             
+    

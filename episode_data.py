@@ -4,6 +4,7 @@ import torch
 import time
 import ipdb
 import pickle
+import itertools
 from collections import namedtuple
 from namedlist import namedlist
 
@@ -87,8 +88,6 @@ class EpisodeData(object):
 
     return self.__weights_vector
 
-
-
 class QbfCurriculumDataset(Dataset):
   def __init__(self, fnames=None, ed=None, max_variables=MAX_VARIABLES, max_clauses=MAX_CLAUSES):
     self.settings = CnfSettings()
@@ -170,10 +169,19 @@ class QbfCurriculumDataset(Dataset):
 
 
 class AbstractEpisodeProvider(object):
-  def __init__(self,ds):
-    self.ds = ds
-    self.items = self.ds.get_files_list()
+  def __init__(self,flist):    
+    self.items = self.load_files(flist)
     self.settings = CnfSettings()
+
+  def load_dir(self, directory):
+    return self.load_files([join(directory, f) for f in listdir(directory)])
+
+  def load_files(self, files):
+    if type(files) is not list:
+      files = [files]
+    only_files = [x for x in files if os.path.isfile(x)]
+    only_dirs = [x for x in files if os.path.isdir(x)]
+    return only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([self.load_dir(x) for x in only_dirs]))
 
   def reset(self):
     pass
@@ -182,6 +190,9 @@ class AbstractEpisodeProvider(object):
     pass
   def __iter__(self):
     return self
+
+  def __len__(self):
+    return len(self.items)
 
 class UniformEpisodeProvider(AbstractEpisodeProvider):
   def __init__(self,ds):

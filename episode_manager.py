@@ -17,7 +17,7 @@ from settings import *
 from utils import *
 from rl_utils import *
 from cadet_utils import *
-
+from env_factory import *
 
 DEF_COST = -1.000e-04
 
@@ -26,17 +26,15 @@ EnvStruct = namedlist('EnvStruct',
 
 
 class EpisodeManager(object):
-  def __init__(self, ds, ed=None, parallelism=20, reporter=None):
+  def __init__(self, provider, ed=None, parallelism=20, reporter=None):
     self.settings = CnfSettings()
     self.debug = False
     self.parallelism = parallelism
     self.max_step = self.settings['max_step']
     self.rnn_iters = self.settings['rnn_iters']
-    self.ds = ds
+    # self.ds = ds
     self.ed = ed
-    self.ProviderClass = eval(self.settings['episode_provider'])
-    self.provider = iter(self.ProviderClass(self.ds))
-    self.episodes_files = ds.get_files_list()
+    self.provider = provider
     self.packed = self.settings['packed']
     self.masked_softmax = self.settings['masked_softmax']
     self.envs = []
@@ -50,7 +48,7 @@ class EpisodeManager(object):
     self.INVALID_ACTION_REWARDS = -10
 
     for i in range(parallelism):
-      self.envs.append(EnvStruct(CadetEnv(**self.settings.hyperparameters), 
+      self.envs.append(EnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters)))
 
   def check_batch_finished(self):
@@ -116,16 +114,17 @@ class EpisodeManager(object):
       envstr.last_obs = None          # This lets step_all know its an "empty" env that got to be reset.
 
 # This discards everything from the old env
-  def reset_env(self, envstr, fname=None, **kwargs):
+  def reset_env(self, envstr, fname, **kwargs):
+    print('Resetting\n')
     self.reset_counter += 1
     if self.settings['restart_in_test']:
-      envstr.env.restart_cadet(timeout=0)
-    if not fname:
-      if not self.reset_counter % 20:
-        self.ds.recalc_weights()
-      (fname,) = self.ds.weighted_sample()
-    last_obs, env_id = new_episode(envstr.env, fname=fname, **kwargs)
-    envstr.last_obs = last_obs
+      envstr.env.restart_env(timeout=0)
+    # if not fname:
+    #   if not self.reset_counter % 20:
+    #     self.ds.recalc_weights()
+    #   (fname,) = self.ds.weighted_sample()
+    env_obs, env_id = envstr.env.new_episode(fname=fname, **kwargs)
+    envstr.last_obs = envstr.env.process_observation(None,env_obs)
     envstr.env_id = fname
     envstr.curr_step = 0
     envstr.fname = fname
@@ -134,13 +133,14 @@ class EpisodeManager(object):
     envstr.prev_obs.clear()    
     for i in range(self.rnn_iters):
       envstr.prev_obs.append(None)
-    return last_obs
+    return envstr.last_obs
 
 # Step the entire pipeline one step, reseting any new envs. 
 
   def step_all(self, model, **kwargs):
     step_obs = []
     prev_obs = []
+    print('Stepping\n')
     rc = []     # the env structure indices that finished and got to be reset (or will reset automatically next step)
     active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
     for i in active_envs:
@@ -148,7 +148,7 @@ class EpisodeManager(object):
       if not envstr.last_obs or envstr.curr_step > self.max_step:
         self.reset_env(envstr,fname=next(self.provider))
         # print('Started new Environment ({}).'.format(envstr.fname))
-      step_obs.append(envstr.last_obs)      
+      step_obs.append(envstr.last_obs)          # This is an already processed last_obs, from last iteration
       prev_obs.append(list(envstr.prev_obs))
 
     if step_obs.count(None) == len(step_obs):
@@ -157,6 +157,7 @@ class EpisodeManager(object):
       obs_batch = packed_collate_observations(step_obs)
       vp_ind = obs_batch.pack_indices[1]
     else:
+      # ipdb.set_trace()
       obs_batch = collate_observations(step_obs)
       prev_obs_batch = [collate_observations(x,replace_none=True, c_size=obs_batch.cmask.shape[1], v_size=obs_batch.vmask.shape[1]) for x in zip(*prev_obs)]
       if prev_obs_batch and prev_obs_batch[0].vmask is not None and prev_obs_batch[0].vmask.shape != obs_batch.vmask.shape:
@@ -380,7 +381,7 @@ class EpisodeManager(object):
           os.close(pipes[i][0])
           self.envs[i].active=True
           np.random.seed(int(time.time())+seed_idx)
-          # envstr.env.restart_cadet(timeout=1)
+          # envstr.env.restart_env(timeout=1)
           self.reset_env(envstr,fname=fname)
           finished_envs = []
           while not finished_envs:      # Just one (the ith) env is actually active and running
@@ -467,7 +468,7 @@ class EpisodeManager(object):
           os.close(pipes[i][0])
           self.envs[i].active=True
           np.random.seed(int(time.time())+seed_idx)
-          # envstr.env.restart_cadet(timeout=1)
+          # envstr.env.restart_env(timeout=1)
           self.reset_env(envstr,fname=fname)
           finished_envs = []
           while not finished_envs:      # Just one (the ith) env is actually active and running

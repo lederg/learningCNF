@@ -57,14 +57,14 @@ def a3c_main():
   manager.start()
   reporter.start()
   ed = manager.EpisodeData(name=settings['name'], fname=settings['base_stats'])
-  ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
-  all_episode_files = ds.get_files_list()
+  # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
+  ProviderClass = eval(settings['episode_provider'])
+  provider = iter(ProviderClass(settings['rl_train_data']))
+
   policy = create_policy()
   policy.share_memory()
   optimizer = SharedAdam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)    
-  max_iterations = len(ds)*100  
   num_steps = 100000000
-  # num_steps = len(ds)*15000
   curr_lr = init_lr
   lr_schedule = PiecewiseSchedule([
                                        (0,                   init_lr),
@@ -85,8 +85,8 @@ def a3c_main():
                                   ],
                                   outside_value=desired_kl * 0.02) 
 
-  workers = [WorkerEnv(settings,policy,optimizer,ds,ed,global_steps, global_grad_steps, global_episodes, i, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
-  print('Running for {} iterations..'.format(max_iterations))
+  workers = [WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, i, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
+  print('Running with {} workers...'.format(len(workers)))
   for w in workers:
     w.start()  
     # Change learning rate according to KL
@@ -98,7 +98,7 @@ def a3c_main():
     time.sleep(UNIT_LENGTH)
     gsteps = global_steps.value
     if i % REPORT_EVERY == 0 and i>0:
-      reporter.proxy().report_stats(gsteps, len(all_episode_files))
+      reporter.proxy().report_stats(gsteps, len(provider))
       eps = global_episodes.value
       print('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
     if i % SAVE_EVERY == 0 and i>0:

@@ -115,7 +115,6 @@ class EpisodeManager(object):
 
 # This discards everything from the old env
   def reset_env(self, envstr, fname, **kwargs):
-    print('Resetting\n')
     self.reset_counter += 1
     if self.settings['restart_in_test']:
       envstr.env.restart_env(timeout=0)
@@ -140,7 +139,6 @@ class EpisodeManager(object):
   def step_all(self, model, **kwargs):
     step_obs = []
     prev_obs = []
-    print('Stepping\n')
     rc = []     # the env structure indices that finished and got to be reset (or will reset automatically next step)
     active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
     for i in active_envs:

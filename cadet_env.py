@@ -321,14 +321,16 @@ class CadetEnv:
       # ipdb.set_trace()
       cmat_pos, cmat_neg = get_input_from_qbf(self.qbf, settings)
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0))
-      ground_embs = self.qbf.get_base_embeddings()
-      vmask = None
-      cmask = None
     else:
       cmat_pos, cmat_neg, clabels = last_obs.cmat_pos, last_obs.cmat_neg, last_obs.clabels
+    if last_obs:
       ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
       vmask = last_obs.vmask
       cmask = last_obs.cmask
+    else:      
+      ground_embs = self.qbf.get_base_embeddings()
+      vmask = None
+      cmask = None
     if env_obs.decision:
       ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
     if len(env_obs.vars_add):

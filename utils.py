@@ -187,8 +187,9 @@ def get_proc_name():
     return buff.value
 
 # We return either one sparse matrix (P+N) or (|P|,|N|) if split=True
-def csr_to_pytorch(m, split=True):
-    size = m.shape
+def csr_to_pytorch(m, split=True, size=None):
+    if not size:
+        size = m.shape
     if not split:
         np_ind = m.nonzero()
         indices = torch.from_numpy(np.stack(np_ind)).long()
@@ -202,4 +203,30 @@ def csr_to_pytorch(m, split=True):
         vals = torch.ones(indices.shape[1])
         neg_rc = torch.sparse.FloatTensor(indices,vals,size)
         return pos_rc, neg_rc
+
+
+# Indices and vals are numpy arrays. Indices is Rx2
+# Return value is pytorch sparse matrix
+
+def create_sparse_adjacency(indices, vals, size, split=False):    
+    if not split:
+        return torch.sparse.FloatTensor(torch.from_numpy(indices.transpose()),torch.from_numpy(vals),size)
+    else:
+        sp_ind_pos = torch.from_numpy(indices[np.where(vals>0)])
+        sp_ind_neg = torch.from_numpy(indices[np.where(vals<0)])
+        sp_val_pos = torch.ones(len(sp_ind_pos))
+        sp_val_neg = torch.ones(len(sp_ind_neg))
+        cmat_pos = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,size)
+        cmat_neg = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,size)
+        return cmat_pos, cmat_neg
+
+# input is existing cmat in pytorch
+# output is (cmat_pos, cmat_neg), such that cmat_pos-cmat_neg=cmat
+
+def split_sparse_adjacency(cmat):
+    indices = cmat._indices().t().numpy()
+    vals = cmat._values().numpy()
+    size = cmat.shape
+    return create_sparse_adjacency(indices,vals,size, True)
+
 

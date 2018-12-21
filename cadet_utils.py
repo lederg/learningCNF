@@ -1,6 +1,7 @@
 import random
 import os
 import torch
+import ipdb
 from torch.autograd import Variable
 from collections import namedtuple
 
@@ -22,21 +23,22 @@ from utils import *
 #     rc[j][val] = True
 #   return rc
 
-def get_input_from_qbf(qbf, settings=None):
+def get_input_from_qbf(qbf, settings=None, split=True):
   if not settings:
     settings = CnfSettings()
   a = qbf.as_np_dict()  
   rc_i = a['sp_indices']
   rc_v = a['sp_vals']
-  sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
-  sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
-  sp_val_pos = torch.ones(len(sp_ind_pos))
-  sp_val_neg = torch.ones(len(sp_ind_neg))
-  cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([qbf.num_clauses,qbf.num_vars])))
-  cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([qbf.num_clauses,qbf.num_vars])))  
-  # if settings['cuda']:
-  #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
-  return cmat_pos, cmat_neg
+  return create_sparse_adjacency(rc_i,rc_v,torch.Size([qbf.num_clauses,qbf.num_vars]),split)
+  # sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
+  # sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
+  # sp_val_pos = torch.ones(len(sp_ind_pos))
+  # sp_val_neg = torch.ones(len(sp_ind_neg))
+  # cmat_pos = Variable(torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([qbf.num_clauses,qbf.num_vars])))
+  # cmat_neg = Variable(torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([qbf.num_clauses,qbf.num_vars])))  
+  # # if settings['cuda']:
+  # #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
+  # return cmat_pos, cmat_neg
 
 def new_episode(env, fname, settings=None, **kwargs):
   if not settings:

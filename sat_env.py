@@ -53,6 +53,9 @@ class SatActiveEnv:
   def get_orig_clauses(self):
     return self.solver.get_cl_arr()
 
+  def get_vlabels(self):
+    return self.solver.get_var_labels()
+
   def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
     self.current_step += 1
     adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
@@ -66,7 +69,7 @@ class SatActiveEnv:
       log.info('Calling server callback')
       print('huh. server callback is {}'.format(self.server))
       try:
-        return self.server.callback(cl_label_arr, adj_matrix, reward)
+        return self.server.callback(self.get_vlabels(), cl_label_arr, adj_matrix, reward)
       except Exception as e:
         print('Gah, an exception: {}'.format(e))
 
@@ -103,6 +106,7 @@ class SatEnvProxy(EnvBase):
       settings = CnfSettings()
 
     orig_clauses = env_obs.orig_clauses
+    learned_clauses = env_obs.learned_clauses
     ipdb.set_trace()
     return State(state,cmat_pos, cmat_neg, ground_embs, clabels, None, None)
 
@@ -156,11 +160,12 @@ class SatEnvServer(mp.Process):
         break
 
 
-  def callback(self, cl_label_arr, adj_matrix, reward):
+  def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
     print('self is {}'.format(self))
-    self.env.current_step += 1
+    self.env.current_step += 1    
     print('Here 1')
-    msg = self.env.EnvObservation(None, adj_matrix, None, cl_label_arr, reward, False)
+    print(vlabels)
+    msg = self.env.EnvObservation(None, adj_matrix, vlabels, cl_label_arr, reward, False)
     print('Here 2')
     if self.cmd == EnvCommands.CMD_RESET:
       # If this is the reply to a RESET add all existing (permanent) clauses

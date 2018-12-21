@@ -319,10 +319,10 @@ class CadetEnv:
 
     if env_obs.clause or not last_obs:
       # ipdb.set_trace()
-      cmat_pos, cmat_neg = get_input_from_qbf(self.qbf, settings)
+      cmat = get_input_from_qbf(self.qbf, settings, False) # Do not split
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0))
     else:
-      cmat_pos, cmat_neg, clabels = last_obs.cmat_pos, last_obs.cmat_neg, last_obs.clabels
+      cmat, clabels = last_obs.cmat, last_obs.clabels
     if last_obs:
       ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
       vmask = last_obs.vmask
@@ -350,7 +350,7 @@ class CadetEnv:
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state,cmat_pos,cmat_neg,ground_embs, clabels, vmask, cmask)
+    return State(state,cmat, ground_embs, clabels, vmask, cmask)
 
 
 # This returns already a State (higher-level) observation, not EnvObs.

@@ -82,8 +82,8 @@ class Actor1Policy(PolicyBase):
     state = obs.state
     ground_embeddings = obs.ground
     clabels = obs.clabels
-    cmat_pos = obs.cmat_pos   
-    cmat_neg = obs.cmat_neg
+    cmat_pos, cmat_neg = split_sparse_adjacency(obs.cmat)
+    
     aux_losses = []
 
     if self.settings['cuda']:

@@ -1,5 +1,6 @@
 import torch
 import itertools
+import ipdb
 import numpy as np
 from torch.autograd import Variable
 import pandas as pd
@@ -224,9 +225,9 @@ def create_sparse_adjacency(indices, vals, size, split=False):
 # output is (cmat_pos, cmat_neg), such that cmat_pos-cmat_neg=cmat
 
 def split_sparse_adjacency(cmat):
-    indices = cmat._indices().t().numpy()
+    indices = cmat._indices().numpy()
     vals = cmat._values().numpy()
     size = cmat.shape
-    return create_sparse_adjacency(indices,vals,size, True)
+    return create_sparse_adjacency(indices.transpose(),vals,size, True)
 
 

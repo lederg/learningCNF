@@ -124,19 +124,17 @@ def discount_episode(ep, gamma, settings=None):
 
 def collate_observations(batch, settings=None, replace_none=False, c_size=None, v_size=None):
   if batch.count(None) == len(batch):
-    return State(None, None, None, None, None, None, None)
+    return State(None, None, None, None, None, None)
   if not settings:
     settings = CnfSettings()
   bs = len(batch)
   if not c_size:
-    c_size = max([x.cmat_neg.size(0) for x in batch if x])
+    c_size = max([x.cmat.size(0) for x in batch if x])
   if not v_size:
-    v_size = max([x.cmat_neg.size(1) for x in batch if x])
+    v_size = max([x.cmat.size(1) for x in batch if x])
   states = []
-  ind_pos = []
-  ind_neg = []
-  val_pos = []
-  val_neg = []
+  ind = []
+  val = []
   all_embs = []
   all_clabels = []
   i=0
@@ -144,11 +142,9 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
   cmask = settings.zeros((len(batch),c_size))
   for i, b in enumerate(batch):
     if b:      
-      states.append(b.state)
-      ind_pos.append(b.cmat_pos.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
-      ind_neg.append(b.cmat_neg.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
-      val_pos.append(b.cmat_pos.data._values())
-      val_neg.append(b.cmat_neg.data._values())
+      states.append(b.state)      
+      ind.append(b.cmat.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
+      val.append(b.cmat.data._values())
       embs = b.ground.squeeze()
       clabels = b.clabels.t()                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)
       l = len(embs)
@@ -166,10 +162,9 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
       all_embs.append(torch.zeros([v_size,settings['vlabel_dim']]))
       all_clabels.append(torch.zeros([c_size,settings['clabel_dim']]))
   
-  cmat_pos = torch.sparse.FloatTensor(torch.cat(ind_pos,1),torch.cat(val_pos),torch.Size([c_size*(i+1),v_size*(i+1)]))
-  cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_size*(i+1),v_size*(i+1)]))
+  cmat = torch.sparse.FloatTensor(torch.cat(ind,1),torch.cat(val),torch.Size([c_size*(i+1),v_size*(i+1)]))
 
-  return State(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.stack(all_embs), torch.stack(all_clabels),
+  return State(torch.cat(states),Variable(cmat),torch.stack(all_embs), torch.stack(all_clabels),
                 vmask, cmask)
 
 def packed_collate_observations(batch, settings=None):

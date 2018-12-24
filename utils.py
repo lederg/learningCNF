@@ -188,7 +188,7 @@ def get_proc_name():
     return buff.value
 
 # We return either one sparse matrix (P+N) or (|P|,|N|) if split=True
-def csr_to_pytorch(m, split=True, size=None):
+def csr_to_pytorch(m, split=False, size=None):
     if not size:
         size = m.shape
     if not split:
@@ -230,4 +230,20 @@ def split_sparse_adjacency(cmat):
     size = cmat.shape
     return create_sparse_adjacency(indices.transpose(),vals,size, True)
 
+# This function takes two 2d sparse tensors and concatenates them along dim 0
 
+def concat_sparse(t1,t2):
+    dim0 = t1.shape[0]+t2.shape[0]
+    dim1 = max(t1.shape[1],t2.shape[1])
+    size = (dim0,dim1)
+    ind1 = t1._indices()
+    ind2 = t2._indices()
+    vals1 = t1._values()
+    vals2 = t2._values()
+    vals = torch.cat([vals1,vals2])
+    offset = torch.from_numpy(np.array([t1.shape[0],0])).unsqueeze(1)
+    new_ind2 = ind2+offset
+    new_ind = torch.cat([ind1,new_ind2],1)
+    rc = torch.sparse.FloatTensor(new_ind,vals,size)
+
+    return rc

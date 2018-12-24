@@ -13,6 +13,7 @@ import multiprocessing as mp
 from settings import *
 from qbf_data import *
 from envbase import *
+from rl_types import *
 
 LOG_SIZE = 200
 DEF_STEP_REWARD = -0.01     # Temporary reward until Pash sends something from minisat
@@ -21,7 +22,7 @@ log = mp.get_logger()
 
 class SatActiveEnv:
   EnvObservation = namedlist('SatEnvObservation', 
-                              ['orig_clauses', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'])
+                              ['orig_clauses', 'orig_clause_labels', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'])
 
   def __init__(self, debug=False, server=None, **kwargs):
     self.debug = debug
@@ -56,6 +57,9 @@ class SatActiveEnv:
   def get_vlabels(self):
     return self.solver.get_var_labels()
 
+  def get_clabels(self, learned=False):
+    return self.solver.get_cl_labels(learned)
+
   def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
     self.current_step += 1
     adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
@@ -74,9 +78,12 @@ class SatActiveEnv:
         print('Gah, an exception: {}'.format(e))
 
 class SatEnvProxy(EnvBase):
-  def __init__(self, queue_in, queue_out):
+  def __init__(self, queue_in, queue_out,settings=None):
+    self.settings = settings if settings else CnfSettings()
     self.queue_in = queue_in
     self.queue_out = queue_out
+    self.state = self.settings.zeros(8)
+    self.orig_clabels = None
 
   def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))
@@ -105,10 +112,15 @@ class SatEnvProxy(EnvBase):
     if not settings:
       settings = CnfSettings()
 
-    orig_clauses = env_obs.orig_clauses
-    learned_clauses = env_obs.learned_clauses
-    ipdb.set_trace()
-    return State(state,cmat_pos, cmat_neg, ground_embs, clabels, None, None)
+    orig_clauses = csr_to_pytorch(env_obs.orig_clauses)
+    learned_clauses = csr_to_pytorch(env_obs.learned_clauses)
+    cmat = concat_sparse(orig_clauses,learned_clauses)
+    if env_obs.orig_clause_labels is not None:
+      self.orig_clabels = env_obs.orig_clause_labels
+    all_clabels = np.concatenate([self.orig_clabels,env_obs.clabels])
+    vlabels = torch.from_numpy(env_obs.vlabels)    
+    clabels = torch.from_numpy(all_clabels)    
+    return State(self.state,cmat, ground_embs, clabels, None, None)
 
 class SatEnvServer(mp.Process):
   def __init__(self, env):
@@ -146,7 +158,7 @@ class SatEnvServer(mp.Process):
 
       if self.cmd == EnvCommands.CMD_STEP:
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
-        msg = self.env.EnvObservation(None, None, None, None, WINNING_REWARD, True)
+        msg = self.env.EnvObservation(None, None, None, None, None, WINNING_REWARD, True)
         self.queue_out.put((ACK_STEP,tuple(msg)))
 
       elif self.cmd == EnvCommands.CMD_RESET:
@@ -163,14 +175,11 @@ class SatEnvServer(mp.Process):
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
     print('self is {}'.format(self))
     self.env.current_step += 1    
-    print('Here 1')
-    print(vlabels)
-    msg = self.env.EnvObservation(None, adj_matrix, vlabels, cl_label_arr, reward, False)
-    print('Here 2')
+    msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, reward, False)
     if self.cmd == EnvCommands.CMD_RESET:
       # If this is the reply to a RESET add all existing (permanent) clauses
       msg.orig_clauses = self.env.get_orig_clauses()
-      print('Here 3')
+      msg.orig_clause_labels = self.env.get_clabels()
       ack = EnvCommands.ACK_RESET
     elif self.cmd == EnvCommands.CMD_STEP:
       ack = EnvCommands.ACK_STEP
@@ -178,9 +187,7 @@ class SatEnvServer(mp.Process):
       assert True, 'Invalid last command detected'
 
     self.queue_out.put((ack,tuple(msg)))
-    print('Here 4')
     self.cmd, rc = self.queue_in.get()
-    print('Here 5')
     if self.cmd == EnvCommands.CMD_STEP:
       # We got back an array of decisions
       return rc

@@ -146,7 +146,8 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
       ind.append(b.cmat.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
       val.append(b.cmat.data._values())
       embs = b.ground.squeeze()
-      clabels = b.clabels.t()                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)
+      # clabels = b.clabels.t()                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)
+      clabels = b.clabels                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)
       l = len(embs)
       vmask[i][:l]=1
       if l < v_size:

@@ -118,9 +118,12 @@ class SatEnvProxy(EnvBase):
     if env_obs.orig_clause_labels is not None:
       self.orig_clabels = env_obs.orig_clause_labels
     all_clabels = np.concatenate([self.orig_clabels,env_obs.clabels])
-    vlabels = torch.from_numpy(env_obs.vlabels)    
-    clabels = torch.from_numpy(all_clabels)    
-    return State(self.state,cmat, ground_embs, clabels, None, None)
+    vlabels = torch.from_numpy(env_obs.vlabels[1:]).float()   # Remove first (zero) row
+    clabels = torch.from_numpy(all_clabels).float()
+    vmask = last_obs.vmask if last_obs else None
+    cmask = last_obs.cmask if last_obs else None    
+    ipdb.set_trace()
+    return State(self.state,cmat, vlabels, clabels, vmask, cmask)
 
 class SatEnvServer(mp.Process):
   def __init__(self, env):

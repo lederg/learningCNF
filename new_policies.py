@@ -96,7 +96,7 @@ class Actor1Policy(PolicyBase):
     self.batch_size=size[0]
     if 'vs' in kwargs.keys():
       vs = kwargs['vs']   
-    else:           
+    else:
       pos_vars, neg_vars = self.encoder(ground_embeddings.view(-1,self.vlabel_dim), clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
       vs_pos = pos_vars.view(self.batch_size,-1,self.final_embedding_dim)
       vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
@@ -105,6 +105,7 @@ class Actor1Policy(PolicyBase):
         ipdb.set_trace()
     
     if self.state_bn:
+      ipdb.set_trace()
       state = self.state_bn(state)
 
     if self.settings['use_global_state']:

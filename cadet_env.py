@@ -320,7 +320,7 @@ class CadetEnv:
     if env_obs.clause or not last_obs:
       # ipdb.set_trace()
       cmat = get_input_from_qbf(self.qbf, settings, False) # Do not split
-      clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0))
+      clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
     else:
       cmat, clabels = last_obs.cmat, last_obs.clabels
     if last_obs:

@@ -7,6 +7,7 @@ from rl_types import *
 from cadet_utils import *
 from rl_model import *
 from new_policies import *
+from sat_policies import *
 
 class ReplayMemory(object):
 

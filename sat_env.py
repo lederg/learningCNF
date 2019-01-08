@@ -20,6 +20,9 @@ DEF_STEP_REWARD = -0.01     # Temporary reward until Pash sends something from m
 WINNING_REWARD = 1
 log = mp.get_logger()
 
+
+CLABEL_LEARNED = 0
+
 class SatActiveEnv:
   EnvObservation = namedlist('SatEnvObservation', 
                               ['orig_clauses', 'orig_clause_labels', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'])
@@ -114,16 +117,22 @@ class SatEnvProxy(EnvBase):
 
     orig_clauses = csr_to_pytorch(env_obs.orig_clauses)
     learned_clauses = csr_to_pytorch(env_obs.learned_clauses)
-    cmat = concat_sparse(orig_clauses,learned_clauses)
+    cmat = Variable(concat_sparse(orig_clauses,learned_clauses))
     if env_obs.orig_clause_labels is not None:
       self.orig_clabels = env_obs.orig_clause_labels
-    all_clabels = np.concatenate([self.orig_clabels,env_obs.clabels])
-    vlabels = torch.from_numpy(env_obs.vlabels[1:]).float()   # Remove first (zero) row
-    clabels = torch.from_numpy(all_clabels).float()
+    all_clabels = torch.from_numpy(np.concatenate([self.orig_clabels,env_obs.clabels])).float()
+
+    # Replace the first index of the labels with a marker for orig/learned
+
+    all_clabels[:len(self.orig_clabels),0]=0
+    all_clabels[-len(learned_clauses):,0]=1
+    clabels = Variable(all_clabels)
+    vlabels = Variable(torch.from_numpy(env_obs.vlabels[1:]).float())   # Remove first (zero) row
     vmask = last_obs.vmask if last_obs else None
-    cmask = last_obs.cmask if last_obs else None    
-    ipdb.set_trace()
-    return State(self.state,cmat, vlabels, clabels, vmask, cmask)
+    cmask = last_obs.cmask if last_obs else None
+    state = Variable(self.state.unsqueeze(0))
+    # ipdb.set_trace()
+    return State(state,cmat, vlabels, clabels, vmask, cmask)
 
 class SatEnvServer(mp.Process):
   def __init__(self, env):

@@ -12,35 +12,7 @@ import cadet_utils
 from qbf_data import *
 from qbf_model import *
 from settings import *
-
-
-class PolicyBase(nn.Module):
-  def __init__(self, **kwargs):
-    super(PolicyBase, self).__init__()
-    self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()        
-    self.state_dim = self.settings['state_dim']
-    self.embedding_dim = self.settings['embedding_dim']
-    self.vemb_dim = self.settings['vemb_dim']
-    self.cemb_dim = self.settings['cemb_dim']
-    self.vlabel_dim = self.settings['vlabel_dim']
-    self.clabel_dim = self.settings['clabel_dim']
-    self.policy_dim1 = self.settings['policy_dim1']
-    self.policy_dim2 = self.settings['policy_dim2']   
-    self.max_iters = self.settings['max_iters']   
-    self.state_bn = self.settings['state_bn']   
-  
-  def forward(self, obs, **kwargs):
-    raise NotImplementedError
-
-  def select_action(self, obs_batch, **kwargs):
-    raise NotImplementedError
-
-  def translate_action(self, action, **kwargs):
-    raise NotImplementedError
-
-  def get_allowed_actions(self, obs, **kwargs):
-    return cadet_utils.get_allowed_actions(obs,**kwargs)
-
+from policy_base import *
   
 class Actor1Policy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
@@ -105,12 +77,11 @@ class Actor1Policy(PolicyBase):
         ipdb.set_trace()
     
     if self.state_bn:
-      ipdb.set_trace()
       state = self.state_bn(state)
 
     if self.settings['use_global_state']:
-      # if self.batch_size > 1:
-      #   ipdb.set_trace()
+      if self.batch_size > 1:
+        ipdb.set_trace()
       a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
       reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
       inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
@@ -121,7 +92,7 @@ class Actor1Policy(PolicyBase):
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    # ipdb.set_trace()
+    ipdb.set_trace()
     outputs = outputs.view(2,self.batch_size,-1)
     outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
     outputs = outputs.contiguous().view(self.batch_size,-1)

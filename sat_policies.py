@@ -52,6 +52,7 @@ class SatPolicy(PolicyBase):
       cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
       state, vlabels, clabels = state.cuda(), vlabels.cuda(), clabels.cuda()
 
+    ipdb.set_trace()
     size = clabels.size()
     num_learned = obs.ext_data
     self.batch_size=size[0]  
@@ -81,7 +82,7 @@ class SatPolicy(PolicyBase):
       for i, s,emb in enumerate(zip(state,cembs_processed)):
         a = s.view(1,self.state_dim)
         reshaped_state = a.expand(len(emb),self.state_dim)
-        inputs.append(torch.cat([reshaped_state,emb,dim=1]))
+        inputs.append(torch.cat([reshaped_state,emb],dim=1))
 
       # a = state.view(self.batch_size,1,self.state_dim)
       # reshaped_state = a.expand(self.batch_size,num_learned,self.state_dim) # add the maxvars dimension

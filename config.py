@@ -71,6 +71,7 @@ def cfg():
 	restart_solver_every = 3500
 	restart_in_test = False
 	non_linearity = 'F.relu'
+	policy_non_linearity = 'torch.tanh'
 	attn_non_linearity = 'F.tanh'
 	episode_provider = 'UniformEpisodeProvider'
 	test_every = 1000
@@ -130,6 +131,7 @@ def cfg():
 	use_state_in_vn = False	
 	rnn_iters = 0
 	learn_from_aborted = True
+	check_allowed_actions = True
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

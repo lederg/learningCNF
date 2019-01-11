@@ -92,7 +92,7 @@ class Actor1Policy(PolicyBase):
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    ipdb.set_trace()
+    # ipdb.set_trace()
     outputs = outputs.view(2,self.batch_size,-1)
     outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
     outputs = outputs.contiguous().view(self.batch_size,-1)
@@ -119,6 +119,9 @@ class Actor1Policy(PolicyBase):
 
   def translate_action(self, action, **kwargs):
     return (int(action/2),int(action%2))
+
+  def combine_actions(self, actions, **kwargs):
+    return self.settings.LongTensor(actions)
 
   def select_action(self, obs_batch, **kwargs):
     logits, *_ = self.forward(obs_batch)

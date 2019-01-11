@@ -239,36 +239,6 @@ def cadet_main():
         print('A lost batch, moving on')
         continue
 
-    # else:
-    #   while time_steps_this_batch < settings['min_timesteps_per_batch']:      
-    #     episode, env_id, entropy = handle_episode(model=policy)
-    #     if episode is None:
-    #       continue
-    #     s = len(episode)
-    #     total_envs += [env_id]*s
-    #     total_steps += s
-    #     time_steps_this_batch += s      
-    #     if settings['rl_log_all']:
-    #       reporter.log_env(env_id)      
-    #     # episode is a list of half-empty Tranitions - (obs, action, None, None), we want to turn it to (obs,action,None, None)
-    #     if env.finished:
-    #       reporter.add_stat(env_id,s,sum(env.rewards), entropy, total_steps)
-    #     else:        
-    #       print('Env {} did not finish!'.format(env_id))
-    #       bad_episodes += 1
-    #       try:
-    #         print(reporter.stats_dict[env_id])
-    #         steps = int(np.array([x[0] for x in reporter.stats_dict[env_id]]).mean())
-    #         reporter.add_stat(env_id,steps,sum(env.rewards), entropy, total_steps)
-    #         print('Added it with existing steps average: {}'.format(steps))
-    #       except:
-    #         bad_episodes_not_added += 1
-    #         print('Avrage does not exist yet, did not add.')
-    #       print('Total Bad episodes so far: {}. Bad episodes that were not counted: {}'.format(bad_episodes,bad_episodes_not_added))
-
-    #     r = discount(env.rewards, settings['gamma'])
-    #     transition_data.extend([Transition(transition.state, transition.action, None, rew, transition.formula) for transition, rew in zip(episode, r)])
-
     total_inference_time = time.time() - begin_time
     print('Finished batch with total of %d steps in %f seconds' % (len(transition_data), total_inference_time))
     if not (i % REPORT_EVERY) and i>0:

@@ -73,8 +73,6 @@ class SatActiveEnv:
       ipdb.set_trace()
       return utility
     else:
-      log.info('Calling server callback')
-      print('huh. server callback is {}'.format(self.server))
       try:
         return self.server.callback(self.get_vlabels(), cl_label_arr, adj_matrix, reward)
       except Exception as e:
@@ -87,14 +85,22 @@ class SatEnvProxy(EnvBase):
     self.queue_out = queue_out
     self.state = self.settings.zeros(8)
     self.orig_clabels = None
+    self.rewards = None
+    self.finished = False
 
   def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))
     ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_STEP, 'Expected ACK_STEP'
-    return SatActiveEnv.EnvObservation(*rc)
+    env_obs = SatActiveEnv.EnvObservation(*rc)
+    self.finished = env_obs.done
+    if env_obs.reward:
+      self.rewards.append(env_obs.reward)
+    return env_obs
 
   def reset(self, fname):
+    self.finished = False
+    self.rewards = []
     self.queue_out.put((EnvCommands.CMD_RESET,fname))
     ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'
@@ -115,24 +121,28 @@ class SatEnvProxy(EnvBase):
     if not settings:
       settings = CnfSettings()
 
-    orig_clauses = csr_to_pytorch(env_obs.orig_clauses)
-    learned_clauses = csr_to_pytorch(env_obs.learned_clauses)
-    cmat = Variable(concat_sparse(orig_clauses,learned_clauses))
+    print('Processing observation!')
     if env_obs.orig_clause_labels is not None:
       self.orig_clabels = env_obs.orig_clause_labels
+      self.orig_clauses = csr_to_pytorch(env_obs.orig_clauses)
+    learned_clauses = csr_to_pytorch(env_obs.learned_clauses)
+    cmat = Variable(concat_sparse(self.orig_clauses,learned_clauses))
     all_clabels = torch.from_numpy(np.concatenate([self.orig_clabels,env_obs.clabels])).float()
 
-    # Replace the first index of the labels with a marker for orig/learned
+    # Replace the first index of the clabels with a marker for orig/learned
 
     all_clabels[:len(self.orig_clabels),0]=0
     all_clabels[-len(learned_clauses):,0]=1
+
+    # Take log of vlabels[:,3]
+    activities = env_obs.vlabels[:,3]+10
+    env_obs.vlabels[:,3]=np.log(activities)
     clabels = Variable(all_clabels)
     vlabels = Variable(torch.from_numpy(env_obs.vlabels[1:]).float())   # Remove first (zero) row
     vmask = last_obs.vmask if last_obs else None
     cmask = last_obs.cmask if last_obs else None
-    state = Variable(self.state.unsqueeze(0))
-    # ipdb.set_trace()
-    return State(state,cmat, vlabels, clabels, vmask, cmask)
+    state = Variable(self.state.unsqueeze(0))    
+    return State(state,cmat, vlabels, clabels, vmask, cmask, (len(self.orig_clauses),len(self.orig_clauses)+len(learned_clauses)))
 
 class SatEnvServer(mp.Process):
   def __init__(self, env):
@@ -171,7 +181,7 @@ class SatEnvServer(mp.Process):
       if self.cmd == EnvCommands.CMD_STEP:
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
         msg = self.env.EnvObservation(None, None, None, None, None, WINNING_REWARD, True)
-        self.queue_out.put((ACK_STEP,tuple(msg)))
+        self.queue_out.put((EnvCommands.ACK_STEP,tuple(msg)))
 
       elif self.cmd == EnvCommands.CMD_RESET:
         if self.env.current_step == 0:
@@ -185,15 +195,16 @@ class SatEnvServer(mp.Process):
 
 
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
-    print('self is {}'.format(self))
+    print('vlabels.max() is {}'.format(vlabels.max()))
     self.env.current_step += 1    
-    msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, reward, False)
+    msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)
     if self.cmd == EnvCommands.CMD_RESET:
       # If this is the reply to a RESET add all existing (permanent) clauses
       msg.orig_clauses = self.env.get_orig_clauses()
       msg.orig_clause_labels = self.env.get_clabels()
       ack = EnvCommands.ACK_RESET
     elif self.cmd == EnvCommands.CMD_STEP:
+      msg.reward = reward
       ack = EnvCommands.ACK_STEP
     else:
       assert True, 'Invalid last command detected'

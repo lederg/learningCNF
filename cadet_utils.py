@@ -73,7 +73,7 @@ def new_episode(env, fname, settings=None, **kwargs):
   # if settings['cuda']:
   #   cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
   #   state, ground_embs = state.cuda(), ground_embs.cuda()
-  rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels, None, None)
+  rc = State(state,cmat_pos, cmat_neg, ground_embs, clabels, None, None, None)
   return rc, env_id
 
 def get_ground_index(obs, idx, packed=False):

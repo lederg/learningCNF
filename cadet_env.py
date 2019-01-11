@@ -350,7 +350,7 @@ class CadetEnv:
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state,cmat, ground_embs, clabels, vmask, cmask)
+    return State(state,cmat, ground_embs, clabels, vmask, cmask, None)
 
 
 # This returns already a State (higher-level) observation, not EnvObs.

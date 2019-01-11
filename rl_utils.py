@@ -125,7 +125,7 @@ def discount_episode(ep, gamma, settings=None):
 
 def collate_observations(batch, settings=None, replace_none=False, c_size=None, v_size=None):
   if batch.count(None) == len(batch):
-    return State(None, None, None, None, None, None)
+    return State(None, None, None, None, None, None, None)
   if not settings:
     settings = CnfSettings()
   bs = len(batch)
@@ -165,9 +165,9 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
       all_clabels.append(torch.zeros([c_size,settings['clabel_dim']]))
   
   cmat = torch.sparse.FloatTensor(torch.cat(ind,1),torch.cat(val),torch.Size([c_size*(i+1),v_size*(i+1)]))
-
+  ext_data = [x.ext_data for x in batch]
   return State(torch.cat(states),Variable(cmat),torch.stack(all_embs), torch.stack(all_clabels),
-                vmask, cmask)
+                vmask, cmask, ext_data)
 
 def packed_collate_observations(batch, settings=None):
   if batch.count(None) == len(batch):
@@ -212,7 +212,7 @@ def collate_transitions(batch, settings=None, packed=False):
   obs1 = collate_fn([x.state for x in batch], settings)
   obs2 = collate_fn([x.next_state for x in batch], settings)
   rews = settings.FloatTensor([x.reward for x in batch])
-  actions = settings.LongTensor([x.action for x in batch])
+  actions = settings.policy.combine_actions([x.action for x in batch])  
   # formulas = settings.LongTensor([x.formula for x in batch])
   formulas = [x.formula for x in batch]
   prev_obs = [collate_observations(x,replace_none=True, c_size=obs1.cmask.shape[1], v_size=obs1.vmask.shape[1]) for x in zip(*[x.prev_obs for x in batch])]
@@ -251,6 +251,7 @@ def create_policy(settings=None, is_clone=False):
   if settings['cuda']:
     policy = policy.cuda()
 
+  settings.policy = policy
   return policy
 
 def unpack_logits(logits, vp_ind, settings=None):

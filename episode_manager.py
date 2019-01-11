@@ -32,11 +32,11 @@ class EpisodeManager(object):
     self.parallelism = parallelism
     self.max_step = self.settings['max_step']
     self.rnn_iters = self.settings['rnn_iters']
-    # self.ds = ds
     self.ed = ed
     self.provider = provider
     self.packed = self.settings['packed']
     self.masked_softmax = self.settings['masked_softmax']
+    self.check_allowed_actions = self.settings['check_allowed_actions']
     self.envs = []
     self.completed_episodes = []
     self.real_steps = 0
@@ -159,17 +159,19 @@ class EpisodeManager(object):
       prev_obs_batch = [collate_observations(x,replace_none=True, c_size=obs_batch.cmask.shape[1], v_size=obs_batch.vmask.shape[1]) for x in zip(*prev_obs)]
       if prev_obs_batch and prev_obs_batch[0].vmask is not None and prev_obs_batch[0].vmask.shape != obs_batch.vmask.shape:
         ipdb.set_trace()
-    allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed)
+    allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed) if self.check_allowed_actions else None
     actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, prev_obs=prev_obs_batch, **kwargs)
     
     for i, envnum in enumerate(active_envs):
       envstr = self.envs[envnum]
       env = envstr.env
-      env_id = envstr.env_id
+      env_id = envstr.env_id      
       envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id, prev_obs[i]))
       self.real_steps += 1
       envstr.curr_step += 1      
-      if ('cadet_test' in kwargs and kwargs['cadet_test']):
+      if not self.check_allowed_actions:
+        action_ok = True
+      elif ('cadet_test' in kwargs and kwargs['cadet_test']):
         action_ok = True
       elif self.packed:
         action_ok = allowed_actions[vp_ind[i]+actions[i][0]]
@@ -184,11 +186,9 @@ class EpisodeManager(object):
         env.rewards = np.append(env.rewards,self.INVALID_ACTION_REWARDS)
         done = True       
       if done:
-        try:
+        if env.rewards is not None:
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
-        except:
-          ipdb.set_trace()
         self.completed_episodes.append(envstr.episode_memory)
         envstr.last_obs = None      # This will mark the env to reset with a new formula
         rc.append((envnum,True))

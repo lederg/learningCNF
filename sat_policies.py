@@ -81,11 +81,11 @@ class SatPolicy(PolicyBase):
       for i, s,emb in enumerate(zip(state,cembs_processed)):
         a = s.view(1,self.state_dim)
         reshaped_state = a.expand(len(emb),self.state_dim)
+        inputs.append(torch.cat([reshaped_state,emb,dim=1]))
 
-
-      a = state.view(self.batch_size,1,self.state_dim)
-      reshaped_state = a.expand(self.batch_size,num_learned,self.state_dim) # add the maxvars dimension
-      inputs = torch.cat([reshaped_state, cembs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
+      # a = state.view(self.batch_size,1,self.state_dim)
+      # reshaped_state = a.expand(self.batch_size,num_learned,self.state_dim) # add the maxvars dimension
+      # inputs = torch.cat([reshaped_state, cembs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
     else:
       inputs = cembs.view(-1,self.final_embedding_dim)
 

@@ -52,14 +52,11 @@ class SatPolicy(PolicyBase):
       cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
       state, vlabels, clabels = state.cuda(), vlabels.cuda(), clabels.cuda()
 
-    ipdb.set_trace()
     size = clabels.size()
     num_learned = obs.ext_data
     self.batch_size=size[0]  
-    if self.batch_size > 1:
-      ipdb.set_trace()  
     cembs = self.encoder(vlabels.view(-1,self.vlabel_dim), clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
-    cembs = cembs.view(self.batch_size,-1,self.final_embedding_dim)      
+    cembs = cembs.view(self.batch_size,-1,self.final_embedding_dim)
     cembs_processed = []
 
     # WARNING - This is being done in a loop. gotta' change that.
@@ -71,18 +68,15 @@ class SatPolicy(PolicyBase):
     
     if self.state_bn:
       state = self.state_bn(state)
-
     
-    input = []
-    ipdb.set_trace()    
+    inputs = []
     if self.settings['use_global_state']:
-      # if self.batch_size > 1:
-      #   ipdb.set_trace()
 
-      for i, s,emb in enumerate(zip(state,cembs_processed)):
+      for i, (s,emb) in enumerate(zip(state,cembs_processed)):
         a = s.view(1,self.state_dim)
         reshaped_state = a.expand(len(emb),self.state_dim)
         inputs.append(torch.cat([reshaped_state,emb],dim=1))
+      inputs = torch.cat(inputs,dim=0)
 
       # a = state.view(self.batch_size,1,self.state_dim)
       # reshaped_state = a.expand(self.batch_size,num_learned,self.state_dim) # add the maxvars dimension
@@ -90,6 +84,8 @@ class SatPolicy(PolicyBase):
     else:
       inputs = cembs.view(-1,self.final_embedding_dim)
 
+    if self.batch_size > 1:
+      ipdb.set_trace()  
     if self.policy_dim2:      
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:

@@ -13,6 +13,7 @@ from qbf_data import *
 from qbf_model import *
 from settings import *
 from policy_base import *
+from rl_utils import *
   
 class Actor1Policy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
@@ -44,6 +45,7 @@ class Actor1Policy(PolicyBase):
     if self.state_bn:
       self.state_bn = nn.BatchNorm1d(self.state_dim)
     self.activation = eval(self.settings['non_linearity'])
+
   
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
   # ground_embeddings are batch * max_vars * ground_embedding
@@ -80,8 +82,8 @@ class Actor1Policy(PolicyBase):
       state = self.state_bn(state)
 
     if self.settings['use_global_state']:
-      if self.batch_size > 1:
-        ipdb.set_trace()
+      # if self.batch_size > 1:
+      #   ipdb.set_trace()
       a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
       reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
       inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
@@ -141,6 +143,76 @@ class Actor1Policy(PolicyBase):
       actions.append(action)
 
     return actions
+
+
+  def compute_loss(self, transition_data):
+    _, _, _, rewards, *_ = zip(*transition_data)
+    collated_batch = collate_transitions(transition_data,settings=self.settings)
+    logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
+    allowed_actions = Variable(self.get_allowed_actions(collated_batch.state))
+    if self.settings['cuda']:
+      allowed_actions = allowed_actions.cuda()
+    # unpacked_logits = unpack_logits(logits, collated_batch.state.pack_indices[1])
+    effective_bs = len(logits)    
+
+    if self.settings['masked_softmax']:
+      allowed_mask = allowed_actions.float()      
+      probs, debug_probs = masked_softmax2d(logits,allowed_mask)
+    else:
+      probs = F.softmax(logits, dim=1)
+    all_logprobs = safe_logprobs(probs)
+    if self.settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
+      aux_probs = F.softmax(logits,dim=1)
+      disallowed_actions = Variable(allowed_actions.data^1).float()      
+      disallowed_mass = (aux_probs*disallowed_actions).sum(1)
+      disallowed_loss = disallowed_mass.mean()
+      # print('Disallowed loss is {}'.format(disallowed_loss))
+
+    returns = self.settings.FloatTensor(rewards)
+    if self.settings['ac_baseline']:
+      adv_t = returns - values.squeeze().data      
+      value_loss = mse_loss(values.squeeze(), Variable(returns))    
+      print('Value loss is {}'.format(value_loss.data.numpy()))
+      print('Value Auxilliary loss is {}'.format(sum(aux_losses).data.numpy()))
+      if i>0 and i % 60 == 0:
+        vecs = {'returns': returns.numpy(), 'values': values.squeeze().data.numpy()}        
+        pprint_vectors(vecs)
+    else:
+      adv_t = returns
+      value_loss = 0.
+    actions = collated_batch.action    
+    try:
+      logprobs = all_logprobs.gather(1,Variable(actions).view(-1,1)).squeeze()
+    except:
+      ipdb.set_trace()
+    entropies = (-probs*all_logprobs).sum(1)    
+    adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
+    # ipdb.set_trace()
+    if self.settings['normalize_episodes']:
+      episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
+      adv_t = adv_t*self.settings.FloatTensor(episodes_weights)    
+    if self.settings['use_sum']:
+      pg_loss = (-Variable(adv_t)*logprobs).sum()
+    else:
+      pg_loss = (-Variable(adv_t)*logprobs).mean()
+    # pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
+    # print('--------------------------------------------------------------')
+    # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))
+    # print('entropies are {}'.format(entropies.mean().data[0]))
+    # print('**************************************************************')
+    # x = pd.DataFrame({'entropies': entropies.data.numpy(), 'env_id': np.array(total_envs)})
+    # pd.options.display.max_rows = 2000
+    # print(x)
+    # # print(entropies[entropies<0.1].data)
+    # print('--------------------------------------------------------------')
+    # print(disallowed_mass)
+    # loss = value_loss + lambda_disallowed*disallowed_loss
+    total_aux_loss = sum(aux_losses) if aux_losses else 0.
+    
+    # ipdb.set_trace()
+    loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
+    return loss, logits
+
 
 # RNN policy
 

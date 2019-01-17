@@ -6,8 +6,6 @@ from settings import *
 from rl_types import *
 from cadet_utils import *
 from rl_model import *
-from new_policies import *
-from sat_policies import *
 
 class ReplayMemory(object):
 
@@ -221,6 +219,10 @@ def collate_transitions(batch, settings=None, packed=False):
   return Transition(obs1,actions,obs2,rews, formulas, prev_obs)
 
 def create_policy(settings=None, is_clone=False):
+  from new_policies import Actor1Policy
+  from sat_policies import SatPolicy
+
+
   if not settings:
     settings = CnfSettings()
   base_model = settings['base_model']

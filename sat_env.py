@@ -17,7 +17,6 @@ from rl_types import *
 
 LOG_SIZE = 200
 DEF_STEP_REWARD = -0.01     # Temporary reward until Pash sends something from minisat
-WINNING_REWARD = 1
 log = mp.get_logger()
 
 
@@ -63,6 +62,9 @@ class SatActiveEnv:
   def get_clabels(self, learned=False):
     return self.solver.get_cl_labels(learned)
 
+  def get_reward(self):
+    return self.solver.reward()
+
   def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
     self.current_step += 1
     adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
@@ -87,15 +89,18 @@ class SatEnvProxy(EnvBase):
     self.orig_clabels = None
     self.rewards = None
     self.finished = False
+    self.reward_scale = self.settings['sat_reward_scale']
 
   def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))
     ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_STEP, 'Expected ACK_STEP'
     env_obs = SatActiveEnv.EnvObservation(*rc)
-    self.finished = env_obs.done
+    self.finished = env_obs.done    
     if env_obs.reward:
-      self.rewards.append(env_obs.reward)
+      r = env_obs.reward / self.reward_scale
+      self.rewards.append(r)
+      print('Adding reward in step: {}'.format(r))
     return env_obs
 
   def reset(self, fname):
@@ -145,14 +150,17 @@ class SatEnvProxy(EnvBase):
     return State(state,cmat, vlabels, clabels, vmask, cmask, (len(self.orig_clauses),len(self.orig_clauses)+len(learned_clauses)))
 
 class SatEnvServer(mp.Process):
-  def __init__(self, env):
+  def __init__(self, env, settings=None):
     super(SatEnvServer, self).__init__()
+    self.settings = settings if settings else CnfSettings()
     self.env = env
     self.env.server = self
     self.queue_in = mp.Queue()
     self.queue_out = mp.Queue()
     self.cmd = None
     self.current_fname = None
+    self.last_reward = 0
+    self.winning_reward = self.settings['sat_winning_reward']
 
   def proxy(self):
     return SatEnvProxy(self.queue_out, self.queue_in)
@@ -180,7 +188,7 @@ class SatEnvServer(mp.Process):
 
       if self.cmd == EnvCommands.CMD_STEP:
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
-        msg = self.env.EnvObservation(None, None, None, None, None, WINNING_REWARD, True)
+        msg = self.env.EnvObservation(None, None, None, None, None, self.winning_reward, True)
         self.queue_out.put((EnvCommands.ACK_STEP,tuple(msg)))
 
       elif self.cmd == EnvCommands.CMD_RESET:
@@ -196,15 +204,20 @@ class SatEnvServer(mp.Process):
 
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
     print('vlabels.max() is {}'.format(vlabels.max()))
+    print('Got reward: {}'.format(self.env.get_reward()))
+
     self.env.current_step += 1    
     msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)
     if self.cmd == EnvCommands.CMD_RESET:
       # If this is the reply to a RESET add all existing (permanent) clauses
       msg.orig_clauses = self.env.get_orig_clauses()
       msg.orig_clause_labels = self.env.get_clabels()
+      self.last_reward = self.env.get_reward()
       ack = EnvCommands.ACK_RESET
     elif self.cmd == EnvCommands.CMD_STEP:
-      msg.reward = reward
+      last_reward = self.env.get_reward()
+      msg.reward = -(last_reward - self.last_reward)
+      self.last_reward = last_reward
       ack = EnvCommands.ACK_STEP
     else:
       assert True, 'Invalid last command detected'

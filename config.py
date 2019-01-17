@@ -148,6 +148,11 @@ def cfg():
 	EPS_END = 0.03  # deprecated
 	EPS_DECAY = 2000  # deprecated
 
+# SAT
+	
+	sat_reward_scale = 1e7
+	sat_winning_reward = 10
+
 # RL - DQN
 	learning_starts = 50000
 	replay_size = 400000

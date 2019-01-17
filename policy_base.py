@@ -16,6 +16,9 @@ class PolicyBase(nn.Module):
     self.policy_dim2 = self.settings['policy_dim2']   
     self.max_iters = self.settings['max_iters']   
     self.state_bn = self.settings['state_bn']   
+    self.lambda_value = self.settings['lambda_value']
+    self.lambda_disallowed = self.settings['lambda_disallowed']
+    self.lambda_aux = self.settings['lambda_aux']
   
   def forward(self, obs, **kwargs):
     raise NotImplementedError
@@ -31,3 +34,6 @@ class PolicyBase(nn.Module):
     
   def get_allowed_actions(self, obs, **kwargs):
     return cadet_utils.get_allowed_actions(obs,**kwargs)
+
+
+

@@ -11,6 +11,7 @@ import ipdb
 from settings import *
 from sat_encoders import *
 from policy_base import *
+from rl_utils import *
 
 class SatPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
@@ -84,17 +85,22 @@ class SatPolicy(PolicyBase):
     else:
       inputs = cembs.view(-1,self.final_embedding_dim)
 
-    if self.batch_size > 1:
-      ipdb.set_trace()  
+    # if self.batch_size > 1:
+    #   ipdb.set_trace()  
     if self.policy_dim2:      
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    outputs = outputs.view(self.batch_size,-1,2)    # batch x num_learned       
-    if (outputs!=outputs).any():    # Check nans
+    outputs_processed = []
+    for i, (nl1, nl2) in enumerate(num_learned):
+      s = nl2-nl1
+      outputs_processed.append(outputs[:s])
+      outputs = outputs[s:]
+    
+    if any((x!=x).any() for x in outputs_processed):    # Check nans
       ipdb.set_trace()
     value = None
-    return outputs, value, cembs, aux_losses
+    return outputs_processed, value, cembs, aux_losses
 
   def get_allowed_actions(self, obs, **kwargs):
     pass
@@ -104,7 +110,8 @@ class SatPolicy(PolicyBase):
     return action
 
   def combine_actions(self, actions, **kwargs):    
-    return torch.cat(actions)
+    return actions
+    # return torch.cat(actions)
 
   def select_action(self, obs_batch, **kwargs):
     logits, *_ = self.forward(obs_batch)
@@ -115,3 +122,27 @@ class SatPolicy(PolicyBase):
     action = torch.from_numpy(np.random.binomial(1,p=ps)).unsqueeze(0)
 
     return action
+
+  def compute_loss(self, transition_data):
+    _, _, _, rewards, *_ = zip(*transition_data)
+    collated_batch = collate_transitions(transition_data,settings=self.settings)
+    batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
+    actions = collated_batch.action
+    logprobs = []
+    for (action, logits) in zip(actions,batched_logits):
+      probs = F.softmax(logits,dim=1)
+      logprobs.append(probs.gather(1,action.view(-1,1)).log().sum())
+    returns = self.settings.FloatTensor(rewards)
+    adv_t = returns
+    value_loss = 0.
+    logprobs = torch.stack(logprobs)
+    # entropies = (-probs*all_logprobs).sum(1)    
+    adv_t = (adv_t - adv_t.mean())
+    if self.settings['use_sum']:
+      pg_loss = (-Variable(adv_t)*logprobs).sum()
+    else:
+      pg_loss = (-Variable(adv_t)*logprobs).mean()
+
+    total_aux_loss = sum(aux_losses) if aux_losses else 0.    
+    loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
+    return loss, logits

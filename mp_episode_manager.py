@@ -192,63 +192,11 @@ class WorkerEnv(mp.Process):
     self.lmodel = create_policy(settings=self.settings)
     self.lmodel.load_state_dict(self.gmodel.state_dict())
 
-
-  def compute_loss(self, transition_data):
-    lambda_disallowed = self.settings['lambda_disallowed']
-    lambda_value = self.settings['lambda_value']
-    lambda_aux = self.settings['lambda_aux']
-    disallowed_loss = 0.
-    _, _, _, rewards, *_ = zip(*transition_data)
-    collated_batch = collate_transitions(transition_data,settings=self.settings)
-    logits, values, _, aux_losses = self.lmodel(collated_batch.state, prev_obs=collated_batch.prev_obs)
-    allowed_actions = Variable(self.lmodel.get_allowed_actions(collated_batch.state))
-    if self.settings['cuda']:
-      allowed_actions = allowed_actions.cuda()
-    # unpacked_logits = unpack_logits(logits, collated_batch.state.pack_indices[1])
-    effective_bs = len(logits)    
-
-    if self.settings['masked_softmax']:
-      allowed_mask = allowed_actions.float()      
-      probs, debug_probs = masked_softmax2d(logits,allowed_mask)
-    else:
-      probs = F.softmax(logits, dim=1)
-    all_logprobs = safe_logprobs(probs)
-    if self.settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
-      aux_probs = F.softmax(logits,dim=1)
-      disallowed_actions = Variable(allowed_actions.data^1).float()      
-      disallowed_mass = (aux_probs*disallowed_actions).sum(1)
-      disallowed_loss = disallowed_mass.mean()
-      print('Disallowed loss is {}'.format(disallowed_loss))
-
-    returns = self.settings.FloatTensor(rewards)
-    if self.settings['ac_baseline']:
-      adv_t = returns - values.squeeze().data      
-      value_loss = mse_loss(values.squeeze(), Variable(returns))    
-      print('Value loss is {}'.format(value_loss.data.numpy()))
-      print('Value Auxilliary loss is {}'.format(sum(aux_losses).data.numpy()))
-      # if i>0 and i % 60 == 0:
-      #   vecs = {'returns': returns.numpy(), 'values': values.squeeze().data.numpy()}        
-      #   pprint_vectors(vecs)
-    else:
-      adv_t = returns
-      value_loss = 0.
-    actions = collated_batch.action    
-    logprobs = all_logprobs.gather(1,Variable(actions).view(-1,1)).squeeze()
-    entropies = (-probs*all_logprobs).sum(1)    
-    adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
-    if self.settings['normalize_episodes']:
-      episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
-      adv_t = adv_t*self.settings.FloatTensor(episodes_weights)    
-    pg_loss = (-Variable(adv_t)*logprobs).mean()
-    total_aux_loss = sum(aux_losses) if aux_losses else 0.
-    loss = pg_loss + lambda_value*value_loss + lambda_disallowed*disallowed_loss + lambda_aux*total_aux_loss
-    return loss
-
   def train(self,transition_data):
     if self.settings['do_not_learn']:
       return
     self.lmodel.train()
-    loss = self.compute_loss(transition_data)
+    loss, logits = self.lmodel.compute_loss(transition_data)
     self.optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])

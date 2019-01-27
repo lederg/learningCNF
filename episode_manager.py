@@ -187,6 +187,7 @@ class EpisodeManager(object):
         done = True       
       if done:
         if env.rewards is not None:
+          # print('Finished env, rewards are: {}, sum is {}'.format(env.rewards, sum(env.rewards)))
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
         self.completed_episodes.append(envstr.episode_memory)

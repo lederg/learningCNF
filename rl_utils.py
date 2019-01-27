@@ -220,7 +220,7 @@ def collate_transitions(batch, settings=None, packed=False):
 
 def create_policy(settings=None, is_clone=False):
   from new_policies import Actor1Policy
-  from sat_policies import SatPolicy
+  from sat_policies import SatPolicy, SatLinearPolicy
 
 
   if not settings:

@@ -29,7 +29,7 @@ settings = CnfSettings()
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -10
 TEST_EVERY = settings['test_every']
-REPORT_EVERY = 100
+REPORT_EVERY = 10
 
 reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard'])
 env = CadetEnv(**settings.hyperparameters)
@@ -213,7 +213,7 @@ def cadet_main():
   # all_episode_files = ds.get_files_list()
   old_logits = None
   disallowed_loss = 0.
-  max_iterations = len(provider)*100
+  max_iterations = len(provider)*2000
   settings.env = env
   num_steps = len(provider)*15000
   lr_schedule = PiecewiseSchedule([

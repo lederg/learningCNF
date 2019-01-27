@@ -247,3 +247,21 @@ def concat_sparse(t1,t2):
     rc = torch.sparse.FloatTensor(new_ind,vals,size)
 
     return rc
+def make_one_hot(labels, C=2):
+    '''
+    Converts an integer label torch.autograd.Variable to a one-hot Variable.
+    
+    Parameters
+    ----------
+    labels : Tensor sized N
+    C : integer. 
+        number of classes in labels.
+    
+    Returns
+    -------
+    Tensor sizes NxC
+    '''
+    
+    y = torch.eye(C)
+    return y[labels]
+    

@@ -21,6 +21,7 @@ log = mp.get_logger()
 
 
 CLABEL_LEARNED = 0
+CLABEL_LOCKED = 5
 
 class SatActiveEnv:
   EnvObservation = namedlist('SatEnvObservation', 
@@ -100,7 +101,6 @@ class SatEnvProxy(EnvBase):
     if env_obs.reward:
       r = env_obs.reward / self.reward_scale
       self.rewards.append(r)
-      print('Adding reward in step: {}'.format(r))
     return env_obs
 
   def reset(self, fname):
@@ -126,7 +126,6 @@ class SatEnvProxy(EnvBase):
     if not settings:
       settings = CnfSettings()
 
-    print('Processing observation!')
     if env_obs.orig_clause_labels is not None:
       self.orig_clabels = env_obs.orig_clause_labels
       self.orig_clauses = csr_to_pytorch(env_obs.orig_clauses)
@@ -160,7 +159,7 @@ class SatEnvServer(mp.Process):
     self.cmd = None
     self.current_fname = None
     self.last_reward = 0
-    self.winning_reward = self.settings['sat_winning_reward']
+    self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
 
   def proxy(self):
     return SatEnvProxy(self.queue_out, self.queue_in)
@@ -187,8 +186,9 @@ class SatEnvServer(mp.Process):
       self.env.solver.solve()
 
       if self.cmd == EnvCommands.CMD_STEP:
+        last_step_reward = -(self.env.get_reward() - self.last_reward)      
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
-        msg = self.env.EnvObservation(None, None, None, None, None, self.winning_reward, True)
+        msg = self.env.EnvObservation(None, None, None, None, None, self.winning_reward+last_step_reward, True)
         self.queue_out.put((EnvCommands.ACK_STEP,tuple(msg)))
 
       elif self.cmd == EnvCommands.CMD_RESET:
@@ -203,8 +203,8 @@ class SatEnvServer(mp.Process):
 
 
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
-    print('vlabels.max() is {}'.format(vlabels.max()))
-    print('Got reward: {}'.format(self.env.get_reward()))
+    log.debug('vlabels.max() is {}'.format(vlabels.max()))
+    log.debug('Got reward: {}'.format(self.env.get_reward()))
 
     self.env.current_step += 1    
     msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)

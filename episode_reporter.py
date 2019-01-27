@@ -4,6 +4,7 @@ import multiprocessing as mp
 from torch.multiprocessing import Manager
 from tensorboard_logger import configure, log_value
 from utils import *
+from settings import *
 import ipdb
 import shelve
 
@@ -109,7 +110,7 @@ class PGEpisodeReporter(SPReporter):
 
 		print('Data for the 10 most common envs:')
 		for vals in totals[:10]:
-			s = vals[2][-DEF_WINDOW:]
+			s = vals[3][-DEF_WINDOW:]
 			print('Env {} appeared {} times, with moving (100) mean/std {}/{}:'.format(vals[0], vals[1], np.mean(s), np.std(s)))
 			print(s)
 			print('\n\n')

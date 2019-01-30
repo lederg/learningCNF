@@ -150,7 +150,7 @@ def cfg():
 
 # SAT
 	
-	sat_reward_scale = 1e6
+	sat_reward_scale = 1e7
 	sat_winning_reward = 10
 	sat_reduce_base = 500
 	do_lbd = False

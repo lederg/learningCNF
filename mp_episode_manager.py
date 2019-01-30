@@ -44,6 +44,7 @@ class WorkerEnv(mp.Process):
     self.rnn_iters = self.settings['rnn_iters']
     self.training_steps = self.settings['training_steps']
     self.restart_solver_every = self.settings['restart_solver_every']    
+    self.check_allowed_actions = self.settings['check_allowed_actions']
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))
     # self.gnet, self.opt = gnet, opt
@@ -83,12 +84,12 @@ class WorkerEnv(mp.Process):
     env = envstr.env
     if not envstr.last_obs or envstr.curr_step > self.max_step:
       self.reset_env(fname=next(self.provider))    
-    last_obs = collate_observations([enstr.last_obs])
+    last_obs = collate_observations([envstr.last_obs])
     [action] = self.lmodel.select_action(last_obs, **kwargs)
     envstr.episode_memory.append(Transition(envstr.last_obs,action,None, None, envstr.env_id, envstr.prev_obs))
-    allowed_actions = self.lmodel.get_allowed_actions(envstr.last_obs).squeeze()
+    allowed_actions = self.lmodel.get_allowed_actions(envstr.last_obs).squeeze() if self.check_allowed_actions else None
 
-    if allowed_actions[action]:
+    if not self.check_allowed_actions or allowed_actions[action]:
       env_obs = envstr.env.step(self.lmodel.translate_action(action))
       done = env_obs.done
     else:

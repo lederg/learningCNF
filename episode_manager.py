@@ -161,7 +161,6 @@ class EpisodeManager(object):
         ipdb.set_trace()
     allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed) if self.check_allowed_actions else None
     actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, prev_obs=prev_obs_batch, **kwargs)
-    
     for i, envnum in enumerate(active_envs):
       envstr = self.envs[envnum]
       env = envstr.env

@@ -13,11 +13,13 @@ from sat_env import *
 from sat_encoders import *
 from policy_base import *
 from rl_utils import *
+from tick_utils import *
 
 class SatPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatPolicy, self).__init__(**kwargs)
     self.final_embedding_dim = self.cemb_dim+self.clabel_dim    
+    non_linearity = self.settings['policy_non_linearity']
     if encoder:
       print('Bootstraping Policy from existing encoder')
       self.encoder = encoder
@@ -35,8 +37,11 @@ class SatPolicy(PolicyBase):
       self.action_score = nn.Linear(self.policy_dim1,2)
     if self.state_bn:
       self.state_bn = nn.BatchNorm1d(self.state_dim)
-    self.activation = eval(self.settings['policy_non_linearity'])
-  
+    if non_linearity is not None:
+      self.activation = eval(non_linearity)
+    else:
+      self.activation = lambda x: x
+      
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
   # vlabels are batch * max_vars * vlabel_dim
 
@@ -98,6 +103,7 @@ class SatPolicy(PolicyBase):
       outputs_processed.append(outputs[:s])
       outputs = outputs[s:]
     
+    assert(outputs.shape[0]==0)
     if any((x!=x).any() for x in outputs_processed):    # Check nans
       ipdb.set_trace()
     value = None
@@ -158,14 +164,23 @@ class SatPolicy(PolicyBase):
 class SatLinearPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatLinearPolicy, self).__init__(**kwargs)
-    self.linear1 = nn.Linear(self.clabel_dim, self.policy_dim1)
+    non_linearity = self.settings['policy_non_linearity']
+    if self.policy_dim1:
+      self.linear1 = nn.Linear(self.clabel_dim, self.policy_dim1)
 
     if self.policy_dim2:
       self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
       self.action_score = nn.Linear(self.policy_dim2,2)
+    elif self.policy_dim1:
+      self.action_score = nn.Linear(self.policy_dim1,2) 
     else:
-      self.action_score = nn.Linear(self.policy_dim1,2)    
-    self.activation = eval(self.settings['policy_non_linearity'])
+      self.action_score = nn.Linear(self.clabel_dim,2) 
+
+    if non_linearity is not None:
+      self.activation = eval(non_linearity)
+    else:
+      self.activation = lambda x: x
+
   
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
   # vlabels are batch * max_vars * vlabel_dim
@@ -174,6 +189,7 @@ class SatLinearPolicy(PolicyBase):
 
   def forward(self, obs, **kwargs):
     clabels = obs.clabels
+    size = obs.clabels.shape
 
     aux_losses = []
 
@@ -184,18 +200,22 @@ class SatLinearPolicy(PolicyBase):
     # ipdb.set_trace()
     inputs = clabels.view(-1,self.clabel_dim)
 
-    # if self.batch_size > 1:
-    #   ipdb.set_trace()  
+    # if size[0] > 1:
+    #   break_every_tick(20)
     if self.policy_dim2:      
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
-    else:
+    elif self.policy_dim1:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
+    else:
+      outputs = self.action_score(inputs)
+
     outputs_processed = []
+    # print(num_learned)
     for i, (nl1, nl2) in enumerate(num_learned):
-      s = nl2-nl1
-      outputs_processed.append(outputs[:s])
-      outputs = outputs[s:]
-    
+      outputs_processed.append(outputs[nl1:nl2])
+      outputs = outputs[size[1]:]
+
+    assert(outputs.shape[0]==0)    
     if any((x!=x).any() for x in outputs_processed):    # Check nans
       ipdb.set_trace()
     value = None
@@ -233,11 +253,14 @@ class SatLinearPolicy(PolicyBase):
     logprobs = []
     batched_clabels = collated_batch.state.clabels
     num_learned = collated_batch.state.ext_data
-    for (action, logits, clabels, learned_idx) in zip(actions,batched_logits, batched_clabels, num_learned):
-      probs = F.softmax(logits,dim=1)
+    for (action, logits, clabels, learned_idx) in zip(actions,batched_logits, batched_clabels, num_learned):      
+      probs = F.softmax(logits,dim=1).clamp(min=0.001,max=0.999)
       locked = clabels[learned_idx[0]:learned_idx[1],CLABEL_LOCKED]
       pre_logprobs = probs.gather(1,action.view(-1,1)).log().view(-1)
-      logprobs.append(((1-locked)*pre_logprobs).sum())
+      action_probs = ((1-locked)*pre_logprobs).sum()
+      if (action_probs!=action_probs).any():
+        ipdb.set_trace()
+      logprobs.append(action_probs)
     returns = self.settings.FloatTensor(rewards)
     adv_t = returns
     value_loss = 0.
@@ -252,3 +275,59 @@ class SatLinearPolicy(PolicyBase):
     total_aux_loss = sum(aux_losses) if aux_losses else 0.    
     loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
     return loss, logits
+
+class SatRandomPolicy(PolicyBase):
+  def __init__(self, encoder=None, **kwargs):
+    super(SatRandomPolicy, self).__init__(**kwargs)
+    self.action_score = nn.Linear(2,1)
+  
+  def forward(self, obs, **kwargs):
+    pass
+
+  def get_allowed_actions(self, obs, **kwargs):
+    pass
+
+  def translate_action(self, action, **kwargs):
+    # print('Action is: {}'.format(action[:10]))
+    return action
+
+  def combine_actions(self, actions, **kwargs):    
+    return actions
+    # return torch.cat(actions)
+
+  def select_action(self, obs_batch, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    num_learned = obs_batch.ext_data[0]
+    action = torch.from_numpy(np.random.binomial(1,p=0.5,size=num_learned[1]-num_learned[0])).unsqueeze(0)
+    locked = obs_batch.clabels[0,num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(action,locked)
+
+    return final_action
+
+  def compute_loss(self, transition_data):
+    return None, None
+
+class SatLBDPolicy(PolicyBase):
+  def __init__(self, encoder=None, **kwargs):
+    super(SatLBDPolicy, self).__init__(**kwargs)
+    self.action_score = nn.Linear(2,1)
+  
+  def forward(self, obs, **kwargs):
+    return None
+
+  def get_allowed_actions(self, obs, **kwargs):
+    pass
+
+  def translate_action(self, action, **kwargs):
+    # print('Action is: {}'.format(action[:10]))
+    return action
+
+  def combine_actions(self, actions, **kwargs):    
+    return actions
+    # return torch.cat(actions)
+
+  def select_action(self, obs_batch, **kwargs):
+    return [np.empty(shape=(0, 0), dtype=bool)]
+
+  def compute_loss(self, transition_data):
+    return None, None

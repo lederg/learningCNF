@@ -22,7 +22,6 @@ class EnvFactory:
       satenv = SatActiveEnv()
       satserv = SatEnvServer(satenv)
       log.info('Starting minisat server')
-      # ipdb.set_trace()
       satserv.start()
       return satserv.proxy()
 

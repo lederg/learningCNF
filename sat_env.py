@@ -27,12 +27,14 @@ class SatActiveEnv:
   EnvObservation = namedlist('SatEnvObservation', 
                               ['orig_clauses', 'orig_clause_labels', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'])
 
-  def __init__(self, debug=False, server=None, **kwargs):
+  def __init__(self, debug=False, server=None, settings=None, **kwargs):
+    self.settings = settings if settings else CnfSettings()    
     self.debug = debug
     self.tail = deque([],LOG_SIZE)
     self.solver = None
     self.server = server
     self.current_step = 0
+    self.reduce_base = int(self.settings['sat_reduce_base'])
     self._name = 'SatEnv'
 
   @property
@@ -40,15 +42,18 @@ class SatActiveEnv:
     return self._name
   
   def start_solver(self, fname=None):
+    
     def thunk(cl_label_arr, rows_arr, cols_arr, data_arr):      
       return self.__callback(cl_label_arr, rows_arr, cols_arr, data_arr, DEF_STEP_REWARD)
       
 
     if self.solver is None:
-      self.solver = Minisat22(callback=thunk)
+      print('reduce_base is {}'.format(self.reduce_base))
+      # self.solver = Minisat22(callback=thunk)
+      self.solver = Minisat22(callback=thunk, reduce_base=self.reduce_base)
     else:
       self.solver.delete()
-      self.solver.new(callback=thunk)
+      self.solver.new(callback=thunk, reduce_base=self.reduce_base)
     if fname:
       f1 = CNF(fname)
       self.solver.append_formula(f1.clauses)
@@ -69,7 +74,6 @@ class SatActiveEnv:
   def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
     self.current_step += 1
     adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
-    # ipdb.set_trace()
     if not self.server:
       log.info('Running a test version of SatEnv')
       utility = cl_label_arr[:,3] # just return the lbd
@@ -143,6 +147,7 @@ class SatEnvProxy(EnvBase):
     env_obs.vlabels[:,3]=np.log(activities)
     clabels = Variable(all_clabels)
     vlabels = Variable(torch.from_numpy(env_obs.vlabels[1:]).float())   # Remove first (zero) row
+    # ipdb.set_trace()
     vmask = last_obs.vmask if last_obs else None
     cmask = last_obs.cmask if last_obs else None
     state = Variable(self.state.unsqueeze(0))    
@@ -159,6 +164,7 @@ class SatEnvServer(mp.Process):
     self.cmd = None
     self.current_fname = None
     self.last_reward = 0
+    self.do_lbd = self.settings['do_lbd']
     self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
 
   def proxy(self):
@@ -203,9 +209,7 @@ class SatEnvServer(mp.Process):
 
 
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
-    log.debug('vlabels.max() is {}'.format(vlabels.max()))
-    log.debug('Got reward: {}'.format(self.env.get_reward()))
-
+    # print('vlabels.max() is {}'.format(vlabels.max()))    
     self.env.current_step += 1    
     msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)
     if self.cmd == EnvCommands.CMD_RESET:
@@ -217,6 +221,7 @@ class SatEnvServer(mp.Process):
     elif self.cmd == EnvCommands.CMD_STEP:
       last_reward = self.env.get_reward()
       msg.reward = -(last_reward - self.last_reward)
+      # print('Got reward: {}'.format(msg.reward))
       self.last_reward = last_reward
       ack = EnvCommands.ACK_STEP
     else:

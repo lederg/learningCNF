@@ -83,7 +83,8 @@ class WorkerEnv(mp.Process):
     env = envstr.env
     if not envstr.last_obs or envstr.curr_step > self.max_step:
       self.reset_env(fname=next(self.provider))    
-    [action] = self.lmodel.select_action(envstr.last_obs, **kwargs)
+    last_obs = collate_observations([enstr.last_obs])
+    [action] = self.lmodel.select_action(last_obs, **kwargs)
     envstr.episode_memory.append(Transition(envstr.last_obs,action,None, None, envstr.env_id, envstr.prev_obs))
     allowed_actions = self.lmodel.get_allowed_actions(envstr.last_obs).squeeze()
 

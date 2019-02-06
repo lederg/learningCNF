@@ -20,3 +20,6 @@ class CnfSettings(metaclass=Singleton):
 	def cudaize(self, func, *args, **kwargs):
 		rc = func(*args,**kwargs)
 		return rc.cuda() if self.hyperparameters['cuda'] else rc
+
+	def cudaize_var(self, var):
+		return var.cuda() if self.hyperparameters['cuda'] else var

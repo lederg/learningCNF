@@ -21,6 +21,7 @@ log = mp.get_logger()
 
 
 CLABEL_LEARNED = 0
+CLABEL_LBD = 3
 CLABEL_LOCKED = 5
 
 class SatActiveEnv:

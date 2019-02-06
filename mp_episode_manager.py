@@ -198,9 +198,14 @@ class WorkerEnv(mp.Process):
     if self.settings['do_not_learn']:
       return
     self.lmodel.train()
+    mt = time.time()
     loss, logits = self.lmodel.compute_loss(transition_data)
+    mt1 = time.time()
+    print('Loss computation took {} seconds'.format(mt1-mt))
     self.optimizer.zero_grad()
     loss.backward()
+    mt2 = time.time()
+    print('Backward took {} seconds'.format(mt2-mt1))
     torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
     for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
         gp._grad = lp.grad

@@ -20,8 +20,7 @@ class SatEncoder(nn.Module):
 		self.vlabel_dim = self.settings['vlabel_dim']
 		self.clabel_dim = self.settings['clabel_dim']
 		self.vemb_dim = self.settings['vemb_dim']
-		self.cemb_dim = self.settings['cemb_dim']
-		self.batch_size = self.settings['batch_size']		
+		self.cemb_dim = self.settings['cemb_dim']		
 		self.max_iters = self.settings['max_iters']
 		self.final_vdim = 2*self.max_iters*self.vemb_dim+self.vlabel_dim
 		self.non_linearity = eval(self.settings['non_linearity'])
@@ -75,8 +74,7 @@ class SatEncoder(nn.Module):
 # clabels are sparse (batch,maxvars,maxvars,label_dim)
 # cmat_pos and cmat_neg is the bs*v -> bs*c block-diagonal adjacency matrix 
 
-	def forward(self, vlabels, clabels, cmat_pos, cmat_neg, **kwargs):
-		size = vlabels.size()
+	def forward(self, vlabels, clabels, cmat_pos, cmat_neg, do_timing=False, **kwargs):
 		pos_vars = vlabels
 		neg_vars = vlabels
 		vmat_pos = cmat_pos.t()
@@ -94,8 +92,6 @@ class SatEncoder(nn.Module):
 			if self.settings['use_bn'] or self.settings['use_ln']:
 				pv_t_pre = self.vnorm_layers[t](pv_t_pre.contiguous())
 				nv_t_pre = self.vnorm_layers[t](nv_t_pre.contiguous())			
-			# if bs>1:
-			# 	ipdb.set_trace()			
 			pos_vars = torch.cat([pos_vars,pv_t_pre,nv_t_pre],dim=1)
 			neg_vars = torch.cat([neg_vars,nv_t_pre,pv_t_pre],dim=1)
 

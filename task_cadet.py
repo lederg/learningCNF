@@ -52,18 +52,22 @@ max_reroll = 0
 def cadet_main():
   def train_model(transition_data):
     policy.train()
+    mt1 = time.time()
     loss, logits = policy.compute_loss(transition_data)
+    mt2 = time.time()
     if loss is None:
       return
     # break_every_tick(20)
     optimizer.zero_grad()
     loss.backward()
+    mt3 = time.time()
     torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       print('NaN in grads!')
       ipdb.set_trace()
     # tutils.clip_grad_norm(policy.parameters(), 40)
-    optimizer.step()
+    optimizer.step()    
+    print('Times are: Loss: {}, Grad: {}, Ratio: {}'.format(mt2-mt1, mt3-mt2, ((mt3-mt2)/(mt2-mt1))))
     return logits
 
 
@@ -138,7 +142,9 @@ def cadet_main():
         continue
 
     total_inference_time = time.time() - begin_time
-    print('Finished batch with total of %d steps in %f seconds' % (len(transition_data), total_inference_time))
+    ns = len(transition_data)
+    ratio = total_inference_time / ns
+    print('Finished batch with total of {} steps in {} seconds. Ratio: {}'.format(ns, total_inference_time,ratio))
     if not (i % REPORT_EVERY) and i>0:
       reporter.report_stats(total_steps, len(all_episode_files))
       # print('Testing all episodes:')

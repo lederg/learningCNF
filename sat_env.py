@@ -91,7 +91,7 @@ class SatEnvProxy(EnvBase):
     self.settings = settings if settings else CnfSettings()
     self.queue_in = queue_in
     self.queue_out = queue_out
-    self.state = self.settings.zeros(8)
+    self.state = torch.zeros(8)
     self.orig_clabels = None
     self.rewards = None
     self.finished = False

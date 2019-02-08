@@ -62,7 +62,11 @@ class SatPolicy(PolicyBase):
     cmat_pos, cmat_neg = split_sparse_adjacency(obs.cmat)
     aux_losses = []
 
-    if self.settings['cuda']:
+    # In MP the processes take care of cudaizing, because each Worker thread can have its own local model on the CPU, and
+    # Only the main process does the training and has a global model on GPU.
+    # In SP reinforce, we only have one model, so it has to be in GPU (if we're using CUDA)
+
+    if self.settings['cuda'] and not self.settings['mp']:
       cmat_pos, cmat_neg = cmat_pos.cuda(), cmat_neg.cuda()
       state, vlabels, clabels = state.cuda(), vlabels.cuda(), clabels.cuda()
 
@@ -133,6 +137,7 @@ class SatPolicy(PolicyBase):
     # return torch.cat(actions)
 
   def select_action(self, obs_batch, **kwargs):
+    ipdb.set_trace()
     logits, *_ = self.forward(obs_batch)
     assert(len(logits)==1)
     logits = logits[0]
@@ -209,7 +214,7 @@ class SatLinearPolicy(PolicyBase):
 
     aux_losses = []
 
-    if self.settings['cuda']:
+    if self.settings['cuda'] and not self.settings['mp']:
       clabels = clabels.cuda()
 
     num_learned = obs.ext_data
@@ -324,7 +329,7 @@ class SatMiniLinearPolicy(PolicyBase):
 
     aux_losses = []
 
-    if self.settings['cuda']:
+    if self.settings['cuda'] and not self.settings['mp']:
       clabels = clabels.cuda()
 
     num_learned = obs.ext_data
@@ -367,7 +372,7 @@ class SatMiniLinearPolicy(PolicyBase):
     assert(len(logits)==1)
     logits = logits[0]
     probs = F.softmax(logits,dim=1)
-    ps = probs[:,0].detach().numpy()
+    ps = probs[:,0].detach().cpu().numpy()    # cpu() just in case, if we're in SP+cuda
     action = torch.from_numpy(np.random.binomial(1,p=ps)).unsqueeze(0)
     num_learned = obs_batch.ext_data[0]
     locked = obs_batch.clabels[0,num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
@@ -377,7 +382,8 @@ class SatMiniLinearPolicy(PolicyBase):
 
   def compute_loss(self, transition_data):
     _, _, _, rewards, *_ = zip(*transition_data)
-    collated_batch = collate_transitions(transition_data,settings=self.settings)
+    collated_batch = collate_transitions(transition_data,settings=self.settings)    
+    collated_batch.state = cudaize_obs(collated_batch.state, self.settings)
     batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
     actions = collated_batch.action
     logprobs = []
@@ -386,6 +392,7 @@ class SatMiniLinearPolicy(PolicyBase):
     for (action, logits, clabels, learned_idx) in zip(actions,batched_logits, batched_clabels, num_learned):      
       probs = F.softmax(logits,dim=1).clamp(min=0.001,max=0.999)
       locked = clabels[learned_idx[0]:learned_idx[1],CLABEL_LOCKED]
+      action = self.settings.cudaize_var(action)
       pre_logprobs = probs.gather(1,action.view(-1,1)).log().view(-1)
       action_probs = ((1-locked)*pre_logprobs).sum()
       if (action_probs!=action_probs).any():

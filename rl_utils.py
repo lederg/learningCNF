@@ -209,7 +209,7 @@ def collate_transitions(batch, settings=None, packed=False):
   collate_fn = packed_collate_observations if packed else collate_observations
   obs1 = collate_fn([x.state for x in batch], settings)
   obs2 = collate_fn([x.next_state for x in batch], settings)
-  rews = settings.FloatTensor([x.reward for x in batch])
+  rews = torch.FloatTensor([x.reward for x in batch])
   actions = settings.policy.combine_actions([x.action for x in batch])  
   # formulas = settings.LongTensor([x.formula for x in batch])
   formulas = [x.formula for x in batch]
@@ -310,3 +310,18 @@ def compute_kl(logits, old_logits):
   logits = logits.view(s,-1)
   totals = F.softmax(old_logits,dim=1) * (F.log_softmax(old_logits,dim=1) - F.log_softmax(logits,dim=1))
   return totals.sum(1).data
+
+# obs is in fact a "State" object, which is in fact a very poor choice of name for "observation"..
+
+def cudaize_obs(obs, settings=None):
+  if not settings:
+    settings = CnfSettings()  
+  if not settings['cuda']:
+    return obs
+  state = obs.state.cuda()    # This is global solver state within the 'State' object. gah.
+  clabels = obs.clabels.cuda()
+  ground = obs.ground.cuda()
+  cmat = obs.cmat.cuda()
+  vmask = obs.vmask.cuda() if obs.vmask is None else None
+  cmask = obs.cmask.cuda() if obs.cmask is None else None
+  return State(state,cmat,ground,clabels,vmask,cmask,obs.ext_data)

@@ -191,6 +191,7 @@ class WorkerEnv(mp.Process):
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
+    self.settings['cuda']=False         # No CUDA in the worker threads
     self.lmodel = create_policy(settings=self.settings)
     self.lmodel.load_state_dict(self.gmodel.state_dict())
 

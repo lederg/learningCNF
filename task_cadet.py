@@ -53,6 +53,7 @@ def cadet_main():
   def train_model(transition_data):
     policy.train()
     mt1 = time.time()
+    # ipdb.set_trace()
     loss, logits = policy.compute_loss(transition_data)
     mt2 = time.time()
     if loss is None:

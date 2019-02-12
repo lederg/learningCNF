@@ -137,7 +137,6 @@ class SatPolicy(PolicyBase):
     # return torch.cat(actions)
 
   def select_action(self, obs_batch, **kwargs):
-    ipdb.set_trace()
     logits, *_ = self.forward(obs_batch)
     assert(len(logits)==1)
     logits = logits[0]
@@ -151,8 +150,8 @@ class SatPolicy(PolicyBase):
 
   def compute_loss(self, transition_data):
     mt1 = time.time()
-    _, _, _, rewards, *_ = zip(*transition_data)
-    collated_batch = collate_transitions(transition_data,settings=self.settings)
+    collated_batch = transition_data
+    returns = self.settings.cudaize_var(collated_batch.reward)
     mt2 = time.time()
     batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs,do_timing=True)
     mt3 = time.time()
@@ -165,7 +164,6 @@ class SatPolicy(PolicyBase):
       locked = self.settings.cudaize_var(clabels[learned_idx[0]:learned_idx[1],CLABEL_LOCKED])
       pre_logprobs = probs.gather(1,self.settings.cudaize_var(action).view(-1,1)).log().view(-1)
       logprobs.append(((1-locked)*pre_logprobs).sum())
-    returns = self.settings.FloatTensor(rewards)
     adv_t = returns
     value_loss = 0.
     logprobs = torch.stack(logprobs)
@@ -267,8 +265,8 @@ class SatLinearPolicy(PolicyBase):
     return final_action
 
   def compute_loss(self, transition_data):
-    _, _, _, rewards, *_ = zip(*transition_data)
-    collated_batch = collate_transitions(transition_data,settings=self.settings)
+    collated_batch = transition_data
+    returns = self.settings.cudaize_var(collated_batch.reward)
     batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
     actions = collated_batch.action
     logprobs = []
@@ -282,7 +280,6 @@ class SatLinearPolicy(PolicyBase):
       if (action_probs!=action_probs).any():
         ipdb.set_trace()
       logprobs.append(action_probs)
-    returns = self.settings.FloatTensor(rewards)
     adv_t = returns
     value_loss = 0.
     logprobs = torch.stack(logprobs)
@@ -381,9 +378,8 @@ class SatMiniLinearPolicy(PolicyBase):
     return final_action
 
   def compute_loss(self, transition_data):
-    _, _, _, rewards, *_ = zip(*transition_data)
-    collated_batch = collate_transitions(transition_data,settings=self.settings)    
-    collated_batch.state = cudaize_obs(collated_batch.state, self.settings)
+    collated_batch = transition_data
+    returns = self.settings.cudaize_var(collated_batch.reward)
     batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
     actions = collated_batch.action
     logprobs = []
@@ -398,12 +394,12 @@ class SatMiniLinearPolicy(PolicyBase):
       if (action_probs!=action_probs).any():
         ipdb.set_trace()
       logprobs.append(action_probs)
-    returns = self.settings.FloatTensor(rewards)
     adv_t = returns
     value_loss = 0.
     logprobs = torch.stack(logprobs)
     # entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean())
+    # ipdb.set_trace()
     if self.settings['use_sum']:
       pg_loss = (-Variable(adv_t)*logprobs).sum()
     else:

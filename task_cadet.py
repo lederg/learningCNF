@@ -54,7 +54,9 @@ def cadet_main():
     policy.train()
     mt1 = time.time()
     # ipdb.set_trace()
-    loss, logits = policy.compute_loss(transition_data)
+    collated_batch = collate_transitions(transition_data,settings)
+    collated_batch.state = cudaize_obs(collated_batch.state)
+    loss, logits = policy.compute_loss(collated_batch)
     mt2 = time.time()
     if loss is None:
       return
@@ -93,7 +95,7 @@ def cadet_main():
   reporter.log_env(settings['rl_log_envs'])
   ed = EpisodeData(name=settings['name'], fname=settings['base_stats'])
   ProviderClass = eval(settings['episode_provider'])
-  provider = iter(ProviderClass(settings['rl_train_data']))
+  provider = ProviderClass(settings['rl_train_data'])
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter)  
   # all_episode_files = ds.get_files_list()

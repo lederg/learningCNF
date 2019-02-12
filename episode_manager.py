@@ -102,7 +102,7 @@ class EpisodeManager(object):
   def reset_all(self):
     self.provider.reset()
     for envstr in self.envs:
-      self.reset_env(envstr,fname=next(self.provider))
+      self.reset_env(envstr,fname=self.provider.get_next())
 
 
   def restart_all(self):
@@ -144,7 +144,7 @@ class EpisodeManager(object):
     for i in active_envs:
       envstr = self.envs[i]
       if not envstr.last_obs or envstr.curr_step > self.max_step:
-        self.reset_env(envstr,fname=next(self.provider))
+        self.reset_env(envstr,fname=self.provider.get_next())
         # print('Started new Environment ({}).'.format(envstr.fname))
       step_obs.append(envstr.last_obs)          # This is an already processed last_obs, from last iteration
       prev_obs.append(list(envstr.prev_obs))

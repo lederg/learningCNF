@@ -325,3 +325,21 @@ def cudaize_obs(obs, settings=None):
   vmask = obs.vmask.cuda() if obs.vmask is None else None
   cmask = obs.cmask.cuda() if obs.cmask is None else None
   return State(state,cmat,ground,clabels,vmask,cmask,obs.ext_data)
+
+def densify_obs(obs):
+  if obs is None:
+    return None
+  return DenseState(obs.state,obs.cmat._indices(), obs.cmat._values(), obs.cmat.shape, obs.ground,obs.clabels,obs.vmask,obs.cmask,obs.ext_data)
+
+def undensify_obs(dobs):
+  if dobs is None:
+    return None
+  cmat = torch.sparse.FloatTensor(dobs.cmat_ind,dobs.cmat_val,dobs.cmat_size)
+  return State(dobs.state,cmat,dobs.ground,dobs.clabels,dobs.vmask,dobs.cmask,dobs.ext_data)
+
+def densify_transition(t):
+  return Transition(densify_obs(t.state),t.action,densify_obs(t.next_state), t.reward, t.formula, t.prev_obs)
+
+def undensify_transition(t):
+  return Transition(undensify_obs(t.state),t.action,undensify_obs(t.next_state), t.reward, t.formula, t.prev_obs)
+

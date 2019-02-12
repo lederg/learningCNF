@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import torch
+import torch.multiprocessing as mp
 import time
 import ipdb
 import pickle
@@ -183,16 +184,23 @@ class AbstractEpisodeProvider(object):
     only_dirs = [x for x in files if os.path.isdir(x)]
     return only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([self.load_dir(x) for x in only_dirs]))
 
-  def reset(self):
+  def reset(self, **kwargs):
     pass
 
   def sample(self):
     pass
+
+  def get_next(self):
+    pass
+
+  def get_total(self):
+    return len(self.items)
+
   def __iter__(self):
-    return self
+    return self.get_next()
 
   def __len__(self):
-    return len(self.items)
+    return self.get_total()
 
 class UniformEpisodeProvider(AbstractEpisodeProvider):
   def __init__(self,ds):
@@ -202,15 +210,19 @@ class UniformEpisodeProvider(AbstractEpisodeProvider):
   def sample(self):
     return np.random.choice(self.items)
 
-  def reset(self):
+  def reset(self, **kwargs):
     self.current = self.sample()
 
-  def __next__(self):
+  def get_next(self):
     return self.current
+
+  def __iter__(self):
+    return self.get_next()
+
     
 class RandomEpisodeProvider(AbstractEpisodeProvider):
   def sample(self):
     return np.random.choice(self.items)
-  def __next__(self):
+  def get_next(self):
     return self.sample()
 

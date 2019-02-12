@@ -225,10 +225,16 @@ def create_sparse_adjacency(indices, vals, size, split=False):
 # output is (cmat_pos, cmat_neg), such that cmat_pos-cmat_neg=cmat
 
 def split_sparse_adjacency(cmat):
-    indices = cmat._indices().numpy()
-    vals = cmat._values().numpy()
+    ind = cmat._indices()
+    vals = cmat._values()
     size = cmat.shape
-    return create_sparse_adjacency(indices.transpose(),vals,size, True)
+    posind = torch.stack([ind[0].masked_select(vals>0),ind[1].masked_select(vals>0)])
+    negind = torch.stack([ind[0].masked_select(vals<0),ind[1].masked_select(vals<0)])
+    posvals = vals.masked_select(vals>0)
+    negvals = -vals.masked_select(vals<0)
+    cmat_pos = torch.sparse.FloatTensor(posind,posvals,size)
+    cmat_neg = torch.sparse.FloatTensor(negind,negvals,size)
+    return cmat_pos, cmat_neg
 
 # This function takes two 2d sparse tensors and concatenates them along dim 0
 

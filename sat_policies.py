@@ -24,7 +24,8 @@ class SatPolicy(PolicyBase):
       print('Bootstraping Policy from existing encoder')
       self.encoder = encoder
     else:
-      self.encoder = SatEncoder(**kwargs)
+      # self.encoder = SatEncoder(**kwargs)
+      self.encoder = SatSimpleEncoder(**kwargs)
     if self.settings['use_global_state']:
       self.linear1 = nn.Linear(self.state_dim+self.final_embedding_dim, self.policy_dim1)
     else:
@@ -41,6 +42,8 @@ class SatPolicy(PolicyBase):
       self.activation = eval(non_linearity)
     else:
       self.activation = lambda x: x
+
+    self.gpu_cap = self.settings['gpu_cap']
       
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
   # vlabels are batch * max_vars * vlabel_dim
@@ -57,10 +60,13 @@ class SatPolicy(PolicyBase):
     vlabels = obs.ground
     clabels = obs.clabels
     size = clabels.size()
+    self.batch_size=size[0]
     if size[0] > 1:
       mt0 = time.time()
     cmat_pos, cmat_neg = split_sparse_adjacency(obs.cmat)
     aux_losses = []
+    if size[0] > 1:
+      mt1 = time.time()
 
     # In MP the processes take care of cudaizing, because each Worker thread can have its own local model on the CPU, and
     # Only the main process does the training and has a global model on GPU.
@@ -71,9 +77,6 @@ class SatPolicy(PolicyBase):
       state, vlabels, clabels = state.cuda(), vlabels.cuda(), clabels.cuda()
 
     num_learned = obs.ext_data
-    self.batch_size=size[0]
-    if size[0] > 1:
-      mt1 = time.time()
     cembs = self.encoder(vlabels.view(-1,self.vlabel_dim), clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
     if size[0] > 1:
       mt2 = time.time()
@@ -87,11 +90,11 @@ class SatPolicy(PolicyBase):
     if 'do_debug' in kwargs:
       ipdb.set_trace()
     
-    if self.state_bn:
-      state = self.state_bn(state)
     
     inputs = []
     if self.settings['use_global_state']:
+      if self.state_bn:
+        state = self.state_bn(state)
       for i, (s,emb) in enumerate(zip(state,cembs_processed)):
         a = s.view(1,self.state_dim)
         reshaped_state = a.expand(len(emb),self.state_dim)
@@ -150,15 +153,28 @@ class SatPolicy(PolicyBase):
 
   def compute_loss(self, transition_data):
     mt1 = time.time()
-    collated_batch = transition_data
-    returns = self.settings.cudaize_var(collated_batch.reward)
+    if self.settings['cuda'] and len(transition_data) > self.gpu_cap:
+      gpu_batches = []
+      td = transition_data
+      while td:
+        b = collate_transitions(td[:self.gpu_cap],self.settings, cudaize_state=True)
+        gpu_batches.append(b)
+        td = td[self.gpu_cap:]
+    else:
+      gpu_batches = [collate_transitions(transition_data,self.settings, cudaize_state=True)]       
+    actions = flatten([b.action for b in gpu_batches])
+    returns = self.settings.cudaize_var(torch.cat([b.reward for b in gpu_batches]))
     mt2 = time.time()
-    batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs,do_timing=True)
+    batched_logits = []
+    for b in gpu_batches:
+      logits, values, _, aux_losses = self.forward(b.state, prev_obs=b.prev_obs,do_timing=True)
+      batched_logits.append(logits)
+    batched_logits = flatten(batched_logits)    
     mt3 = time.time()
-    actions = collated_batch.action
     logprobs = []
-    batched_clabels = collated_batch.state.clabels
-    num_learned = collated_batch.state.ext_data
+    batched_clabels = flatten([b.state.clabels.unbind() for b in gpu_batches])
+    # collated_batch.state.clabels
+    num_learned = flatten((b.state.ext_data for b in gpu_batches))
     for (action, logits, clabels, learned_idx) in zip(actions,batched_logits, batched_clabels, num_learned):
       probs = F.softmax(logits,dim=1)
       locked = self.settings.cudaize_var(clabels[learned_idx[0]:learned_idx[1],CLABEL_LOCKED])
@@ -166,6 +182,7 @@ class SatPolicy(PolicyBase):
       logprobs.append(((1-locked)*pre_logprobs).sum())
     adv_t = returns
     value_loss = 0.
+    # ipdb.set_trace()
     logprobs = torch.stack(logprobs)
     # entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean())
@@ -174,8 +191,7 @@ class SatPolicy(PolicyBase):
     else:
       pg_loss = (-Variable(adv_t)*logprobs).mean()
 
-    total_aux_loss = sum(aux_losses) if aux_losses else 0.    
-    loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
+    loss = pg_loss    # + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
     mt4 = time.time()
     print('compute_loss: Collate: {}, forward: {}, compute: {}'.format(mt2-mt1,mt3-mt2,mt4-mt3))
     return loss, logits
@@ -265,7 +281,8 @@ class SatLinearPolicy(PolicyBase):
     return final_action
 
   def compute_loss(self, transition_data):
-    collated_batch = transition_data
+    collated_batch = collate_transitions(transition_data,self.settings)
+    collated_batch.state = cudaize_obs(collated_batch.state, self.settings)
     returns = self.settings.cudaize_var(collated_batch.reward)
     batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
     actions = collated_batch.action
@@ -378,7 +395,8 @@ class SatMiniLinearPolicy(PolicyBase):
     return final_action
 
   def compute_loss(self, transition_data):
-    collated_batch = transition_data
+    collated_batch = collate_transitions(transition_data,settings)
+    collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
     batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
     actions = collated_batch.action
@@ -464,3 +482,15 @@ class SatLBDPolicy(PolicyBase):
 
   def compute_loss(self, transition_data):
     return None, None
+
+
+
+
+
+
+
+
+
+
+
+

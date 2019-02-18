@@ -202,13 +202,15 @@ def packed_collate_observations(batch, settings=None):
   cmat_neg = torch.sparse.FloatTensor(torch.cat(ind_neg,1),torch.cat(val_neg),torch.Size([c_indices[-1],v_indices[-1]]))
   return PackedState(torch.cat(states),Variable(cmat_pos),Variable(cmat_neg),torch.cat(all_embs), torch.cat(all_clabels), (c_indices, v_indices))
 
-def collate_transitions(batch, settings=None, packed=False):  
+def collate_transitions(batch, settings=None, packed=False, cudaize_state=False):
   if not settings:
-    settings = CnfSettings()
-
+    settings = CnfSettings()  
   collate_fn = packed_collate_observations if packed else collate_observations
   obs1 = collate_fn([x.state for x in batch], settings)
   obs2 = collate_fn([x.next_state for x in batch], settings)
+  if cudaize_state:
+    obs1 = cudaize_obs(obs1)
+    obs2 = cudaize_obs(obs2)
   rews = torch.FloatTensor([x.reward for x in batch])
   actions = settings.policy.combine_actions([x.action for x in batch])  
   # formulas = settings.LongTensor([x.formula for x in batch])
@@ -314,6 +316,8 @@ def compute_kl(logits, old_logits):
 # obs is in fact a "State" object, which is in fact a very poor choice of name for "observation"..
 
 def cudaize_obs(obs, settings=None):
+  if obs is None or state_empty(obs):
+    return obs
   if not settings:
     settings = CnfSettings()  
   if not settings['cuda']:
@@ -343,3 +347,5 @@ def densify_transition(t):
 def undensify_transition(t):
   return Transition(undensify_obs(t.state),t.action,undensify_obs(t.next_state), t.reward, t.formula, t.prev_obs)
 
+def state_empty(s):
+  return all([i is None for i in s])

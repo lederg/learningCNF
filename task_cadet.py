@@ -54,9 +54,9 @@ def cadet_main():
     policy.train()
     mt1 = time.time()
     # ipdb.set_trace()
-    collated_batch = collate_transitions(transition_data,settings)
-    collated_batch.state = cudaize_obs(collated_batch.state)
-    loss, logits = policy.compute_loss(collated_batch)
+    # collated_batch = collate_transitions(transition_data,settings)
+    # collated_batch.state = cudaize_obs(collated_batch.state)
+    loss, logits = policy.compute_loss(transition_data)
     mt2 = time.time()
     if loss is None:
       return

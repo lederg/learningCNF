@@ -1,4 +1,5 @@
 import ipdb
+import cProfile
 from sacred import Experiment
 from config import *
 from settings import *
@@ -15,9 +16,9 @@ def main():
 	# print(settings.hyperparameters)
 	from task_a3c import a3c_main
 	from task_parallel import parallel_main
-	if settings['main_loop'] == 'a3c':		
-		a3c_main()
-	elif settings['main_loop'] == 'parallel':
-		parallel_main()
+
+	func = eval(settings['main_loop'])
+	if settings['profiling']:
+		cProfile.runctx(settings['main_loop']+'()', globals(), locals(), 'main_process.prof')
 	else:
-		print('Unknown main loop: {}'.format(settings['main_loop']))
+		func()

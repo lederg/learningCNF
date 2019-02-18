@@ -15,3 +15,5 @@ PackedState = namedtuple('PackedState',
 
 Transition = namedlist('Transition',
                         ['state', 'action', 'next_state', 'reward', 'formula', 'prev_obs'])
+
+EmptyState = State(state=None, cmat=None, ground=None, clabels=None, vmask=None, cmask=None, ext_data=None)

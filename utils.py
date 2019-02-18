@@ -74,7 +74,8 @@ def epsilonize(p, eps):
     return (1-eps)*p + eps*U
 
 
-
+def flatten(l):
+    return [i for x in l for i in x]
 
 def normalize(input, p=2, dim=1, eps=1e-20):
     return input / input.norm(p, dim).clamp(min=eps).expand_as(input)

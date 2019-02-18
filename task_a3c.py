@@ -44,6 +44,7 @@ class MyManager(BaseManager): pass
 MyManager.register('EpisodeData',EpisodeData)
 
 def a3c_main():
+  mp.set_start_method('forkserver')
   if settings['do_not_run']:
     print('Not running. Printing settings instead:')
     print(settings.hyperparameters)
@@ -59,7 +60,7 @@ def a3c_main():
   ed = manager.EpisodeData(name=settings['name'], fname=settings['base_stats'])
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   ProviderClass = eval(settings['episode_provider'])
-  provider = iter(ProviderClass(settings['rl_train_data']))
+  provider = ProviderClass(settings['rl_train_data'])
 
   policy = create_policy()
   policy.share_memory()
@@ -98,7 +99,7 @@ def a3c_main():
     time.sleep(UNIT_LENGTH)
     gsteps = global_steps.value
     if i % REPORT_EVERY == 0 and i>0:
-      reporter.proxy().report_stats(gsteps, len(provider))
+      reporter.proxy().report_stats(gsteps, provider.get_total())
       eps = global_episodes.value
       print('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
     if i % SAVE_EVERY == 0 and i>0:

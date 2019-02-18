@@ -83,7 +83,7 @@ class WorkerEnv(mp.Process):
     envstr = self.envstr
     env = envstr.env
     if not envstr.last_obs or envstr.curr_step > self.max_step:
-      self.reset_env(fname=next(self.provider))    
+      self.reset_env(fname=self.provider.get_next())   
     last_obs = collate_observations([envstr.last_obs])
     [action] = self.lmodel.select_action(last_obs, **kwargs)
     envstr.episode_memory.append(Transition(envstr.last_obs,action,None, None, envstr.env_id, envstr.prev_obs))
@@ -239,7 +239,7 @@ class WorkerEnv(mp.Process):
       transition_data, num_eps = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
       # After the batch is finished, advance the iterator
       self.provider.reset()
-      self.reset_env(fname=next(self.provider))
+      self.reset_env(fname=self.provider.get_next())
       print('Forward pass in {} got batch with length {} in {} seconds!'.format(self.name,len(transition_data),total_inference_time))
       begin_time = time.time()
       self.train(transition_data)

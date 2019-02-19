@@ -24,8 +24,8 @@ class SatPolicy(PolicyBase):
       print('Bootstraping Policy from existing encoder')
       self.encoder = encoder
     else:
-      # self.encoder = SatEncoder(**kwargs)
-      self.encoder = SatSimpleEncoder(**kwargs)
+      self.encoder = SatEncoder(**kwargs)
+      # self.encoder = SatSimpleEncoder(**kwargs)
     if self.settings['use_global_state']:
       self.linear1 = nn.Linear(self.state_dim+self.final_embedding_dim, self.policy_dim1)
     else:

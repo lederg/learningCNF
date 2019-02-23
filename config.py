@@ -129,6 +129,7 @@ def cfg():
 	use_state_in_vn = False	
 	rnn_iters = 0
 	learn_from_aborted = True
+	clip_by_value = False
 
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate

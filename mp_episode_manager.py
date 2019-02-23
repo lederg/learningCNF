@@ -251,7 +251,10 @@ class WorkerEnv(mp.Process):
     loss = self.compute_loss(transition_data)
     self.optimizer.zero_grad()
     loss.backward()
-    torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
+    if self.settings['clip_by_value']:
+      torch.nn.utils.clip_grad_value_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
+    else:
+      torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
     for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
         gp._grad = lp.grad
     self.optimizer.step()

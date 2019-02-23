@@ -354,7 +354,7 @@ def cadet_main():
       print(pg_loss,disallowed_loss)
     # if i % 10 == 0 and i>0:
     #   ipdb.set_trace()
-    torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])
+    torch.nn.utils.clip_grad_value_(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       print('NaN in grads!')
       ipdb.set_trace()

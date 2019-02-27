@@ -365,7 +365,7 @@ class QbfNewEncoder(nn.Module):
 
 class QbfSimpleEncoder(nn.Module):
 	def __init__(self, **kwargs):
-		super(QbfNewEncoder, self).__init__() 
+		super(QbfSimpleEncoder, self).__init__() 
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
 		self.debug = False
 		self.vlabel_dim = self.settings['ground_dim']
@@ -380,16 +380,17 @@ class QbfSimpleEncoder(nn.Module):
 		self.W_C_pos_params = nn.Parameter(torch.FloatTensor(self.clabel_dim+self.cemb_dim,self.vemb_dim))
 		self.W_C_neg_params = nn.Parameter(torch.FloatTensor(self.clabel_dim+self.cemb_dim,self.vemb_dim))
 		self.B_C_params = nn.Parameter(torch.FloatTensor(self.vemb_dim))
-		nn_init.normal_(W_V_pos_params)
-		nn_init.normal_(W_V_neg_params)
-		nn_init.normal_(B_V_params)		
-		nn_init.normal_(W_C_pos_params)
-		nn_init.normal_(W_C_neg_params)
-		nn_init.normal_(B_C_params)		
+		nn_init.normal_(self.W_V_pos_params)
+		nn_init.normal_(self.W_V_neg_params)
+		nn_init.normal_(self.B_V_params)		
+		nn_init.normal_(self.W_C_pos_params)
+		nn_init.normal_(self.W_C_neg_params)
+		nn_init.normal_(self.B_C_params)		
 		if self.settings['use_bn']:
 			self.vnorm_layer = nn.BatchNorm1d(self.vemb_dim)
 		elif self.settings['use_ln']:
 			self.vnorm_layer = nn.LayerNorm(self.vemb_dim)
+		self.const_var = self.settings.zeros(1)
 
 
 		if self.settings['use_gru']:
@@ -412,6 +413,8 @@ class QbfSimpleEncoder(nn.Module):
 			self.B_C_params.requires_grad=False
 		if self.settings['use_bn']:			
 			self.vnorm_layer.load_state_dict(other.vnorm_layer.state_dict())
+		elif self.settings['use_gru']:
+			self.gru.load_state_dict(other.gru.state_dict())
 
 
 # vlabels are (batch,maxvars,vlabel_dim)
@@ -421,33 +424,28 @@ class QbfSimpleEncoder(nn.Module):
 	def forward(self, vlabels, clabels, cmat_pos, cmat_neg, **kwargs):
 		size = vlabels.size()
 		bs = size[0]
-		maxvars = size[1]
-		# ipdb.set_trace()
 		pos_vars = vlabels
 		neg_vars = vlabels
 		vmat_pos = cmat_pos.t()
-		vmat_neg = cmat_neg.t()
+		vmat_neg = cmat_neg.t()		
+		vembs = self.const_var.expand(bs,self.vemb_dim)
 
-		for t, p in enumerate(self.W_L_params):
-			# results is everything we computed so far, its precisely the correct input to W_L_t
-			av = (torch.mm(cmat_pos,pos_vars)+torch.mm(cmat_neg,neg_vars)).t()
-			c_t_pre = self.non_linearity(torch.mm(self.W_L_params[t],av).t() + self.B_L_params[t])
-			# ipdb.set_trace()
-			c_t = torch.cat([clabels,c_t_pre],dim=1)
-			pv = torch.mm(vmat_pos,c_t).t()
-			nv = torch.mm(vmat_neg,c_t).t()
-			pv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],pv).t() + self.B_C_params[t])
-			nv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],nv).t() + self.B_C_params[t])
+		for _ in range(self.max_iters):
+			prev_vembs = vembs
+			vs = torch.cat([vlabels,vembs],dim=1)
+			pv = torch.mm(vs,self.W_V_pos_params)
+			nv = torch.mm(vs,self.W_V_neg_params)
+			cembs = self.non_linearity(torch.mm(cmat_pos,pv) + torch.mm(cmat_neg,nv) + self.B_V_params)
+			cs = torch.cat([clabels,cembs],dim=1)
+			pc = torch.mm(cs,self.W_C_pos_params)
+			nc = torch.mm(cs,self.W_C_neg_params)
+			vembs = self.non_linearity(torch.mm(vmat_pos,pc) + torch.mm(vmat_neg,nc) + self.B_C_params)
 			if self.settings['use_bn'] or self.settings['use_ln']:
-				pv_t_pre = self.vnorm_layers[t](pv_t_pre.contiguous())
-				nv_t_pre = self.vnorm_layers[t](nv_t_pre.contiguous())			
-			# if bs>1:
-			# 	ipdb.set_trace()			
-			pos_vars = torch.cat([pos_vars,pv_t_pre,nv_t_pre],dim=1)
-			neg_vars = torch.cat([neg_vars,nv_t_pre,pv_t_pre],dim=1)
+				vembs = self.vnorm_layer(vembs)
+			elif self.settings['use_gru']:
+				vembs = self.gru(prev_vembs,vembs)
 
-
-		return pos_vars, neg_vars		
+		return vembs		
 
 
 

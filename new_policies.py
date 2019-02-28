@@ -231,22 +231,20 @@ class SimplePolicy(PolicyBase):
       state = self.state_bn(state)
 
     if self.settings['use_global_state']:
-      if self.batch_size > 1:
-        ipdb.set_trace()
+      # if self.batch_size > 1:
+      #   ipdb.set_trace()
       a = state.view(self.batch_size,1,self.state_dim)
       reshaped_state = a.expand(self.batch_size,size[1],self.state_dim) # add the maxvars dimention
       inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
     else:
       inputs = vs.view(-1,self.final_embedding_dim)
 
-    ipdb.set_trace()
     if self.policy_dim2:      
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
     # ipdb.set_trace()
-    outputs = outputs.view(2,self.batch_size,-1)
-    outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
+    outputs = outputs.view(self.batch_size,-1,2) # batch x numvars x pos-neg ?
     outputs = outputs.contiguous().view(self.batch_size,-1)
     if self.settings['ac_baseline'] and self.batch_size > 1:
       embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)

@@ -37,6 +37,9 @@ class WorkerEnv(WorkerBase):
       steps, rewards = zip(*stats)
       return np.mean(rewards[-20:-1])
 
+    if not ep:
+      return ep      
+
     gamma = self.settings['gamma']    
     baseline = compute_baseline(ep[0].formula) if self.settings['stats_baseline'] else 0
     _, _, _,rewards, *_ = zip(*ep)

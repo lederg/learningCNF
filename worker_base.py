@@ -72,7 +72,12 @@ class WorkerBase(mp.Process):
     envstr = self.envstr
     env = envstr.env
     if not envstr.last_obs:
-      self.reset_env(fname=self.provider.get_next())
+      rc = self.reset_env(fname=self.provider.get_next())
+      if rc is None:    # degenerate env
+        self.completed_episodes.append(envstr.episode_memory)
+        return True
+
+
     last_obs = collate_observations([envstr.last_obs])
     [action] = self.lmodel.select_action(last_obs, **kwargs)
     # This will turn into a bug the second prev_obs actually contains anything. TBD.

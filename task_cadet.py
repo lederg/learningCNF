@@ -149,6 +149,9 @@ def cadet_main():
 
     total_inference_time = time.time() - begin_time
     ns = len(transition_data)
+    if ns == 0:
+      print('Degenerate batch, ignoring')
+      continue
     ratio = total_inference_time / ns
     print('Finished batch with total of {} steps in {} seconds. Ratio: {}'.format(ns, total_inference_time,ratio))
     if not (i % REPORT_EVERY) and i>0:

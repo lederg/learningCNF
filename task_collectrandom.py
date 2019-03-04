@@ -90,8 +90,11 @@ def collect_random_main():
         all_episodes.append(episode)
       mt2 = time.time()    
       num_episodes += episodes_per_batch
+      i += 1
+      if sum(all_episodes) == 0:
+        print('Skipping degenerate episode {}'.format(provider.get_next()))
+        break
       with shelve.open(shelf_name) as db:
         db[fname] = all_episodes
-      i += 1
 
     provider.reset()

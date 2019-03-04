@@ -73,7 +73,7 @@ class SatActiveEnv:
     return self.solver.reward()
 
   def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
-    self.current_step += 1
+    self.current_step += 1    
     adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
     if not self.server:
       log.info('Running a test version of SatEnv')
@@ -98,8 +98,8 @@ class SatEnvProxy(EnvBase):
     self.reward_scale = self.settings['sat_reward_scale']
 
   def step(self, action):
-    self.queue_out.put((EnvCommands.CMD_STEP,action))
-    ack, rc = self.queue_in.get()
+    self.queue_out.put((EnvCommands.CMD_STEP,action))    
+    ack, rc = self.queue_in.get()  
     assert ack==EnvCommands.ACK_STEP, 'Expected ACK_STEP'
     env_obs = SatActiveEnv.EnvObservation(*rc)
     self.finished = env_obs.done    
@@ -113,13 +113,14 @@ class SatEnvProxy(EnvBase):
     self.rewards = []
     self.queue_out.put((EnvCommands.CMD_RESET,fname))
     ack, rc = self.queue_in.get()
-    assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'
-    return SatActiveEnv.EnvObservation(*rc)
+    assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'    
+    if rc != None:
+      return SatActiveEnv.EnvObservation(*rc)
+
 
   def new_episode(self, fname, settings=None, **kwargs):
     if not settings:
       settings = CnfSettings()
-    print('new episode: {}'.format(fname))
     env_id = os.path.split(fname)[1]
     # Set up ground_embeddings and adjacency matrices
     obs = self.reset(fname)    
@@ -129,6 +130,8 @@ class SatEnvProxy(EnvBase):
     if not settings:
       settings = CnfSettings()
 
+    if env_obs == None:
+      return None
     if env_obs.orig_clause_labels is not None:
       self.orig_clabels = env_obs.orig_clause_labels
       self.orig_clauses = csr_to_pytorch(env_obs.orig_clauses)
@@ -198,7 +201,10 @@ class SatEnvServer(mp.Process):
 
       elif self.cmd == EnvCommands.CMD_RESET:
         if self.env.current_step == 0:
-          pass
+          if self.settings['debug']:
+            print('Degenerate episode on {}'.format(fname))
+          self.cmd = None
+          self.queue_out.put((EnvCommands.ACK_RESET,None))
           # This is a degenerate episodes with no GC
         else:
           pass
@@ -208,7 +214,6 @@ class SatEnvServer(mp.Process):
 
 
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
-    # print('vlabels.max() is {}'.format(vlabels.max()))    
     self.env.current_step += 1    
     msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)
     if self.cmd == EnvCommands.CMD_RESET:

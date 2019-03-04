@@ -73,6 +73,8 @@ class EpisodeManager(object):
       steps, rewards = zip(*stats)
       return np.mean(rewards[-20:-1])
 
+    if not ep:
+      return ep      
     gamma = self.settings['gamma']    
     baseline = compute_baseline(ep[0].formula) if self.settings['stats_baseline'] else 0
     _, _, _,rewards, *_ = zip(*ep)
@@ -144,7 +146,11 @@ class EpisodeManager(object):
     for i in active_envs:
       envstr = self.envs[i]
       if not envstr.last_obs or envstr.curr_step > self.max_step:
-        self.reset_env(envstr,fname=self.provider.get_next())
+        rc = self.reset_env(envstr,fname=self.provider.get_next())
+        if rc is None:    # degenerate env
+          self.completed_episodes.append(envstr.episode_memory)
+          return True
+
         # print('Started new Environment ({}).'.format(envstr.fname))
       step_obs.append(envstr.last_obs)          # This is an already processed last_obs, from last iteration
       prev_obs.append(list(envstr.prev_obs))

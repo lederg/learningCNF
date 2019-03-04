@@ -47,7 +47,7 @@ def collect_random_main():
   total_steps = 0
   global_grad_steps = mp.Value('i', 0)
   episodes_per_batch = settings['episodes_per_batch']
-  workers_sem = mp.Semaphore(episodes_per_batch)
+  workers_sem = mp.Semaphore(0)
   workers_queue = mp.Queue()
   manager = MyManager()
   reporter = PGReporterServer(PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard']))
@@ -84,6 +84,8 @@ def collect_random_main():
       mt1 = time.time()
       all_episodes = []
       for _ in range(episodes_per_batch):
+        workers_sem.release()
+      for _ in range(episodes_per_batch):
         episode = workers_queue.get()      
         all_episodes.append(episode)
       mt2 = time.time()    
@@ -91,7 +93,5 @@ def collect_random_main():
       with shelve.open(shelf_name) as db:
         db[fname] = all_episodes
       i += 1
-      for _ in range(episodes_per_batch):
-        workers_sem.release()
-        
+
     provider.reset()

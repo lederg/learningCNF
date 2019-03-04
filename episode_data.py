@@ -222,10 +222,12 @@ class UniformEpisodeProvider(AbstractEpisodeProvider):
 class OnePassProvider(AbstractEpisodeProvider):
   def __init__(self,ds):
     super(OnePassProvider, self).__init__(ds) 
+    print('items: {}'.format(len(self.items)))
     self.current = 0
 
-  def sample(self):
+  def sample(self):    
     if self.current >= len(self.items):
+      print('OnePassProvider: Finished ({})'.format(self.current))
       return None
     else:
       return self.items[self.current]

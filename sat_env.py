@@ -119,10 +119,8 @@ class SatEnvProxy(EnvBase):
   def new_episode(self, fname, settings=None, **kwargs):
     if not settings:
       settings = CnfSettings()
-    try:
-      env_id = int(os.path.split(fname)[1].split('_')[-2])
-    except:
-      env_id = os.path.split(fname)[1]
+    print('new episode: {}'.format(fname))
+    env_id = os.path.split(fname)[1]
     # Set up ground_embeddings and adjacency matrices
     obs = self.reset(fname)    
     return obs, env_id

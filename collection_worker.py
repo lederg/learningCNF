@@ -43,5 +43,6 @@ class CollectionWorker(WorkerBase):
       total_inference_time = time.time() - begin_time
       ep = self.completed_episodes.pop(0)
       total_reward = sum([x.reward for x in ep])
-      # print('Forward pass in {} got episode with length {} in {} seconds!'.format(self.name,len(transition_data),total_inference_time))      
+      if self.settings['debug']:
+        print('Forward pass in {} got episode with length {} in {} seconds!'.format(self.name,len(ep),total_inference_time))      
       self.main_queue.put(total_reward)

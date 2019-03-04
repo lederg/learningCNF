@@ -395,7 +395,7 @@ class SatMiniLinearPolicy(PolicyBase):
     return final_action
 
   def compute_loss(self, transition_data):
-    collated_batch = collate_transitions(transition_data,settings)
+    collated_batch = collate_transitions(transition_data,self.settings)
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
     batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
@@ -429,8 +429,9 @@ class SatMiniLinearPolicy(PolicyBase):
 
 class SatRandomPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
-    super(SatRandomPolicy, self).__init__(**kwargs)
-    self.action_score = nn.Linear(2,1)
+    super(SatRandomPolicy, self).__init__(**kwargs)    
+    self.p = self.settings['sat_random_p']
+    self.pval = nn.Parameter(torch.tensor(self.p), requires_grad=False)
   
   def forward(self, obs, **kwargs):
     pass
@@ -449,10 +450,11 @@ class SatRandomPolicy(PolicyBase):
   def select_action(self, obs_batch, **kwargs):
     assert(obs_batch.clabels.shape[0]==1)
     num_learned = obs_batch.ext_data[0]
-    action = torch.from_numpy(np.random.binomial(1,p=0.5,size=num_learned[1]-num_learned[0])).unsqueeze(0)
+    action = torch.from_numpy(np.random.binomial(1,p=self.pval,size=num_learned[1]-num_learned[0])).unsqueeze(0)
     locked = obs_batch.clabels[0,num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
     final_action = torch.max(action,locked)
 
+    # ipdb.set_trace()
     return final_action
 
   def compute_loss(self, transition_data):

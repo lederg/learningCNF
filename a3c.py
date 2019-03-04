@@ -17,6 +17,7 @@ def main():
 	from task_a3c import a3c_main
 	from task_parallel import parallel_main
 	from task_collectgrid import grid_main
+	from task_collectrandom import collect_random_main
 
 	func = eval(settings['main_loop'])
 	if settings['profiling']:

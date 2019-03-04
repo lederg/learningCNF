@@ -92,5 +92,6 @@ def grid_main():
     with shelve.open(shelf_name) as db:
       db[fname] = all_episodes
     i += 1
+    provider.reset()
     for _ in range(episodes_per_batch):
       workers_sem.release()

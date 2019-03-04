@@ -89,7 +89,10 @@ def cadet_main():
   mse_loss = nn.MSELoss()
   stepsize = settings['init_lr']
   policy = create_policy()
-  optimizer = SharedAdam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)  
+  if not settings['do_not_learn']:
+    optimizer = SharedAdam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)
+  else:
+    optimizer = None
   # optimizer = optim.SGD(policy.parameters(), lr=settings['init_lr'], momentum=0.9)
   # optimizer = optim.RMSprop(policy.parameters())
   reporter.log_env(settings['rl_log_envs'])

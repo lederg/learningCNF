@@ -219,6 +219,26 @@ class UniformEpisodeProvider(AbstractEpisodeProvider):
   def __iter__(self):
     return self.get_next()
 
+class OnePassProvider(AbstractEpisodeProvider):
+  def __init__(self,ds):
+    super(OnePassProvider, self).__init__(ds) 
+    self.current = 0
+
+  def sample(self):
+    if self.current >= len(self.items):
+      return None
+    else:
+      return self.items[self.current]
+
+  def reset(self, **kwargs):
+    self.current += 1
+
+  def get_next(self):
+    return self.sample()
+
+  def __iter__(self):
+    return self.get_next()
+
     
 class RandomEpisodeProvider(AbstractEpisodeProvider):
   def sample(self):

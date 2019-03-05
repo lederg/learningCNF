@@ -132,7 +132,6 @@ def cfg():
 	rnn_iters = 0
 	learn_from_aborted = True
 	check_allowed_actions = True
-	sat_random_p = 0.5
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate
 	disallowed_aux = False
@@ -156,6 +155,7 @@ def cfg():
 	sat_winning_reward = 10
 	sat_reduce_base = 500
 	do_lbd = False
+	sat_random_p = 0.5
 
 # RL - DQN
 	learning_starts = 50000

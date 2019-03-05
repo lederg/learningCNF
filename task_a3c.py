@@ -44,7 +44,7 @@ class MyManager(BaseManager): pass
 MyManager.register('EpisodeData',EpisodeData)
 
 def a3c_main():
-  mp.set_start_method('forkserver')
+  # mp.set_start_method('forkserver')
   if settings['do_not_run']:
     print('Not running. Printing settings instead:')
     print(settings.hyperparameters)

@@ -191,7 +191,7 @@ class WorkerEnv(mp.Process):
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
-    self.settings['cuda']=False         # No CUDA in the worker threads
+    self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = create_policy(settings=self.settings)
     self.lmodel.load_state_dict(self.gmodel.state_dict())
 
@@ -207,7 +207,7 @@ class WorkerEnv(mp.Process):
     loss.backward()
     mt2 = time.time()
     print('Backward took {} seconds'.format(mt2-mt1))
-    torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
+    # torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
     for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
         gp._grad = lp.grad
     self.optimizer.step()

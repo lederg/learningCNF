@@ -334,16 +334,26 @@ def cudaize_obs(obs, settings=None):
   cmask = obs.cmask.cuda() if obs.cmask is None else None
   return State(state,cmat,ground,clabels,vmask,cmask,obs.ext_data)
 
-def densify_obs(obs):
+def densify_obs(obs, settings=None):
+  if not settings:
+    settings = CnfSettings()  
   if obs is None:
     return None
-  return DenseState(obs.state,obs.cmat._indices(), obs.cmat._values(), obs.cmat.shape, obs.ground,obs.clabels,obs.vmask,obs.cmask,obs.ext_data)
+  if settings['disable_gnn']:
+    return DenseState(obs.state,None, None, None, obs.ground,obs.clabels,obs.vmask,obs.cmask,obs.ext_data)
+  else:
+    return DenseState(obs.state,obs.cmat._indices(), obs.cmat._values(), obs.cmat.shape, obs.ground,obs.clabels,obs.vmask,obs.cmask,obs.ext_data)
 
-def undensify_obs(dobs):
+def undensify_obs(dobs, settings=None):
+  if not settings:
+    settings = CnfSettings()  
   if dobs is None:
     return None
-  cmat = torch.sparse.FloatTensor(dobs.cmat_ind,dobs.cmat_val,dobs.cmat_size)
-  return State(dobs.state,cmat,dobs.ground,dobs.clabels,dobs.vmask,dobs.cmask,dobs.ext_data)
+  if settings['disable_gnn']:
+    return State(dobs.state,None,dobs.ground,dobs.clabels,dobs.vmask,dobs.cmask,dobs.ext_data)
+  else:
+    cmat = torch.sparse.FloatTensor(dobs.cmat_ind,dobs.cmat_val,dobs.cmat_size)
+    return State(dobs.state,cmat,dobs.ground,dobs.clabels,dobs.vmask,dobs.cmask,dobs.ext_data)
 
 def densify_transition(t):
   return Transition(densify_obs(t.state),t.action,densify_obs(t.next_state), t.reward, t.formula, t.prev_obs)

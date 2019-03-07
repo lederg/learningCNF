@@ -111,7 +111,7 @@ def parallel_main():
                                   ],
                                   outside_value=desired_kl * 0.02) 
 
-  # mp.set_sharing_strategy('file_system')
+  mp.set_sharing_strategy('file_system')
   workers = [WorkerEnv(settings, cpu_policy, provider, ed, workers_queue, workers_sem, global_grad_steps, i, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
   print('Running with {} workers...'.format(len(workers)))
   for w in workers:

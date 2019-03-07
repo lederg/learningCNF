@@ -137,12 +137,12 @@ class SatEnvProxy(EnvBase):
 
     if env_obs == None:
       return None
-    if env_obs.orig_clause_labels is not None:
-      self.orig_clabels = env_obs.orig_clause_labels
+    self.orig_clabels = [] if self.disable_gnn else env_obs.orig_clause_labels
+    if env_obs.orig_clauses is not None:
       self.orig_clauses = None if self.disable_gnn else csr_to_pytorch(env_obs.orig_clauses)
     learned_clauses = None if self.disable_gnn else csr_to_pytorch(env_obs.learned_clauses)
     cmat = None if self.disable_gnn else Variable(concat_sparse(self.orig_clauses,learned_clauses))
-    all_clabels = torch.from_numpy(np.concatenate([self.orig_clabels,env_obs.clabels])).float()
+    all_clabels = env_obs.clabels if self.disable_gnn else torch.from_numpy(np.concatenate([self.orig_clabels,env_obs.clabels])).float()
 
     # Replace the first index of the clabels with a marker for orig/learned
 
@@ -225,11 +225,12 @@ class SatEnvServer(mp.Process):
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
     self.env.current_step += 1    
     msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)
+    if not self.disable_gnn:
+      msg.orig_clause_labels = self.env.get_clabels()
     if self.cmd == EnvCommands.CMD_RESET:
       # If this is the reply to a RESET add all existing (permanent) clauses
       if not self.disable_gnn:
         msg.orig_clauses = self.env.get_orig_clauses()
-      msg.orig_clause_labels = self.env.get_clabels()
       self.last_reward = self.env.get_reward()
       ack = EnvCommands.ACK_RESET
     elif self.cmd == EnvCommands.CMD_STEP:

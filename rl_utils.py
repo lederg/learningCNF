@@ -127,6 +127,8 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
   if not settings:
     settings = CnfSettings()
   bs = len(batch)
+  # if bs>1:
+  #   ipdb.set_trace()
   if not c_size:
     c_size = max([x.clabels.size(0) for x in batch if x])
   if not v_size:
@@ -164,6 +166,7 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
       all_clabels.append(torch.zeros([c_size,settings['clabel_dim']]))
   
   if not settings['disable_gnn']:
+    print('here')
     cmat = torch.sparse.FloatTensor(torch.cat(ind,1),torch.cat(val),torch.Size([c_size*(i+1),v_size*(i+1)]))
   else:
     cmat = None

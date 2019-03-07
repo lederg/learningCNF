@@ -85,7 +85,7 @@ def a3c_main():
                                        (num_steps / 2,  desired_kl * 0.1),
                                   ],
                                   outside_value=desired_kl * 0.02) 
-
+  mp.set_sharing_strategy('file_system')
   workers = [WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, i, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
   print('Running with {} workers...'.format(len(workers)))
   for w in workers:

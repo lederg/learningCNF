@@ -146,8 +146,8 @@ class EpisodeManager(object):
     for i in active_envs:
       envstr = self.envs[i]
       if not envstr.last_obs or envstr.curr_step > self.max_step:
-        rc = self.reset_env(envstr,fname=self.provider.get_next())
-        if rc is None:    # degenerate env
+        obs = self.reset_env(envstr,fname=self.provider.get_next())
+        if obs is None:    # degenerate env
           self.completed_episodes.append(envstr.episode_memory)
           return True
 

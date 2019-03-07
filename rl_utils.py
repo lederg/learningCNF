@@ -128,9 +128,9 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
     settings = CnfSettings()
   bs = len(batch)
   if not c_size:
-    c_size = max([x.cmat.size(0) for x in batch if x])
+    c_size = max([x.clabels.size(0) for x in batch if x])
   if not v_size:
-    v_size = max([x.cmat.size(1) for x in batch if x])
+    v_size = max([x.ground.size(0) for x in batch if x])
   states = []
   ind = []
   val = []
@@ -141,9 +141,10 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
   cmask = settings.zeros((len(batch),c_size))
   for i, b in enumerate(batch):
     if b:      
-      states.append(b.state)      
-      ind.append(b.cmat.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
-      val.append(b.cmat.data._values())
+      states.append(b.state)
+      if not settings['disable_gnn']:
+        ind.append(b.cmat.data._indices() + torch.LongTensor([i*c_size,i*v_size]).view(2,1))
+        val.append(b.cmat.data._values())
       embs = b.ground.squeeze()
       # clabels = b.clabels.t()                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)
       clabels = b.clabels                            # 1*num_clauses  ==> num_clauses*1 (1 is for dim now)
@@ -162,7 +163,10 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
       all_embs.append(torch.zeros([v_size,settings['vlabel_dim']]))
       all_clabels.append(torch.zeros([c_size,settings['clabel_dim']]))
   
-  cmat = torch.sparse.FloatTensor(torch.cat(ind,1),torch.cat(val),torch.Size([c_size*(i+1),v_size*(i+1)]))
+  if not settings['disable_gnn']:
+    cmat = torch.sparse.FloatTensor(torch.cat(ind,1),torch.cat(val),torch.Size([c_size*(i+1),v_size*(i+1)]))
+  else:
+    cmat = None
   ext_data = [x.ext_data for x in batch]
   return State(torch.cat(states),Variable(cmat),torch.stack(all_embs), torch.stack(all_clabels),
                 vmask, cmask, ext_data)

@@ -156,6 +156,7 @@ def cfg():
 	sat_reduce_base = 500
 	do_lbd = False
 	sat_random_p = 0.5
+	disable_gnn = False
 
 # RL - DQN
 	learning_starts = 50000

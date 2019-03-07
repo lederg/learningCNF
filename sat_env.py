@@ -36,6 +36,7 @@ class SatActiveEnv:
     self.server = server
     self.current_step = 0
     self.reduce_base = int(self.settings['sat_reduce_base'])
+    self.disable_gnn = self.settings['disable_gnn']
     self._name = 'SatEnv'
 
   @property
@@ -73,8 +74,11 @@ class SatActiveEnv:
     return self.solver.reward()
 
   def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
-    self.current_step += 1    
-    adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
+    self.current_step += 1
+    if self.disable_gnn:
+      adj_matrix = None
+    else:            
+      adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
     if not self.server:
       log.info('Running a test version of SatEnv')
       utility = cl_label_arr[:,3] # just return the lbd
@@ -96,6 +100,7 @@ class SatEnvProxy(EnvBase):
     self.rewards = None
     self.finished = False
     self.reward_scale = self.settings['sat_reward_scale']
+    self.disable_gnn = self.settings['disable_gnn']
 
   def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))    
@@ -134,26 +139,29 @@ class SatEnvProxy(EnvBase):
       return None
     if env_obs.orig_clause_labels is not None:
       self.orig_clabels = env_obs.orig_clause_labels
-      self.orig_clauses = csr_to_pytorch(env_obs.orig_clauses)
-    learned_clauses = csr_to_pytorch(env_obs.learned_clauses)
-    cmat = Variable(concat_sparse(self.orig_clauses,learned_clauses))
+      self.orig_clauses = None if self.disable_gnn else csr_to_pytorch(env_obs.orig_clauses)
+    learned_clauses = None if self.disable_gnn else csr_to_pytorch(env_obs.learned_clauses)
+    cmat = None if self.disable_gnn else Variable(concat_sparse(self.orig_clauses,learned_clauses))
     all_clabels = torch.from_numpy(np.concatenate([self.orig_clabels,env_obs.clabels])).float()
 
     # Replace the first index of the clabels with a marker for orig/learned
 
-    all_clabels[:len(self.orig_clabels),0]=0
-    all_clabels[-len(learned_clauses):,0]=1
+    all_clabels[:,0]=0
+    all_clabels[-len(env_obs.clabels):,0]=1
 
     # Take log of vlabels[:,3]
     activities = env_obs.vlabels[:,3]+10
     env_obs.vlabels[:,3]=np.log(activities)
     clabels = Variable(all_clabels)
-    vlabels = Variable(torch.from_numpy(env_obs.vlabels[1:]).float())   # Remove first (zero) row
+    # vlabels = Variable(torch.from_numpy(env_obs.vlabels[1:]).float())   # Remove first (zero) row
+    vlabels = Variable(torch.from_numpy(env_obs.vlabels).float())   # Remove first (zero) row
     # ipdb.set_trace()
     vmask = last_obs.vmask if last_obs else None
     cmask = last_obs.cmask if last_obs else None
     state = Variable(self.state.unsqueeze(0))    
-    return State(state,cmat, vlabels, clabels, vmask, cmask, (len(self.orig_clauses),len(self.orig_clauses)+len(learned_clauses)))
+    num_orig_clauses = len(self.orig_clabels)
+    num_learned_clauses = len(env_obs.clabels)
+    return State(state,cmat, vlabels, clabels, vmask, cmask, (num_orig_clauses,num_orig_clauses+num_learned_clauses))
 
 class SatEnvServer(mp.Process):
   def __init__(self, env, settings=None):
@@ -167,6 +175,7 @@ class SatEnvServer(mp.Process):
     self.current_fname = None
     self.last_reward = 0
     self.do_lbd = self.settings['do_lbd']
+    self.disable_gnn = self.settings['disable_gnn']
     self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
 
   def proxy(self):
@@ -218,7 +227,8 @@ class SatEnvServer(mp.Process):
     msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)
     if self.cmd == EnvCommands.CMD_RESET:
       # If this is the reply to a RESET add all existing (permanent) clauses
-      msg.orig_clauses = self.env.get_orig_clauses()
+      if not self.disable_gnn:
+        msg.orig_clauses = self.env.get_orig_clauses()
       msg.orig_clause_labels = self.env.get_clabels()
       self.last_reward = self.env.get_reward()
       ack = EnvCommands.ACK_RESET

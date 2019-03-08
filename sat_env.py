@@ -37,12 +37,18 @@ class SatActiveEnv:
     self.current_step = 0
     self.reduce_base = int(self.settings['sat_reduce_base'])
     self.disable_gnn = self.settings['disable_gnn']
+    self.formulas_dict = {}
     self._name = 'SatEnv'
 
   @property
   def name(self):
     return self._name
   
+  def load_formula(self, fname):
+    if fname not in self.formulas_dict.keys():
+      self.formulas_dict[fname] = CNF(fname)
+    return self.formulas_dict[fname]
+
   def start_solver(self, fname=None):
     
     def thunk(cl_label_arr, rows_arr, cols_arr, data_arr):      
@@ -57,7 +63,7 @@ class SatActiveEnv:
       self.solver.delete()
       self.solver.new(callback=thunk, reduce_base=self.reduce_base)
     if fname:
-      f1 = CNF(fname)
+      f1 = self.load_formula(fname)
       self.solver.append_formula(f1.clauses)
     self.current_step = 0
 
@@ -142,7 +148,7 @@ class SatEnvProxy(EnvBase):
       self.orig_clauses = None if self.disable_gnn else csr_to_pytorch(env_obs.orig_clauses)
     learned_clauses = None if self.disable_gnn else csr_to_pytorch(env_obs.learned_clauses)
     cmat = None if self.disable_gnn else Variable(concat_sparse(self.orig_clauses,learned_clauses))
-    all_clabels = env_obs.clabels if self.disable_gnn else torch.from_numpy(np.concatenate([self.orig_clabels,env_obs.clabels])).float()
+    all_clabels = torch.from_numpy(env_obs.clabels if self.disable_gnn else np.concatenate([self.orig_clabels,env_obs.clabels])).float()
 
 
 

@@ -166,7 +166,6 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
       all_clabels.append(torch.zeros([c_size,settings['clabel_dim']]))
   
   if not settings['disable_gnn']:
-    print('here')
     cmat = torch.sparse.FloatTensor(torch.cat(ind,1),torch.cat(val),torch.Size([c_size*(i+1),v_size*(i+1)]))
   else:
     cmat = None

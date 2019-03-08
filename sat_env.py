@@ -144,6 +144,8 @@ class SatEnvProxy(EnvBase):
     cmat = None if self.disable_gnn else Variable(concat_sparse(self.orig_clauses,learned_clauses))
     all_clabels = env_obs.clabels if self.disable_gnn else torch.from_numpy(np.concatenate([self.orig_clabels,env_obs.clabels])).float()
 
+
+
     # Replace the first index of the clabels with a marker for orig/learned
 
     all_clabels[:,0]=0
@@ -161,6 +163,7 @@ class SatEnvProxy(EnvBase):
     state = Variable(self.state.unsqueeze(0))    
     num_orig_clauses = len(self.orig_clabels)
     num_learned_clauses = len(env_obs.clabels)
+
     return State(state,cmat, vlabels, clabels, vmask, cmask, (num_orig_clauses,num_orig_clauses+num_learned_clauses))
 
 class SatEnvServer(mp.Process):
@@ -174,6 +177,7 @@ class SatEnvServer(mp.Process):
     self.cmd = None
     self.current_fname = None
     self.last_reward = 0
+    self.last_orig_clause_size = 0
     self.do_lbd = self.settings['do_lbd']
     self.disable_gnn = self.settings['disable_gnn']
     self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
@@ -225,12 +229,14 @@ class SatEnvServer(mp.Process):
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
     self.env.current_step += 1    
     msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)
-    if not self.disable_gnn:
+    if not self.disable_gnn:      
       msg.orig_clause_labels = self.env.get_clabels()
-    if self.cmd == EnvCommands.CMD_RESET:
-      # If this is the reply to a RESET add all existing (permanent) clauses
-      if not self.disable_gnn:
+      if self.cmd == EnvCommands.CMD_RESET or (self.last_orig_clause_size and len(msg.orig_clause_labels) < self.last_orig_clause_size):
         msg.orig_clauses = self.env.get_orig_clauses()
+        self.last_orig_clause_size = len(msg.orig_clause_labels)
+    if self.cmd == EnvCommands.CMD_RESET:
+      # if not self.disable_gnn:
+      #   msg.orig_clauses = self.env.get_orig_clauses()
       self.last_reward = self.env.get_reward()
       ack = EnvCommands.ACK_RESET
     elif self.cmd == EnvCommands.CMD_STEP:

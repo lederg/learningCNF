@@ -237,10 +237,10 @@ class WorkerEnv(mp.Process):
         rc = self.step()
       total_inference_time = time.time() - begin_time
       transition_data, num_eps = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
+      print('Forward pass in {} got batch with length {} in {} seconds!'.format(self.name,len(transition_data),total_inference_time))
       # After the batch is finished, advance the iterator
       self.provider.reset()
       self.reset_env(fname=self.provider.get_next())
-      print('Forward pass in {} got batch with length {} in {} seconds!'.format(self.name,len(transition_data),total_inference_time))
       begin_time = time.time()
       self.train(transition_data)
       total_train_time = time.time() - begin_time

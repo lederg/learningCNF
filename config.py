@@ -141,6 +141,8 @@ def cfg():
 	invalid_bias = -1000  # deprecate
 	# invalid_bias = 0
 	report_tensorboard = True
+	report_window=5000
+	short_window=100
 	mp=False
 	main_loop = 'a3c_main'
 	gpu_cap = 100

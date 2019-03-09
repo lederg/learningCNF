@@ -460,6 +460,39 @@ class SatRandomPolicy(PolicyBase):
   def compute_loss(self, transition_data):
     return None, None
 
+class SatBernoulliPolicy(PolicyBase):
+  def __init__(self, encoder=None, **kwargs):
+    super(SatBernoulliPolicy, self).__init__(**kwargs)    
+    self.p = self.settings['sat_random_p']
+    self.pval = nn.Parameter(torch.tensor(self.p), requires_grad=True)
+  
+  def forward(self, obs, **kwargs):
+    pass
+
+  def get_allowed_actions(self, obs, **kwargs):
+    pass
+
+  def translate_action(self, action, **kwargs):
+    # print('Action is: {}'.format(action[:10]))
+    return action
+
+  def combine_actions(self, actions, **kwargs):    
+    return actions
+    # return torch.cat(actions)
+
+  def select_action(self, obs_batch, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    num_learned = obs_batch.ext_data[0]
+    action = torch.from_numpy(np.random.binomial(1,p=self.pval,size=num_learned[1]-num_learned[0])).unsqueeze(0)
+    locked = obs_batch.clabels[0,num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(action,locked)
+
+    # ipdb.set_trace()
+    return final_action
+
+  def compute_loss(self, transition_data):
+    return None, None
+
 class SatLBDPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatLBDPolicy, self).__init__(**kwargs)

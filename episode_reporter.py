@@ -29,6 +29,9 @@ class SPReporter(AbstractReporter):
 		self.stats = []
 		self.stats_dict = {}
 		self.ids_to_log = set()
+		self.settings = settings
+		self.report_window = self.settings['report_window']
+		self.short_window = self.settings['short_window']
 
 class MPReporter(AbstractReporter):
 	def __init__(self, fname, settings, tensorboard=False):
@@ -94,15 +97,14 @@ class PGEpisodeReporter(SPReporter):
 		pass
 
 	def report_stats(self, total_steps, total_envs):
-		_, steps, rewards, ents = zip(*self.stats)
-		DEF_BIG_WINDOW = 50000
-		# DEF_BIG_WINDOW = total_envs*60
+		_, steps, rewards, ents = zip(*self.stats)		
+		# self.report_window = total_envs*60
 		print('Total episodes so far: %d' % len(steps))
 		print('Total steps learned from so far: %d' % sum(steps))
 		print('Total rewards so far: %f' % sum(rewards))
-		print('Mean steps for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(steps[-DEF_BIG_WINDOW:])))
-		print('Mean reward for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(rewards[-DEF_BIG_WINDOW:])))
-		print('Mean entropy for the last {} episodes: {}'.format(DEF_BIG_WINDOW,np.mean(ents[-DEF_BIG_WINDOW:])))
+		print('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
+		print('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
+		print('Mean entropy for the last {} episodes: {}'.format(self.report_window,np.mean(ents[-self.report_window:])))
 		totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
 
 		if sum(steps)+1000 < total_steps:			# Not all episodes are actually used (parallelism/on-policy pg)
@@ -110,7 +112,7 @@ class PGEpisodeReporter(SPReporter):
 
 		print('Data for the 10 most common envs:')
 		for vals in totals[:10]:
-			s = vals[3][-DEF_WINDOW:]
+			s = vals[3][-self.short_window:]
 			print('Env {} appeared {} times, with moving (100) mean/std {}/{}:'.format(vals[0], vals[1], np.mean(s), np.std(s)))
 			print(s)
 			print('\n\n')
@@ -127,8 +129,8 @@ class PGEpisodeReporter(SPReporter):
 				configure(self.fname, flush_secs=5)
 				self.tb_configured = True
 
-			log_value('Mean steps for last {} episodes'.format(DEF_BIG_WINDOW), np.mean(steps[-DEF_BIG_WINDOW:]), total_steps)
-			log_value('Mean reward for last {} episodes'.format(DEF_BIG_WINDOW), np.mean(rewards[-DEF_BIG_WINDOW:]), total_steps)
+			log_value('Mean steps for last {} episodes'.format(self.report_window), np.mean(steps[-self.report_window:]), total_steps)
+			log_value('Mean reward for last {} episodes'.format(self.report_window), np.mean(rewards[-self.report_window:]), total_steps)
 
 			print('Total steps are {}'.format(total_steps))
 		return len(steps)

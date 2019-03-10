@@ -235,7 +235,6 @@ class SatLinearPolicy(PolicyBase):
     # ipdb.set_trace()
     inputs = clabels.view(-1,self.clabel_dim)
 
-    ipdb.set_trace()
     # if size[0] > 1:
     #   break_every_tick(20)
     if self.policy_dim2:      
@@ -466,8 +465,39 @@ class SatBernoulliPolicy(PolicyBase):
     self.p = self.settings['sat_random_p']
     self.pval = nn.Parameter(torch.tensor(self.p), requires_grad=True)
   
+  # state is just a (batched) vector of fixed size state_dim which should be expanded. 
+  # vlabels are batch * max_vars * vlabel_dim
+
+  # cmat is already "batched" into a single matrix
+
   def forward(self, obs, **kwargs):
-    pass
+    clabels = obs.clabels
+    size = obs.clabels.shape
+
+    aux_losses = []
+
+    if self.settings['cuda'] and not self.settings['mp']:
+      clabels = clabels.cuda()
+
+    num_learned = obs.ext_data
+    inputs = clabels.view(-1,self.clabel_dim)[:,CLABEL_LBD].unsqueeze(1)
+    outputs = torch.sigmoid(self.pval.view(1)).expand(inputs.shape[0]).view_as(inputs)
+    # if size[0] > 1:
+    #   break_every_tick(20)
+
+    outputs_processed = []
+    # print(num_learned)
+    for i, (nl1, nl2) in enumerate(num_learned):
+      outputs_processed.append(outputs[nl1:nl2])
+      outputs = outputs[size[1]:]
+
+    # ipdb.set_trace()
+    assert(outputs.shape[0]==0)    
+    if any((x!=x).any() for x in outputs_processed):    # Check nans
+      ipdb.set_trace()
+    value = None
+    return outputs_processed, value, clabels, aux_losses
+
 
   def get_allowed_actions(self, obs, **kwargs):
     pass
@@ -482,8 +512,12 @@ class SatBernoulliPolicy(PolicyBase):
 
   def select_action(self, obs_batch, **kwargs):
     assert(obs_batch.clabels.shape[0]==1)
+    logits, *_ = self.forward(obs_batch)
+    assert(len(logits)==1)
+    logits = logits[0]
+    ps = logits[:,0].detach().cpu().numpy()
+    action = torch.from_numpy(np.random.binomial(1,p=ps)).unsqueeze(0)
     num_learned = obs_batch.ext_data[0]
-    action = torch.from_numpy(np.random.binomial(1,p=self.pval,size=num_learned[1]-num_learned[0])).unsqueeze(0)
     locked = obs_batch.clabels[0,num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
     final_action = torch.max(action,locked)
 
@@ -491,7 +525,40 @@ class SatBernoulliPolicy(PolicyBase):
     return final_action
 
   def compute_loss(self, transition_data):
-    return None, None
+    collated_batch = collate_transitions(transition_data,self.settings)
+    collated_batch.state = cudaize_obs(collated_batch.state)
+    returns = self.settings.cudaize_var(collated_batch.reward)
+    batched_logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
+    actions = collated_batch.action
+    logprobs = []
+    batched_clabels = collated_batch.state.clabels
+    num_learned = collated_batch.state.ext_data
+    for (action, logits, clabels, learned_idx) in zip(actions,batched_logits, batched_clabels, num_learned):      
+      ps = logits.clamp(min=0.001,max=0.999)
+      probs = torch.cat([ps,1-ps],dim=1)
+      locked = clabels[learned_idx[0]:learned_idx[1],CLABEL_LOCKED]
+      action = self.settings.cudaize_var(action)
+      pre_logprobs = probs.gather(1,action.view(-1,1)).log().view(-1)
+      action_probs = ((1-locked)*pre_logprobs).sum()
+      if (action_probs!=action_probs).any():
+        ipdb.set_trace()
+      logprobs.append(action_probs)
+    adv_t = returns
+    value_loss = 0.
+    # ipdb.set_trace()
+    logprobs = torch.stack(logprobs)
+    # entropies = (-probs*all_logprobs).sum(1)    
+    adv_t = (adv_t - adv_t.mean())
+    # ipdb.set_trace()
+    if self.settings['use_sum']:
+      pg_loss = (-Variable(adv_t)*logprobs).sum()
+    else:
+      pg_loss = (-Variable(adv_t)*logprobs).mean()
+
+    total_aux_loss = sum(aux_losses) if aux_losses else 0.    
+    loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
+    return loss, logits
+
 
 class SatLBDPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):

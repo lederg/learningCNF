@@ -23,7 +23,7 @@ from episode_reporter import *
 from mp_episode_manager import *
 from episode_data import *
 import torch.nn.utils as tutils
-
+import sat_policies
 settings = CnfSettings()
 
 # Units of 30 seconds
@@ -93,13 +93,15 @@ def a3c_main():
     # Change learning rate according to KL
 
   i = 0
+  pval = None
   set_proc_name(str.encode('a3c_main'))
-
   while True:
     time.sleep(UNIT_LENGTH)
     gsteps = global_steps.value
     if i % REPORT_EVERY == 0 and i>0:
-      reporter.proxy().report_stats(gsteps, provider.get_total())
+      if type(policy) == sat_policies.SatBernoulliPolicy:
+        pval = float(policy.pval.detach().numpy())
+      reporter.proxy().report_stats(gsteps, provider.get_total(), pval)
       eps = global_episodes.value
       print('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
     if i % SAVE_EVERY == 0 and i>0:

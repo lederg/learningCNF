@@ -96,7 +96,7 @@ class PGEpisodeReporter(SPReporter):
 	def log_env(self,env):
 		pass
 
-	def report_stats(self, total_steps, total_envs):
+	def report_stats(self, total_steps, total_envs, pval=None):
 		_, steps, rewards, ents = zip(*self.stats)		
 		# self.report_window = total_envs*60
 		print('Total episodes so far: %d' % len(steps))
@@ -131,6 +131,8 @@ class PGEpisodeReporter(SPReporter):
 
 			log_value('Mean steps for last {} episodes'.format(self.report_window), np.mean(steps[-self.report_window:]), total_steps)
 			log_value('Mean reward for last {} episodes'.format(self.report_window), np.mean(rewards[-self.report_window:]), total_steps)
+			if pval:
+				log_value('pval', pval, total_steps)
 
 			print('Total steps are {}'.format(total_steps))
 		return len(steps)

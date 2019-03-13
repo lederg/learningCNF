@@ -484,7 +484,7 @@ class SatBernoulliPolicy(PolicyBase):
     inputs = clabels.view(-1,self.clabel_dim)[:,CLABEL_LBD].unsqueeze(1)
     outputs = torch.sigmoid(self.pval.view(1)).expand(inputs.shape[0]).view_as(inputs)
     # if size[0] > 1:
-    #   break_every_tick(20)
+    #   break_every_tick(1)
 
     outputs_processed = []
     # print(num_learned)
@@ -525,7 +525,7 @@ class SatBernoulliPolicy(PolicyBase):
     # ipdb.set_trace()
     return final_action
 
-  def compute_loss(self, transition_data):
+  def compute_loss(self, transition_data):    
     collated_batch = collate_transitions(transition_data,self.settings)
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
@@ -536,17 +536,16 @@ class SatBernoulliPolicy(PolicyBase):
     num_learned = collated_batch.state.ext_data
     for (action, logits, clabels, learned_idx) in zip(actions,batched_logits, batched_clabels, num_learned):      
       ps = logits.clamp(min=0.001,max=0.999)
-      probs = torch.cat([ps,1-ps],dim=1)
       locked = clabels[learned_idx[0]:learned_idx[1],CLABEL_LOCKED]
       action = self.settings.cudaize_var(action)
-      pre_logprobs = probs.gather(1,action.view(-1,1)).log().view(-1)
+      all_action_probs = action.float().view_as(ps)*ps + (1-action.float().view_as(ps))*(1-ps)
+      pre_logprobs = all_action_probs.log().view(-1)
       action_probs = ((1-locked)*pre_logprobs).sum()
       if (action_probs!=action_probs).any():
         ipdb.set_trace()
       logprobs.append(action_probs)
     adv_t = returns
     value_loss = 0.
-    # ipdb.set_trace()
     logprobs = torch.stack(logprobs)
     # entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean())

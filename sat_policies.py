@@ -319,11 +319,11 @@ class SatMiniLinearPolicy(PolicyBase):
 
     if self.policy_dim2:
       self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
-      self.action_score = nn.Linear(self.policy_dim2,2)
+      self.action_score = nn.Linear(self.policy_dim2,1)
     elif self.policy_dim1:
-      self.action_score = nn.Linear(self.policy_dim1,2) 
+      self.action_score = nn.Linear(self.policy_dim1,1) 
     else:
-      self.action_score = nn.Linear(1,2) 
+      self.action_score = nn.Linear(1,1) 
 
     if non_linearity is not None:
       self.activation = eval(non_linearity)
@@ -384,7 +384,7 @@ class SatMiniLinearPolicy(PolicyBase):
     logits, *_ = self.forward(obs_batch)
     assert(len(logits)==1)
     logits = logits[0]
-    probs = F.softmax(logits,dim=1)
+    probs = torch.sigmoid(logits)
     ps = probs[:,0].detach().cpu().numpy()    # cpu() just in case, if we're in SP+cuda
     action = torch.from_numpy(np.random.binomial(1,p=ps)).unsqueeze(0)
     num_learned = obs_batch.ext_data[0]
@@ -403,7 +403,8 @@ class SatMiniLinearPolicy(PolicyBase):
     batched_clabels = collated_batch.state.clabels
     num_learned = collated_batch.state.ext_data
     for (action, logits, clabels, learned_idx) in zip(actions,batched_logits, batched_clabels, num_learned):      
-      probs = F.softmax(logits,dim=1).clamp(min=0.001,max=0.999)
+      ps = torch.sigmoid(logits).clamp(min=0.001,max=0.999)
+      probs = torch.cat([ps,1-ps],dim=1)
       locked = clabels[learned_idx[0]:learned_idx[1],CLABEL_LOCKED]
       action = self.settings.cudaize_var(action)
       pre_logprobs = probs.gather(1,action.view(-1,1)).log().view(-1)

@@ -272,3 +272,5 @@ def make_one_hot(labels, C=2):
     y = torch.eye(C)
     return y[labels]
     
+def unsig(y):
+    return -np.log(1/y-1)

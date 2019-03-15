@@ -329,6 +329,9 @@ class SatMiniLinearPolicy(PolicyBase):
       self.activation = eval(non_linearity)
     else:
       self.activation = lambda x: x
+    self.use_bn = self.settings['use_bn']
+    if self.use_bn:
+      self.cnorm_layer = nn.BatchNorm1d(self.clabel_dim)
 
   
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
@@ -346,7 +349,10 @@ class SatMiniLinearPolicy(PolicyBase):
       clabels = clabels.cuda()
 
     num_learned = obs.ext_data
-    inputs = clabels.view(-1,self.clabel_dim)[:,CLABEL_LBD].unsqueeze(1)
+    clabels = clabels.view(-1,self.clabel_dim)
+    if self.use_bn:
+      clabels = self.cnorm_layer(clabels)
+    inputs = clabels[:,CLABEL_LBD].unsqueeze(1)
 
     # if size[0] > 1:
     #   break_every_tick(20)

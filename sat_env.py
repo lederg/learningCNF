@@ -76,6 +76,9 @@ class SatActiveEnv:
   def get_clabels(self, learned=False):
     return self.solver.get_cl_labels(learned)
 
+  def get_global_state(self):
+    return self.solver.get_solver_state()
+
   def get_reward(self):
     return self.solver.reward()
 

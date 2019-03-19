@@ -119,7 +119,7 @@ class Actor1Policy(PolicyBase):
     rc = rc.view(s[0],-1)
     return rc
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     return (int(action/2),int(action%2))
 
   def combine_actions(self, actions, **kwargs):
@@ -334,7 +334,7 @@ class Actor2Policy(PolicyBase):
     rc = rc.view(s[0],-1)
     return rc
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     return (int(action/2),int(action%2))
 
   def select_action(self, obs_batch, **kwargs):
@@ -422,7 +422,7 @@ class RestartPolicy(PolicyBase):
   def get_allowed_actions(self, obs, **kwargs):    
     return torch.ones((1,2),dtype=torch.uint8)
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     actions = ['?', 'r']    
     return actions[action]
 
@@ -558,7 +558,7 @@ class ExtendedStatePolicy(PolicyBase):
     rc = rc.view(s[0],-1)
     return rc
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     return (int(action/2),int(action%2))
 
   def select_action(self, obs_batch, **kwargs):

@@ -15,10 +15,18 @@ class PolicyBase(nn.Module):
     self.policy_dim1 = self.settings['policy_dim1']
     self.policy_dim2 = self.settings['policy_dim2']   
     self.max_iters = self.settings['max_iters']   
-    self.state_bn = self.settings['state_bn']   
+    self.state_bn = self.settings['state_bn']
+    self.use_bn = self.settings['use_bn']
     self.lambda_value = self.settings['lambda_value']
     self.lambda_disallowed = self.settings['lambda_disallowed']
     self.lambda_aux = self.settings['lambda_aux']
+    self.non_linearity = self.settings['policy_non_linearity']
+
+    if self.non_linearity is not None:
+      self.activation = eval(self.non_linearity)
+    else:
+      self.activation = lambda x: x
+
   
   def forward(self, obs, **kwargs):
     raise NotImplementedError
@@ -26,7 +34,7 @@ class PolicyBase(nn.Module):
   def select_action(self, obs_batch, **kwargs):
     raise NotImplementedError
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     raise NotImplementedError
 
   def combine_actions(self, actions, **kwargs):

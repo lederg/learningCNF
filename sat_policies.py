@@ -14,12 +14,13 @@ from sat_encoders import *
 from policy_base import *
 from rl_utils import *
 from tick_utils import *
+from torch.distributions.normal import Normal
+from torch.distributions.multivariate_normal import MultivariateNormal
 
 class SatPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatPolicy, self).__init__(**kwargs)
-    self.final_embedding_dim = self.cemb_dim+self.clabel_dim    
-    non_linearity = self.settings['policy_non_linearity']
+    self.final_embedding_dim = self.cemb_dim+self.clabel_dim        
     if encoder:
       print('Bootstraping Policy from existing encoder')
       self.encoder = encoder
@@ -38,10 +39,6 @@ class SatPolicy(PolicyBase):
       self.action_score = nn.Linear(self.policy_dim1,2)
     if self.state_bn:
       self.state_bn = nn.BatchNorm1d(self.state_dim)
-    if non_linearity is not None:
-      self.activation = eval(non_linearity)
-    else:
-      self.activation = lambda x: x
 
     self.gpu_cap = self.settings['gpu_cap']
       
@@ -131,7 +128,7 @@ class SatPolicy(PolicyBase):
   def get_allowed_actions(self, obs, **kwargs):
     pass
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     # print('Action is: {}'.format(action[:10]))
     return action
 
@@ -258,7 +255,7 @@ class SatLinearPolicy(PolicyBase):
   def get_allowed_actions(self, obs, **kwargs):
     pass
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     # print('Action is: {}'.format(action[:10]))
     return action
 
@@ -378,7 +375,7 @@ class SatMiniLinearPolicy(PolicyBase):
   def get_allowed_actions(self, obs, **kwargs):
     pass
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     # print('Action is: {}'.format(action[:10]))
     return action
 
@@ -445,7 +442,7 @@ class SatRandomPolicy(PolicyBase):
   def get_allowed_actions(self, obs, **kwargs):
     pass
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     # print('Action is: {}'.format(action[:10]))
     return action
 
@@ -509,7 +506,7 @@ class SatBernoulliPolicy(PolicyBase):
   def get_allowed_actions(self, obs, **kwargs):
     pass
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     # print('Action is: {}'.format(action[:10]))
     return action
 
@@ -565,7 +562,6 @@ class SatBernoulliPolicy(PolicyBase):
     loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
     return loss, logits
 
-
 class SatLBDPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatLBDPolicy, self).__init__(**kwargs)
@@ -577,7 +573,7 @@ class SatLBDPolicy(PolicyBase):
   def get_allowed_actions(self, obs, **kwargs):
     pass
 
-  def translate_action(self, action, **kwargs):
+  def translate_action(self, action, obs, **kwargs):
     # print('Action is: {}'.format(action[:10]))
     return action
 
@@ -591,6 +587,84 @@ class SatLBDPolicy(PolicyBase):
   def compute_loss(self, transition_data):
     return None, None
 
+class SatThresholdPolicy(PolicyBase):
+  def __init__(self, encoder=None, **kwargs):
+    super(SatThresholdPolicy, self).__init__(**kwargs)
+    self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+    self.threshold_layer = nn.Linear(self.state_dim,1)    
+    if self.state_bn:
+      self.snorm_layer = nn.BatchNorm1d(self.state_dim)
+    if self.use_bn:
+      self.cnorm_layer = nn.BatchNorm1d(self.clabel_dim)
+    
+  # state is just a (batched) vector of fixed size state_dim which should be expanded. 
+  # vlabels are batch * max_vars * vlabel_dim
+
+  # cmat is already "batched" into a single matrix
+
+  def forward(self, obs, **kwargs):
+    clabels = obs.clabels
+    state = obs.state
+    aux_losses = []
+
+    if self.settings['cuda'] and not self.settings['mp']:
+      state, clabels = state.cuda(), clabels.cuda()
+
+    if self.state_bn:
+      state = self.snorm_layer(state)
+    if self.use_bn:
+      clabels = self.cnorm_layer(clabels)
+    
+    threshold = self.activation(self.threshold_layer(state))
+
+    value = None
+    return threshold, clabels
+
+
+  def get_allowed_actions(self, obs, **kwargs):
+    pass
+
+  def translate_action(self, action, obs, **kwargs):
+    # ipdb.set_trace()
+    threshold, clabels = action
+    rc = clabels[0,:,CLABEL_LBD] > threshold
+    a = rc.detach()
+    num_learned = obs.ext_data
+    locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(a.long(),locked).view(-1)
+    # ipdb.set_trace()    
+
+    return final_action
+  def combine_actions(self, actions, **kwargs):    
+    return actions
+    # return torch.cat(actions)
+
+  def select_action(self, obs_batch, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    threshold, clabels = self.forward(obs_batch)
+    m = Normal(threshold,self.sigma)
+    sampled_threshold = m.sample()
+    return [(sampled_threshold, clabels)]
+
+  def compute_loss(self, transition_data):    
+    collated_batch = collate_transitions(transition_data,self.settings)
+    collated_batch.state = cudaize_obs(collated_batch.state)
+    returns = self.settings.cudaize_var(collated_batch.reward)
+    threshold, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
+    actions = collated_batch.action
+    actions = torch.cat([a[0] for a in actions]).view(-1)
+    threshold = threshold.view(-1)
+    logprobs = gaussian_logprobs(threshold,self.sigma,actions)
+    adv_t = returns
+    value_loss = 0.
+    adv_t = (adv_t - adv_t.mean())
+    if self.settings['use_sum']:
+      pg_loss = (-adv_t*logprobs).sum()
+    else:
+      pg_loss = (-adv_t*logprobs).mean()
+      
+    loss = pg_loss
+    return loss, threshold
 
 
 

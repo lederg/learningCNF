@@ -90,7 +90,7 @@ class WorkerEnv(mp.Process):
     allowed_actions = self.lmodel.get_allowed_actions(envstr.last_obs).squeeze() if self.check_allowed_actions else None
 
     if not self.check_allowed_actions or allowed_actions[action]:
-      env_obs = envstr.env.step(self.lmodel.translate_action(action))
+      env_obs = envstr.env.step(self.lmodel.translate_action(action, envstr.last_obs))
       done = env_obs.done
     else:
       print('Chose invalid action, thats not supposed to happen.')

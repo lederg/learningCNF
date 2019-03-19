@@ -166,7 +166,7 @@ class EpisodeManager(object):
       if prev_obs_batch and prev_obs_batch[0].vmask is not None and prev_obs_batch[0].vmask.shape != obs_batch.vmask.shape:
         ipdb.set_trace()
     allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed) if self.check_allowed_actions else None
-    actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, prev_obs=prev_obs_batch, **kwargs)
+    actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, prev_obs=prev_obs_batch, **kwargs)    
     for i, envnum in enumerate(active_envs):
       envstr = self.envs[envnum]
       env = envstr.env
@@ -183,7 +183,7 @@ class EpisodeManager(object):
       else:
         action_ok = allowed_actions[i][actions[i]]      # New policies
       if action_ok:
-        env_obs = env.step(model.translate_action(actions[i]))
+        env_obs = env.step(model.translate_action(actions[i],step_obs[i]))
         done = env_obs.done
       else:
         print('Chose an invalid action! In the packed version. That was not supposed to happen.')

@@ -119,7 +119,7 @@ def cfg():
 	use_gru = False  # deprecated
 	use_bn = False
 	use_ln = False
-	state_bn = True
+	state_bn = True 	# Note the default
 	use_curriculum = False
 	normalize_episodes = False
 	parallelism = 1
@@ -159,7 +159,7 @@ def cfg():
 	do_lbd = False
 	sat_random_p = 0.5
 	disable_gnn = False
-
+	threshold_sigma = 1.0
 # RL - DQN
 	learning_starts = 50000
 	replay_size = 400000

@@ -26,7 +26,8 @@ CLABEL_LOCKED = 5
 
 class SatActiveEnv:
   EnvObservation = namedlist('SatEnvObservation', 
-                              ['orig_clauses', 'orig_clause_labels', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'])
+                              ['state', 'orig_clauses', 'orig_clause_labels', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'],
+                              default=None)
 
   def __init__(self, debug=False, server=None, settings=None, **kwargs):
     self.settings = settings if settings else CnfSettings()    
@@ -169,7 +170,7 @@ class SatEnvProxy(EnvBase):
     # ipdb.set_trace()
     vmask = last_obs.vmask if last_obs else None
     cmask = last_obs.cmask if last_obs else None
-    state = Variable(self.state.unsqueeze(0))    
+    state = self.settings.FloatTensor(np.concatenate([np.concatenate(env_obs.state[:-1]),env_obs.state[-1].reshape(-1)])).unsqueeze(0)
     num_orig_clauses = len(self.orig_clabels)
     num_learned_clauses = len(env_obs.clabels)
 
@@ -218,7 +219,8 @@ class SatEnvServer(mp.Process):
       if self.cmd == EnvCommands.CMD_STEP:
         last_step_reward = -(self.env.get_reward() - self.last_reward)      
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
-        msg = self.env.EnvObservation(None, None, None, None, None, self.winning_reward+last_step_reward, True)
+        msg = self.env.EnvObservation(reward=self.winning_reward+last_step_reward, done=True)
+        # msg = self.env.EnvObservation(None, None, None, None, None, None, self.winning_reward+last_step_reward, True)
         self.queue_out.put((EnvCommands.ACK_STEP,tuple(msg)))
 
       elif self.cmd == EnvCommands.CMD_RESET:
@@ -236,8 +238,9 @@ class SatEnvServer(mp.Process):
 
 
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
-    self.env.current_step += 1    
-    msg = self.env.EnvObservation(None, None, adj_matrix, vlabels, cl_label_arr, None, False)
+    self.env.current_step += 1
+    state = self.env.get_global_state()
+    msg = self.env.EnvObservation(state, None, None, adj_matrix, vlabels, cl_label_arr, None, False)
     if not self.disable_gnn:      
       msg.orig_clause_labels = self.env.get_clabels()
       if self.cmd == EnvCommands.CMD_RESET or (self.last_orig_clause_size and len(msg.orig_clause_labels) < self.last_orig_clause_size):

@@ -612,6 +612,7 @@ class SatThresholdPolicy(PolicyBase):
 
     if self.state_bn:
       state = self.snorm_layer(state)
+    clabels = clabels.view(-1,self.clabel_dim)
     if self.use_bn:
       clabels = self.cnorm_layer(clabels)
     
@@ -627,7 +628,7 @@ class SatThresholdPolicy(PolicyBase):
   def translate_action(self, action, obs, **kwargs):
     # ipdb.set_trace()
     threshold, clabels = action
-    rc = clabels[0,:,CLABEL_LBD] > threshold
+    rc = clabels[:,CLABEL_LBD] > threshold
     a = rc.detach()
     num_learned = obs.ext_data
     locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
@@ -662,7 +663,7 @@ class SatThresholdPolicy(PolicyBase):
       pg_loss = (-adv_t*logprobs).sum()
     else:
       pg_loss = (-adv_t*logprobs).mean()
-      
+
     loss = pg_loss
     return loss, threshold
 

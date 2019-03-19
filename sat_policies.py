@@ -628,7 +628,7 @@ class SatThresholdPolicy(PolicyBase):
   def translate_action(self, action, obs, **kwargs):
     # ipdb.set_trace()
     threshold, clabels = action
-    rc = clabels[:,CLABEL_LBD] > threshold
+    rc = clabels[:,CLABEL_LBD] < threshold
     a = rc.detach()
     num_learned = obs.ext_data
     locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)

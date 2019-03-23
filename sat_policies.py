@@ -1,4 +1,5 @@
 import torch
+import shelve
 from torch.autograd import Variable
 import torch.nn as nn
 from torch.nn import init as nn_init
@@ -593,10 +594,14 @@ class SatThresholdPolicy(PolicyBase):
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     self.threshold_layer = nn.Linear(self.state_dim,1)    
     if self.state_bn:
-      self.snorm_layer = nn.BatchNorm1d(self.state_dim)
+      self.snorm_layer = nn.BatchNorm1d(self.state_dim,momentum=1.)
     if self.use_bn:
       self.cnorm_layer = nn.BatchNorm1d(self.clabel_dim)
-    
+
+    if self.settings['init_threshold']:
+      nn.init.constant_(self.threshold_layer.weight,0.)
+      nn.init.constant_(self.threshold_layer.bias,self.settings['init_threshold'])
+
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
   # vlabels are batch * max_vars * vlabel_dim
 
@@ -610,6 +615,7 @@ class SatThresholdPolicy(PolicyBase):
     if self.settings['cuda'] and not self.settings['mp']:
       state, clabels = state.cuda(), clabels.cuda()
 
+    # break_every_tick(5)
     if self.state_bn:
       state = self.snorm_layer(state)
     clabels = clabels.view(-1,self.clabel_dim)
@@ -617,6 +623,12 @@ class SatThresholdPolicy(PolicyBase):
       clabels = self.cnorm_layer(clabels)
     
     threshold = self.activation(self.threshold_layer(state))
+    # print('Threshold is:')
+    # print(threshold)
+    # print('Weights are:')
+    # print(self.threshold_layer.weight)
+    # print('Bias is:')
+    # print(self.threshold_layer.bias)
 
     value = None
     return threshold, clabels
@@ -626,14 +638,13 @@ class SatThresholdPolicy(PolicyBase):
     pass
 
   def translate_action(self, action, obs, **kwargs):
-    # ipdb.set_trace()
     threshold, clabels = action
     rc = clabels[:,CLABEL_LBD] < threshold
     a = rc.detach()
     num_learned = obs.ext_data
     locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
     final_action = torch.max(a.long(),locked).view(-1)
-    # ipdb.set_trace()    
+    # break_every_tick(5)
 
     return final_action
   def combine_actions(self, actions, **kwargs):    
@@ -645,6 +656,13 @@ class SatThresholdPolicy(PolicyBase):
     threshold, clabels = self.forward(obs_batch)
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()
+    if self.settings['log_threshold']:      
+      if self.shelf_key not in self.shelf_file.keys():        
+        self.shelf_file[self.shelf_key] = []        
+      tmp = self.shelf_file[self.shelf_key]
+      tmp.append((threshold.detach().numpy(),sampled_threshold.detach().numpy()))
+      self.shelf_file[self.shelf_key] = tmp
+
     return [(sampled_threshold, clabels)]
 
   def compute_loss(self, transition_data):    
@@ -666,6 +684,57 @@ class SatThresholdPolicy(PolicyBase):
 
     loss = pg_loss
     return loss, threshold
+
+
+class SatFixedThresholdPolicy(PolicyBase):
+  def __init__(self, encoder=None, **kwargs):
+    super(SatFixedThresholdPolicy, self).__init__(**kwargs)
+    self.t = self.settings['sat_fixed_threshold']
+    self.threshold = nn.Parameter(torch.tensor(self.t), requires_grad=False)
+    
+  # state is just a (batched) vector of fixed size state_dim which should be expanded. 
+  # vlabels are batch * max_vars * vlabel_dim
+
+  # cmat is already "batched" into a single matrix
+
+  def forward(self, obs, **kwargs):    
+    return self.threshold
+
+
+  def get_allowed_actions(self, obs, **kwargs):
+    pass
+
+  def translate_action(self, action, obs, **kwargs):
+    # ipdb.set_trace()
+    return action
+
+  def combine_actions(self, actions, **kwargs):    
+    return actions
+    # return torch.cat(actions)
+
+  def select_action(self, obs_batch, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    threshold = self.forward(obs_batch)
+    clabels = obs_batch.clabels.view(-1,self.clabel_dim)
+    rc = clabels[:,CLABEL_LBD] < threshold
+    a = rc.detach()
+    num_learned = obs_batch.ext_data[0]
+    locked = clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(a.long(),locked).view(-1)
+
+    return [final_action]
+
+  def compute_loss(self, transition_data):        
+    return 0., self.threshold
+
+
+
+
+
+
+
+
+
 
 
 

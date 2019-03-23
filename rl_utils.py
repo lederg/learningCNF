@@ -228,7 +228,7 @@ def collate_transitions(batch, settings=None, packed=False, cudaize_state=False)
 
 def create_policy(settings=None, is_clone=False):
   from new_policies import Actor1Policy
-  from sat_policies import SatPolicy, SatLinearPolicy, SatMiniLinearPolicy, SatLBDPolicy, SatRandomPolicy, SatBernoulliPolicy, SatThresholdPolicy
+  from sat_policies import SatPolicy, SatLinearPolicy, SatMiniLinearPolicy, SatLBDPolicy, SatRandomPolicy, SatBernoulliPolicy, SatThresholdPolicy, SatFixedThresholdPolicy
 
 
   if not settings:

@@ -76,12 +76,12 @@ def grid_main():
   all_results = {}
   for params in grid_params:
     z = policy.state_dict()
-    z['action_score.weight']=torch.Tensor([[params['action1']],[params['action2']]])
-    z['action_score.bias']=torch.Tensor([params['bias1'],0.])
+    z['action_score.weight']=torch.Tensor([[params['action1']]])
+    z['action_score.bias']=torch.Tensor([params['bias1']])
     policy.load_state_dict(z)    
     print('Set policy to:')
     print(z)
-    fname = 'a1_{}_a2_{}_b1_{}'.format(params['action1'],params['action2'],params['bias1'])
+    fname = 'a_{}_b_{}'.format(params['action1'],params['bias1'])
     mt1 = time.time()
     all_episodes = []
     for _ in range(episodes_per_batch):

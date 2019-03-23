@@ -6,6 +6,7 @@ import os
 import sys
 import signal
 import select
+import shelve
 import torch.multiprocessing as mp
 import torch.optim as optim
 import cProfile
@@ -194,6 +195,8 @@ class WorkerEnv(mp.Process):
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = create_policy(settings=self.settings)
     self.lmodel.load_state_dict(self.gmodel.state_dict())
+    if self.settings['log_threshold']:
+      self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 
   def train(self,transition_data):
     if self.settings['do_not_learn']:
@@ -223,7 +226,8 @@ class WorkerEnv(mp.Process):
 
   def run_loop(self):
     self.init_proc()
-    SYNC_STATS_EVERY = 5+np.random.randint(10)
+    SYNC_STATS_EVERY = 1
+    # SYNC_STATS_EVERY = 5+np.random.randint(10)
     total_step = 0
     total_eps = 0
     local_env_steps = 0
@@ -234,7 +238,12 @@ class WorkerEnv(mp.Process):
       begin_time = time.time()
       rc = False
       while (not rc) or (not self.check_batch_finished()):
+        if self.settings['log_threshold']:
+          k = '{}_{}'.format(global_steps,len(self.completed_episodes))
+          print('setting key to {}'.format(k))
+          self.lmodel.shelf_key = k
         rc = self.step()
+      self.lmodel.shelf_file.sync()
       total_inference_time = time.time() - begin_time
       transition_data, num_eps = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
       print('Forward pass in {} got batch with length {} in {} seconds. Ratio: {}'.format(self.name,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))

@@ -242,8 +242,8 @@ class WorkerEnv(mp.Process):
           k = '{}_{}'.format(global_steps,len(self.completed_episodes))
           print('setting key to {}'.format(k))
           self.lmodel.shelf_key = k
+          self.lmodel.shelf_file.sync()
         rc = self.step()
-      self.lmodel.shelf_file.sync()
       total_inference_time = time.time() - begin_time
       transition_data, num_eps = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
       print('Forward pass in {} got batch with length {} in {} seconds. Ratio: {}'.format(self.name,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))

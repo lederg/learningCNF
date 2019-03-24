@@ -108,7 +108,9 @@ class EpisodeManager(object):
 
 
   def restart_all(self):
-    for envstr in self.envs:      
+    if self.settings['is_sat']:      
+      return
+    for envstr in self.envs:   
       envstr.env.stop_cadet(timeout=0)
     time.sleep(2)
     for envstr in self.envs:
@@ -327,7 +329,8 @@ class EpisodeManager(object):
           if finished:
             if self.debug:
               print('Finished {} on Solver #{}'.format(fname,i))
-            res = len(self.completed_episodes.pop(0))            
+            ep = self.completed_episodes.pop(0)
+            res = sum([x.reward for x in ep])            
           else:
             print('Env {} took too long on Solver #{}!'.format(fname,i))
             res = len(self.envs[i].episode_memory)

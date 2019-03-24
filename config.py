@@ -68,13 +68,15 @@ def cfg():
 	run_task = 'train'
 	do_not_run = False
 	do_not_learn = False
-	restart_solver_every = 3500
+	restart_solver_every = 0				# minisat doesn't need restart
+	# restart_solver_every = 3500
 	restart_in_test = False
 	non_linearity = 'F.relu'
 	policy_non_linearity = 'torch.tanh'
 	attn_non_linearity = 'F.tanh'
 	episode_provider = 'UniformEpisodeProvider'
 	test_every = 1000
+	is_sat=True
 # RL - PG
 	static_ed='eps/random_easy_train.eps'
 	gamma = 0.99
@@ -86,9 +88,9 @@ def cfg():
 	# greedy_rewards = True
 	greedy_rewards = False
 	rl_log_dir = 'runs_cadet'
-	rl_train_data = 'data/qbf_easy_train/'
-	rl_validation_data = 'data/qbf_easy_test'
-	rl_test_data = 'data/qbf_hard_test/'
+	rl_train_data = 'data/qbf_easy_train/magicSquare-8_glb[132-1000]-95292.cnf'
+	rl_validation_data = None
+	rl_test_data = 'data/sat_all/'
 	rl_log_envs = []
 	rl_log_all = False
 	rl_shelve_it = False

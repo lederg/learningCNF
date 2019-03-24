@@ -21,6 +21,7 @@ from rl_utils import *
 from cadet_utils import *
 from episode_reporter import *
 from mp_episode_manager import *
+from episode_manager import test_envs
 from episode_data import *
 import torch.nn.utils as tutils
 import sat_policies
@@ -33,7 +34,7 @@ UNIT_LENGTH = 30
 # 2 = 1 Minute
 REPORT_EVERY = 2
 SAVE_EVERY = 20
-
+TEST_EVERY = settings['test_every']
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
 stepsize = settings['init_lr']
@@ -107,6 +108,8 @@ def a3c_main():
     if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), gsteps))
       ed.save_file()
+    if i % TEST_EVERY == 0 and i>0:      
+      test_envs(settings['rl_test_data'], policy, iters=1, training=False)
     if settings['rl_decay']:
       new_lr = lr_schedule.value(gsteps)
       if new_lr != curr_lr:

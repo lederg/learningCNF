@@ -54,7 +54,7 @@ class WorkerBase(mp.Process):
 # This discards everything from the old env
   def reset_env(self, fname, **kwargs):
     self.reset_counter += 1
-    if self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0):
+    if self.restart_solver_every > 0 and (self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0)):
       self.envstr.env.restart_env(timeout=0)
     env_obs, env_id = self.envstr.env.new_episode(fname=fname, **kwargs)
     self.envstr.last_obs = self.envstr.env.process_observation(None,env_obs)

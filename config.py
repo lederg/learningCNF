@@ -121,7 +121,7 @@ def cfg():
 	use_gru = False  # deprecated
 	use_bn = False
 	use_ln = False
-	state_bn = True 	# Note the default
+	state_bn = False 	# Note the default
 	use_curriculum = False
 	normalize_episodes = False
 	parallelism = 1

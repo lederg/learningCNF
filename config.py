@@ -162,7 +162,6 @@ def cfg():
 	sat_random_p = 0.5
 	disable_gnn = False
 	threshold_sigma = 1.0
-	sat_fixed_threshold = -1.0
 	log_threshold = False
 	init_threshold = None
 # RL - DQN

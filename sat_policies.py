@@ -690,7 +690,7 @@ class SatThresholdPolicy(PolicyBase):
 class SatFixedThresholdPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatFixedThresholdPolicy, self).__init__(**kwargs)
-    self.t = self.settings['sat_fixed_threshold']
+    self.t = self.settings['init_threshold']
     self.threshold = nn.Parameter(torch.tensor(self.t), requires_grad=False)
     
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
@@ -731,7 +731,7 @@ class SatFixedThresholdPolicy(PolicyBase):
 class SatFreeThresholdPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatFreeThresholdPolicy, self).__init__(**kwargs)
-    self.t = self.settings['sat_fixed_threshold']
+    self.t = self.settings['init_threshold']
     self.threshold = nn.Parameter(torch.tensor(self.t), requires_grad=True)
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
 

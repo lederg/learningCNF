@@ -592,15 +592,31 @@ class SatThresholdPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatThresholdPolicy, self).__init__(**kwargs)
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
-    self.threshold_layer = nn.Linear(self.state_dim,1)    
     if self.state_bn:
       self.snorm_layer = nn.BatchNorm1d(self.state_dim,momentum=1.)
     if self.use_bn:
       self.cnorm_layer = nn.BatchNorm1d(self.clabel_dim)
 
-    if self.settings['init_threshold']:
-      nn.init.constant_(self.threshold_layer.weight,0.)
-      nn.init.constant_(self.threshold_layer.bias,self.settings['init_threshold'])
+    sublayers = []
+    prev = self.settings['state_dim']
+    self.policy_layers = nn.Sequential()
+    n = 0
+    for (i,x) in enumerate(self.settings['policy_layers']):
+      if x == 'r':
+        self.policy_layers.add_module('activation_{}'.format(i), nn.ReLU())
+      elif x == 'h':
+        self.policy_layers.add_module('activation_{}'.format(i), nn.Tanh())        
+      else:
+        n += 1
+        layer = nn.Linear(prev,x)
+        prev = x
+        if self.settings['init_threshold']:
+          nn.init.constant_(layer.weight,0.)
+          if n == len([x for x in self.settings['policy_layers'] if type(x) is int]):
+            nn.init.constant_(layer.bias,self.settings['init_threshold'])
+          else:
+            nn.init.constant_(layer.bias,0.)            
+        self.policy_layers.add_module('linear_{}'.format(i), layer)
 
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
   # vlabels are batch * max_vars * vlabel_dim
@@ -622,14 +638,7 @@ class SatThresholdPolicy(PolicyBase):
     if self.use_bn:
       clabels = self.cnorm_layer(clabels)
     
-    threshold = self.activation(self.threshold_layer(state))
-    # print('Threshold is:')
-    # print(threshold)
-    # print('Weights are:')
-    # print(self.threshold_layer.weight)
-    # print('Bias is:')
-    # print(self.threshold_layer.bias)
-
+    threshold = self.policy_layers(state)
     value = None
     return threshold, clabels
 
@@ -774,6 +783,9 @@ class SatFreeThresholdPolicy(PolicyBase):
     return [(sampled_threshold, clabels)]
 
   def compute_loss(self, transition_data):    
+    t = get_tick()
+    if t > 0 and (t % 5 == 0):
+      print('SatFreeThresholdPolicy: threshold is {}'.format(self.threshold))
     collated_batch = collate_transitions(transition_data,self.settings)
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)

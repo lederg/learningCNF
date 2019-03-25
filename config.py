@@ -148,6 +148,7 @@ def cfg():
 	mp=False
 	main_loop = 'a3c_main'
 	gpu_cap = 100
+	policy_layers = [1,'r']
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

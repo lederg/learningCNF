@@ -22,7 +22,7 @@ from cadet_utils import *
 from episode_reporter import *
 from mp_episode_manager import *
 # from episode_manager import test_envs
-import episode_manager
+from episode_manager import EpisodeManager
 from episode_data import *
 import torch.nn.utils as tutils
 import sat_policies
@@ -63,6 +63,7 @@ def a3c_main():
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(settings['rl_train_data'])
+  em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter.proxy())  
 
   policy = create_policy()
   policy.share_memory()
@@ -110,7 +111,7 @@ def a3c_main():
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), gsteps))
       ed.save_file()
     if i % TEST_EVERY == 0 and i>0:      
-      episode_manager.test_envs(settings['rl_test_data'], policy, iters=1, training=False)
+      em.test_envs(settings['rl_test_data'], policy, iters=1, training=False)
     if settings['rl_decay']:
       new_lr = lr_schedule.value(gsteps)
       if new_lr != curr_lr:

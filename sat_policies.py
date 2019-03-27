@@ -637,7 +637,7 @@ class SatThresholdPolicy(PolicyBase):
 
     if self.state_bn and self.smean is not None:
       state = state - self.smean
-      state = state / self.sstd
+      state = state / (self.sstd + float(np.finfo(np.float32).eps))
       state = state*self.state_scale + self.state_shift
     clabels = clabels.view(-1,self.clabel_dim)
     if self.use_bn:

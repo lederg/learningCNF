@@ -591,12 +591,16 @@ class SatLBDPolicy(PolicyBase):
 class SatThresholdPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatThresholdPolicy, self).__init__(**kwargs)
+    self.snorm_window = 5000
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
-      self.snorm_layer = nn.BatchNorm1d(self.state_dim,momentum=1.)
-    if self.use_bn:
-      self.cnorm_layer = nn.BatchNorm1d(self.clabel_dim)
-
+      self.snorm = None
+      self.smean = None
+      self.sstd = None
+      self.state_scale = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
+      self.state_shift = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
+      nn_init.normal_(self.state_scale)
+      nn_init.normal_(self.state_shift)
     sublayers = []
     prev = self.settings['state_dim']
     self.policy_layers = nn.Sequential()
@@ -631,14 +635,16 @@ class SatThresholdPolicy(PolicyBase):
     if self.settings['cuda'] and not self.settings['mp']:
       state, clabels = state.cuda(), clabels.cuda()
 
-    # break_every_tick(5)
-    if self.state_bn:
-      state = self.snorm_layer(state)
+    if self.state_bn and self.smean is not None:
+      state = state - self.smean
+      state = state / self.sstd
+      state = state*self.state_scale + self.state_shift
     clabels = clabels.view(-1,self.clabel_dim)
     if self.use_bn:
       clabels = self.cnorm_layer(clabels)
     
-    threshold = self.policy_layers(state)
+    threshold = self.policy_layers(state)    
+
     value = None
     return threshold, clabels
 
@@ -681,6 +687,8 @@ class SatThresholdPolicy(PolicyBase):
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
     threshold, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
+    # print('Batch threshold:')
+    # print(threshold)
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions]).view(-1)
     threshold = threshold.view(-1)
@@ -692,6 +700,16 @@ class SatThresholdPolicy(PolicyBase):
       pg_loss = (-adv_t*logprobs).sum()
     else:
       pg_loss = (-adv_t*logprobs).mean()
+
+    # Recompute moving averages
+
+    if self.state_bn:
+      if self.snorm is None:
+        self.snorm = collated_batch.state.state.detach()
+      else:
+        self.snorm = torch.cat([self.snorm,collated_batch.state.state.detach()])[-self.snorm_window:]
+      self.smean = self.snorm.mean(dim=0)
+      self.sstd = self.snorm.std(dim=0)    
 
     loss = pg_loss
     return loss, threshold

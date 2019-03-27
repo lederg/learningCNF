@@ -161,7 +161,7 @@ def cfg():
 	sat_reduce_base = 500
 	do_lbd = False
 	sat_random_p = 0.5
-	disable_gnn = False
+	disable_gnn = True 				# Note, disabled by default!!
 	threshold_sigma = 1.0
 	log_threshold = False
 	init_threshold = None

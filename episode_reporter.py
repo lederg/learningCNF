@@ -106,11 +106,14 @@ class PGEpisodeReporter(SPReporter):
 		totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
 		if self.settings['report_uniform']:
 			all_stats = [x[1] for x in self.stats_dict.items()]
-			windowed_stats = [np.array(x[-100:]) for x in all_stats]
+			windowed_stats = []
+			for x in all_stats:
+				windowed_stats.append(np.array(x[-self.short_window:]))
+			# windowed_stats = [np.array(x[-100:]) for x in all_stats]
 			mean_rewards = [x.mean(axis=0)[1] for x in windowed_stats]
 			mean_steps = [x.mean(axis=0)[0] for x in windowed_stats]
-			print('Mean steps for the last 100 instances per episode: {}'.format(np.mean(mean_steps)))
-			print('Mean reward for the last 100 instances per episode: {}'.format(np.mean(mean_rewards)))
+			print('Mean steps for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_steps)))
+			print('Mean reward for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_rewards)))
 		else:			
 			print('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
 			print('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
@@ -137,8 +140,12 @@ class PGEpisodeReporter(SPReporter):
 				configure(self.fname, flush_secs=5)
 				self.tb_configured = True
 
-			log_value('Mean steps for last {} episodes'.format(self.report_window), np.mean(steps[-self.report_window:]), total_steps)
-			log_value('Mean reward for last {} episodes'.format(self.report_window), np.mean(rewards[-self.report_window:]), total_steps)
+			if self.settings['report_uniform']:
+				log_value('Mean steps for last {} episodes'.format(self.short_window), np.mean(mean_steps), total_steps)
+				log_value('Mean reward for last {} episodes'.format(self.short_window), np.mean(mean_rewards), total_steps)
+			else:
+				log_value('Mean steps for last {} episodes'.format(self.report_window), np.mean(steps[-self.report_window:]), total_steps)
+				log_value('Mean reward for last {} episodes'.format(self.report_window), np.mean(rewards[-self.report_window:]), total_steps)
 			if pval:
 				log_value('pval', pval, total_steps)
 

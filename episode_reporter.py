@@ -102,10 +102,18 @@ class PGEpisodeReporter(SPReporter):
 		print('Total episodes so far: %d' % len(steps))
 		print('Total steps learned from so far: %d' % sum(steps))
 		print('Total rewards so far: %f' % sum(rewards))
-		print('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
-		print('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
-		print('Mean entropy for the last {} episodes: {}'.format(self.report_window,np.mean(ents[-self.report_window:])))
+		# ipdb.set_trace()
 		totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
+		if self.settings['report_uniform']:
+			all_stats = [x[1] for x in self.stats_dict.items()]
+			windowed_stats = [np.array(x[-100:]) for x in all_stats]
+			mean_rewards = [x.mean(axis=0)[1] for x in windowed_stats]
+			mean_steps = [x.mean(axis=0)[0] for x in windowed_stats]
+			print('Mean steps for the last 100 instances per episode: {}'.format(np.mean(mean_steps)))
+			print('Mean reward for the last 100 instances per episode: {}'.format(np.mean(mean_rewards)))
+		else:			
+			print('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
+			print('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
 
 		if sum(steps)+1000 < total_steps:			# Not all episodes are actually used (parallelism/on-policy pg)
 			total_steps = sum(steps)

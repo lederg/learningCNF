@@ -10,6 +10,7 @@ import numpy as np
 from collections import namedtuple
 import ipdb
 from settings import *
+from vbn import *
 from sat_env import *
 from sat_encoders import *
 from policy_base import *
@@ -594,6 +595,7 @@ class SatThresholdPolicy(PolicyBase):
     self.snorm_window = 5000
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
+      self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
       self.snorm = None
       self.smean = None
       self.sstd = None
@@ -601,6 +603,16 @@ class SatThresholdPolicy(PolicyBase):
       self.state_shift = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
       nn_init.normal_(self.state_scale)
       nn_init.normal_(self.state_shift)
+      # nn.init.constant_(self.state_shift,0.)
+      # nn.init.constant_(self.state_scale,1.)
+    if self.use_bn:
+      self.cnorm = None
+      self.cmean = None
+      self.cstd = None
+      self.clabel_scale = nn.Parameter(self.settings.FloatTensor(self.clabel_dim), requires_grad=True)
+      self.clabel_shift = nn.Parameter(self.settings.FloatTensor(self.clabel_dim), requires_grad=True)
+      nn_init.normal_(self.clabel_scale)
+      nn_init.normal_(self.clabel_shift)
     sublayers = []
     prev = self.settings['state_dim']
     self.policy_layers = nn.Sequential()
@@ -619,7 +631,7 @@ class SatThresholdPolicy(PolicyBase):
           if n == len([x for x in self.settings['policy_layers'] if type(x) is int]):
             nn.init.constant_(layer.bias,self.settings['init_threshold'])
           else:
-            nn.init.constant_(layer.bias,0.)            
+            nn.init.constant_(layer.bias,0.)     
         self.policy_layers.add_module('linear_{}'.format(i), layer)
 
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
@@ -636,12 +648,13 @@ class SatThresholdPolicy(PolicyBase):
       state, clabels = state.cuda(), clabels.cuda()
 
     if self.state_bn and self.smean is not None:
+      ipdb.set_trace()
       state = state - self.smean
       state = state / (self.sstd + float(np.finfo(np.float32).eps))
       state = state*self.state_scale + self.state_shift
     clabels = clabels.view(-1,self.clabel_dim)
-    if self.use_bn:
-      clabels = self.cnorm_layer(clabels)
+    # if self.use_bn:
+    #   clabels = self.cnorm_layer(clabels)
     
     threshold = self.policy_layers(state)    
 
@@ -704,12 +717,23 @@ class SatThresholdPolicy(PolicyBase):
     # Recompute moving averages
 
     if self.state_bn:
+      self.state_vbn.recompute_moments(collated_batch.state.state.detach())
       if self.snorm is None:
         self.snorm = collated_batch.state.state.detach()
       else:
-        self.snorm = torch.cat([self.snorm,collated_batch.state.state.detach()])[-self.snorm_window:]
+        self.snorm = torch.cat([collated_batch.state.state.detach(), self.snorm],dim=0)[:self.snorm_window]
       self.smean = self.snorm.mean(dim=0)
-      self.sstd = self.snorm.std(dim=0)    
+      self.sstd = self.snorm.std(dim=0)      
+
+
+    if self.use_bn:
+      ipdb.set_trace()
+      if self.cnorm is None:
+        self.cnorm = collated_batch.state.state.detach()
+      else:
+        self.cnorm = torch.cat([self.snorm,collated_batch.state.state.detach()])[-self.snorm_window:]
+      self.cmean = self.snorm.mean(dim=0)
+      self.cstd = self.snorm.std(dim=0)    
 
     loss = pg_loss
     return loss, threshold

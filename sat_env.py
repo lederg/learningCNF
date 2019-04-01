@@ -157,11 +157,16 @@ class SatEnvProxy(EnvBase):
 
 
     # Replace the first index of the clabels with a marker for orig/learned
+    # Take log of clabels[:,4]
 
     all_clabels[:,0]=0
     all_clabels[-len(env_obs.clabels):,0]=1
+    act = all_clabels[:,4]
+    act += 10.
+    act.log_()
+    all_clabels[:,4] = act
 
-    # Take log of vlabels[:,3]
+    # Take log of vlabels[:,3] and clabels[:,4]
     activities = env_obs.vlabels[:,3]+10
     env_obs.vlabels[:,3]=np.log(activities)
     clabels = Variable(all_clabels)

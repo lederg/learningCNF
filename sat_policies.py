@@ -596,15 +596,6 @@ class SatThresholdPolicy(PolicyBase):
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
       self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
-      self.snorm = None
-      self.smean = None
-      self.sstd = None
-      self.state_scale = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
-      self.state_shift = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
-      nn_init.normal_(self.state_scale)
-      nn_init.normal_(self.state_shift)
-      # nn.init.constant_(self.state_shift,0.)
-      # nn.init.constant_(self.state_scale,1.)
     if self.use_bn:
       self.cnorm = None
       self.cmean = None
@@ -647,12 +638,9 @@ class SatThresholdPolicy(PolicyBase):
     if self.settings['cuda'] and not self.settings['mp']:
       state, clabels = state.cuda(), clabels.cuda()
 
-    if self.state_bn and self.smean is not None:
-      ipdb.set_trace()
-      state = state - self.smean
-      state = state / (self.sstd + float(np.finfo(np.float32).eps))
-      state = state*self.state_scale + self.state_shift
-    clabels = clabels.view(-1,self.clabel_dim)
+    if self.state_bn:      
+      state = self.state_vbn(state)
+      clabels = clabels.view(-1,self.clabel_dim)
     # if self.use_bn:
     #   clabels = self.cnorm_layer(clabels)
     
@@ -718,14 +706,6 @@ class SatThresholdPolicy(PolicyBase):
 
     if self.state_bn:
       self.state_vbn.recompute_moments(collated_batch.state.state.detach())
-      if self.snorm is None:
-        self.snorm = collated_batch.state.state.detach()
-      else:
-        self.snorm = torch.cat([collated_batch.state.state.detach(), self.snorm],dim=0)[:self.snorm_window]
-      self.smean = self.snorm.mean(dim=0)
-      self.sstd = self.snorm.std(dim=0)      
-
-
     if self.use_bn:
       ipdb.set_trace()
       if self.cnorm is None:

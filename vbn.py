@@ -59,3 +59,35 @@ class MovingAverageVBN(AbstractVBN):
     self.effective_mean.data = self.moving_mean[:self.total_length].mean(dim=0)
     self.effective_std.data = self.moving_mean[:self.total_length].std(dim=0)
 
+
+# This is a weird one. It computes a moving --mean-- of a window over two lists, of means and stds.
+# The idea is that every formula has its own wildly different mean/std, and 10k's of datapoints. We can't keep all
+# of them around. Instead, we compute mean/std for every formula, and take a mean of a window over those, hoping
+# it settles on reasonable values that don't move a lot. The window should probably depend on the size of the dataset.
+
+class MovingAverageAndStdVBN(AbstractVBN):
+  def __init__(self, size, **kwargs):
+    super(MovingAverageAndStdVBN,self).__init__(size[1])
+    self.size = size
+    self.total_length = 0
+    self.moving_mean = nn.Parameter(self.settings.FloatTensor(*self.size), requires_grad=False)
+    self.moving_std = nn.Parameter(self.settings.FloatTensor(*self.size), requires_grad=False)
+    nn.init.constant_(self.moving_mean,0.)
+    nn.init.constant_(self.moving_std,1.)
+
+  def recompute_moments(self, data_mean, data_std):
+    assert(len(data_mean) == len(data_std))
+    dsize = len(data_mean)
+    window_size = self.size[0]
+    if dsize > window_size:
+      self.moving_mean.data = data_mean[-window_size:]
+      self.moving_std.data = data_std[-window_size:]
+    else:
+      size_left = window_size - dsize
+      self.moving_mean.data = torch.cat([data_mean,self.moving_mean[:size_left]],dim=0)
+      self.moving_std.data = torch.cat([data_std,self.moving_std[:size_left]],dim=0)
+
+    self.total_length = min(self.total_length+dsize, window_size)
+    self.effective_mean.data = self.moving_mean[:self.total_length].mean(dim=0)
+    self.effective_std.data = self.moving_std[:self.total_length].mean(dim=0)
+

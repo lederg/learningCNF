@@ -145,7 +145,7 @@ def cfg():
 	report_tensorboard = True
 	report_window=5000
 	report_uniform=False
-	short_window=100
+	short_window=500
 	mp=False
 	main_loop = 'a3c_main'
 	gpu_cap = 100
@@ -164,6 +164,7 @@ def cfg():
 	sat_random_p = 0.5
 	disable_gnn = True 				# Note, disabled by default!!
 	threshold_sigma = 1.0
+	threshold_scale = 1.0
 	log_threshold = False
 	init_threshold = None
 # RL - DQN

@@ -130,9 +130,9 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
   # if bs>1:
   #   ipdb.set_trace()
   if not c_size:
-    c_size = max([x.clabels.size(0) for x in batch if x])
+    c_size = max([x.clabels.squeeze().size(0) for x in batch if x])   # Sometimes we need to squeeze
   if not v_size:
-    v_size = max([x.ground.size(0) for x in batch if x])
+    v_size = max([x.ground.squeeze().size(0) for x in batch if x])
   states = []
   ind = []
   val = []

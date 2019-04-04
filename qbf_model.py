@@ -336,7 +336,6 @@ class QbfNewEncoder(nn.Module):
 
 		for t, p in enumerate(self.W_L_params):
 			# results is everything we computed so far, its precisely the correct input to W_L_t
-			# ipdb.set_trace()
 			av = (torch.mm(cmat_pos,pos_vars)+torch.mm(cmat_neg,neg_vars)).t()
 			c_t_pre = self.non_linearity(torch.mm(self.W_L_params[t],av).t() + self.B_L_params[t])
 			c_t = torch.cat([clabels,c_t_pre],dim=1)

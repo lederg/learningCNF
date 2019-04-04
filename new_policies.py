@@ -56,7 +56,7 @@ class Actor1Policy(PolicyBase):
     state = obs.state
     ground_embeddings = obs.ground
     clabels = obs.clabels
-    cmat_pos, cmat_neg = split_sparse_adjacency(obs.cmat)
+    cmat_pos, cmat_neg = split_sparse_adjacency(obs.cmat.float())
     
     aux_losses = []
 

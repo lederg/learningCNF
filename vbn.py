@@ -18,14 +18,17 @@ class AbstractVBN(nn.Module):
     super(AbstractVBN, self).__init__()
     self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
     self.dim = dim
+    self.vbn_init_fixed = self.settings['vbn_init_fixed']
     self.scale = nn.Parameter(self.settings.FloatTensor(dim), requires_grad=True)
     self.shift = nn.Parameter(self.settings.FloatTensor(dim), requires_grad=True)
     self.effective_mean = nn.Parameter(self.settings.FloatTensor(dim), requires_grad=False)
     self.effective_std = nn.Parameter(self.settings.FloatTensor(dim), requires_grad=False)
-    nn_init.normal_(self.scale)
-    nn_init.normal_(self.shift)
-    # nn.init.constant_(self.shift,0.)
-    # nn_init.constant_(self.scale,1.)
+    if self.vbn_init_fixed:
+      nn.init.constant_(self.shift,0.)
+      nn_init.constant_(self.scale,1.)
+    else:
+      nn_init.normal_(self.scale)
+      nn_init.normal_(self.shift)
     nn.init.constant_(self.effective_mean,0.)
     nn_init.constant_(self.effective_std,1.)
     

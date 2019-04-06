@@ -152,6 +152,7 @@ def cfg():
 	policy_layers = [1,'r']
 	print_every = 0
 	vbn_init_fixed = False
+	vbn_module = False
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

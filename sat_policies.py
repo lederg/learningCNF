@@ -594,21 +594,24 @@ class SatThresholdPolicy(PolicyBase):
     super(SatThresholdPolicy, self).__init__(**kwargs)
     self.snorm_window = 5000
     self.vbn_init_fixed = self.settings['vbn_init_fixed']
+    self.vbn_module = self.settings['vbn_module']
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     self.threshold_scale = self.settings.FloatTensor(np.array(float(self.settings['threshold_scale'])))
     if self.state_bn:
-      self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
-      self.snorm = None
-      self.smean = None
-      self.sstd = None
-      self.state_scale = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
-      self.state_shift = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
-      if self.vbn_init_fixed:
-        nn.init.constant_(self.state_shift,0.)
-        nn_init.constant_(self.state_scale,1.)
+      if self.vbn_module:
+        self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
       else:
-        nn_init.normal_(self.state_scale)
-        nn_init.normal_(self.state_shift)
+        self.snorm = None
+        self.smean = None
+        self.sstd = None
+        self.state_scale = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
+        self.state_shift = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
+        if self.vbn_init_fixed:
+          nn.init.constant_(self.state_shift,0.)
+          nn_init.constant_(self.state_scale,1.)
+        else:
+          nn_init.normal_(self.state_scale)
+          nn_init.normal_(self.state_shift)
 
     if self.use_bn:
       self.clabels_vbn = MovingAverageAndStdVBN((self.snorm_window,self.clabel_dim))      
@@ -647,8 +650,9 @@ class SatThresholdPolicy(PolicyBase):
       state, clabels = state.cuda(), clabels.cuda()
     clabels = clabels.view(-1,self.clabel_dim)
     if self.state_bn:      
-      # state = self.state_vbn(state)
-      if self.smean is not None:
+      if self.vbn_module:
+        state = self.state_vbn(state)        
+      elif self.smean is not None:
         state = state - self.smean
         state = state / (self.sstd + float(np.finfo(np.float32).eps))
         state = state*self.state_scale + self.state_shift      
@@ -717,13 +721,15 @@ class SatThresholdPolicy(PolicyBase):
     # Recompute moving averages
 
     if self.state_bn:
-      self.state_vbn.recompute_moments(collated_batch.state.state.detach())
-      if self.snorm is None:
-        self.snorm = collated_batch.state.state.detach()
-      else:
-        self.snorm = torch.cat([self.snorm,collated_batch.state.state.detach()])[-self.snorm_window:]
-      self.smean = self.snorm.mean(dim=0)
-      self.sstd = self.snorm.std(dim=0)        
+      if self.vbn_module:
+        self.state_vbn.recompute_moments(collated_batch.state.state.detach())
+      else:        
+        if self.snorm is None:
+          self.snorm = collated_batch.state.state.detach()
+        else:
+          self.snorm = torch.cat([self.snorm,collated_batch.state.state.detach()])[-self.snorm_window:]
+        self.smean = self.snorm.mean(dim=0)
+        self.sstd = self.snorm.std(dim=0)        
     if self.use_bn:
       z = collated_batch.state.clabels.detach().view(-1,6)
       self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))

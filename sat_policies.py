@@ -687,8 +687,9 @@ class SatThresholdPolicy(PolicyBase):
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
     threshold, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
-    # print('Batch threshold:')
-    # print(threshold)
+    if self.print_every and (get_tick() % self.print_every == 1):
+      print('Batch threshold:')
+      print(threshold)
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions]).view(-1)
     threshold = threshold.view(-1)

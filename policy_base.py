@@ -21,6 +21,7 @@ class PolicyBase(nn.Module):
     self.lambda_disallowed = self.settings['lambda_disallowed']
     self.lambda_aux = self.settings['lambda_aux']
     self.non_linearity = self.settings['policy_non_linearity']
+    self.print_every = self.settings['print_every']
 
     if self.non_linearity is not None:
       self.activation = eval(self.non_linearity)

@@ -150,6 +150,7 @@ def cfg():
 	main_loop = 'a3c_main'
 	gpu_cap = 100
 	policy_layers = [1,'r']
+	print_every = 0
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

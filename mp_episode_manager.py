@@ -13,7 +13,8 @@ import cProfile
 from collections import namedtuple, deque
 from namedlist import namedlist
 
-
+from tick import *
+from tick_utils import *
 from cadet_env import *
 from qbf_data import *
 from settings import *
@@ -226,6 +227,7 @@ class WorkerEnv(mp.Process):
 
   def run_loop(self):
     self.init_proc()
+    clock = GlobalTick()
     SYNC_STATS_EVERY = 1
     # SYNC_STATS_EVERY = 5+np.random.randint(10)
     total_step = 0
@@ -257,6 +259,7 @@ class WorkerEnv(mp.Process):
 
       # Sync to global step counts
       total_step += 1
+      clock.tick()
       local_env_steps += len(transition_data)
       total_eps += num_eps
       if total_step % SYNC_STATS_EVERY == 0:

@@ -95,11 +95,12 @@ class EpisodeManager(object):
     if num == 0:
       num = self.settings['episodes_per_batch']
     rc = []
-    for _ in range(num):
+    rc_len = []
+    for i in range(num):
       ep = self.discount_episode(self.completed_episodes.pop(0))
       rc.extend(ep)
-
-    return rc
+      rc_len.extend([i]*len(ep))
+    return rc, rc_len
 
   def reset_all(self):
     self.provider.reset()

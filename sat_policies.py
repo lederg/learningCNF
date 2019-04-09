@@ -698,14 +698,17 @@ class SatThresholdPolicy(PolicyBase):
 
     return [(sampled_threshold, clabels)]
 
-  def compute_loss(self, transition_data):    
+  def compute_loss(self, transition_data, lenvec=None):
     collated_batch = collate_transitions(transition_data,self.settings)
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
     threshold, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
     if self.print_every and (get_tick() % self.print_every == 1):
+      z = threshold.detach().numpy()
+      if lenvec is not None:
+        z = np.concatenate([z,np.array(lenvec).reshape(-1,1)],axis=1)
       print('Batch threshold:')
-      print(threshold)
+      print(z)
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions]).view(-1)
     threshold = threshold.view(-1)

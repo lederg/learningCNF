@@ -182,12 +182,12 @@ class WorkerEnv(mp.Process):
     if num == 0:
       num = self.settings['episodes_per_batch']
     rc = []
-    i=0
-    for _ in range(num):
+    rc_len = []
+    for i in range(num):
       ep = self.discount_episode(self.completed_episodes.pop(0))
       rc.extend(ep)
-
-    return rc, num
+      rc_len.extend([i]*len(ep))
+    return rc, rc_len
 
   def init_proc(self):
     set_proc_name(str.encode(self.name))
@@ -199,12 +199,12 @@ class WorkerEnv(mp.Process):
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 
-  def train(self,transition_data):
+  def train(self,transition_data, **kwargs):
     if self.settings['do_not_learn']:
       return
     self.lmodel.train()
     mt = time.time()
-    loss, logits = self.lmodel.compute_loss(transition_data)
+    loss, logits = self.lmodel.compute_loss(transition_data, **kwargs)
     mt1 = time.time()
     print('Loss computation took {} seconds'.format(mt1-mt))
     self.optimizer.zero_grad()
@@ -247,13 +247,13 @@ class WorkerEnv(mp.Process):
           self.lmodel.shelf_file.sync()
         rc = self.step()
       total_inference_time = time.time() - begin_time
-      transition_data, num_eps = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
+      transition_data, lenvec = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
       print('Forward pass in {} got batch with length {} in {} seconds. Ratio: {}'.format(self.name,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))
       # After the batch is finished, advance the iterator
       self.provider.reset()
       self.reset_env(fname=self.provider.get_next())
       begin_time = time.time()
-      self.train(transition_data)
+      self.train(transition_data,lenvec=lenvec)
       total_train_time = time.time() - begin_time
       print('Backward pass in {} done in {} seconds!'.format(self.name,total_train_time))
 
@@ -261,7 +261,7 @@ class WorkerEnv(mp.Process):
       total_step += 1
       clock.tick()
       local_env_steps += len(transition_data)
-      total_eps += num_eps
+      total_eps += (max(lenvec)+1)
       if total_step % SYNC_STATS_EVERY == 0:
         with self.g_grad_steps.get_lock():
           self.g_grad_steps.value += SYNC_STATS_EVERY

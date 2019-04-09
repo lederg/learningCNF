@@ -50,13 +50,13 @@ curr_lr = init_lr
 max_reroll = 0
 
 def cadet_main():
-  def train_model(transition_data):
+  def train_model(transition_data, **kwargs):
     policy.train()
     mt1 = time.time()
     # ipdb.set_trace()
     # collated_batch = collate_transitions(transition_data,settings)
     # collated_batch.state = cudaize_obs(collated_batch.state)
-    loss, logits = policy.compute_loss(transition_data)
+    loss, logits = policy.compute_loss(transition_data, **kwargs)
     mt2 = time.time()
     if loss is None:
       return
@@ -139,7 +139,7 @@ def cadet_main():
     if True or settings['parallelism'] > 1:
       while not em.check_batch_finished():
         em.step_all(policy)
-      transition_data = em.pop_min_normalized() if settings['episodes_per_batch'] else em.pop_min()
+      transition_data, lenvec = em.pop_min_normalized() if settings['episodes_per_batch'] else em.pop_min()
       total_steps = em.real_steps
       if not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
         em.reset_all()
@@ -166,7 +166,7 @@ def cadet_main():
     if settings['do_not_learn']:
       continue
     begin_time = time.time()
-    logits = train_model(transition_data)
+    logits = train_model(transition_data, lenvec=lenvec)
     end_time = time.time()
     # print('Backward computation done in %f seconds' % (end_time-begin_time))
 

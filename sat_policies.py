@@ -726,6 +726,11 @@ class SatThresholdPolicy(PolicyBase):
     if self.state_bn:
       if self.vbn_module:
         self.state_vbn.recompute_moments(collated_batch.state.state.detach())
+        if self.print_every and (get_tick() % self.print_every == 1):
+          print('State mean:')
+          print(self.state_vbn.effective_mean.detach().numpy())
+          print('State std:')
+          print(self.state_vbn.effective_std.detach().numpy())
       else:        
         if self.snorm is None:
           self.snorm = collated_batch.state.state.detach()
@@ -733,6 +738,11 @@ class SatThresholdPolicy(PolicyBase):
           self.snorm = torch.cat([self.snorm,collated_batch.state.state.detach()])[-self.snorm_window:]
         self.smean = self.snorm.mean(dim=0)
         self.sstd = self.snorm.std(dim=0)        
+        if self.print_every and (get_tick() % self.print_every == 1):
+          print('State mean:')
+          print(self.smean.detach().numpy())
+          print('State std:')
+          print(self.sstd.detach().numpy())
     if self.use_bn:
       z = collated_batch.state.clabels.detach().view(-1,6)
       self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))

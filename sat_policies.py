@@ -607,7 +607,7 @@ class SatThresholdPolicy(PolicyBase):
         self.state_scale = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
         self.state_shift = nn.Parameter(self.settings.FloatTensor(self.state_dim), requires_grad=True)
         if self.vbn_init_fixed:
-          nn.init.constant_(self.state_shift,0.)
+          nn_init.constant_(self.state_shift,0.)
           nn_init.constant_(self.state_scale,1.)
         else:
           nn_init.normal_(self.state_scale)
@@ -651,7 +651,7 @@ class SatThresholdPolicy(PolicyBase):
     clabels = clabels.view(-1,self.clabel_dim)
     if self.state_bn:      
       if self.vbn_module:
-        state = self.state_vbn(state)        
+        state = self.state_vbn(state)
       elif self.smean is not None:
         state = state - self.smean
         state = state / (self.sstd + float(np.finfo(np.float32).eps))

@@ -144,7 +144,7 @@ def cfg():
 	# invalid_bias = 0
 	report_tensorboard = True
 	report_window=5000
-	report_uniform=False
+	report_uniform=True
 	short_window=500
 	mp=False
 	main_loop = 'a3c_main'
@@ -153,6 +153,8 @@ def cfg():
 	print_every = 0
 	vbn_init_fixed = False
 	vbn_module = False
+	g2l_blacklist = []
+	l2g_whitelist = []
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

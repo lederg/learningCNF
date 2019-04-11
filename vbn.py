@@ -31,7 +31,9 @@ class AbstractVBN(nn.Module):
       nn_init.normal_(self.shift)
     nn.init.constant_(self.effective_mean,0.)
     nn_init.constant_(self.effective_std,1.)
-    
+
+    self.settings['g2l_blacklist'].extend(['effective_mean', 'effective_std'])
+    self.settings['l2g_whitelist'].extend(['effective_mean', 'effective_std'])    
   def forward(self, input, **kwargs):
     n1 = input - self.effective_mean
     normed_input = n1 / (self.effective_std + float(np.finfo(np.float32).eps))
@@ -46,8 +48,9 @@ class MovingAverageVBN(AbstractVBN):
     super(MovingAverageVBN,self).__init__(size[1])
     self.size = size
     self.total_length = 0
-    self.moving_mean = nn.Parameter(self.settings.FloatTensor(*self.size), requires_grad=False)
+    self.moving_mean = nn.Parameter(self.settings.FloatTensor(*self.size), requires_grad=False)    
     nn.init.constant_(self.moving_mean,0.)
+    self.settings['g2l_blacklist'].append('moving_mean')
 
   def recompute_moments(self, data):
     dsize = len(data)

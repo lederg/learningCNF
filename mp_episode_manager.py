@@ -57,7 +57,14 @@ class WorkerEnv(mp.Process):
     self.env_steps = 0
     self.real_steps = 0
     self.provider = provider
-
+    self.blacklisted_keys = []
+    self.whitelisted_keys = []
+    global_params = self.gmodel.state_dict()
+    for k in global_params.keys():
+      if any([x in k for x in self.settings['g2l_blacklist']]):
+        self.blacklisted_keys.append(k)    
+      if any([x in k for x in self.settings['l2g_whitelist']]):
+        self.whitelisted_keys.append(k)    
 
 # This discards everything from the old env
   def reset_env(self, fname, **kwargs):
@@ -215,7 +222,21 @@ class WorkerEnv(mp.Process):
     for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
         gp._grad = lp.grad
     self.optimizer.step()
-    self.lmodel.load_state_dict(self.gmodel.state_dict())
+    global_params = self.gmodel.state_dict()
+    for k in self.blacklisted_keys:
+      global_params.pop(k,None)
+    self.lmodel.load_state_dict(global_params,strict=False)
+    z = self.lmodel.state_dict()
+
+    # We may want to sync that
+
+    local_params = {}
+    for k in self.whitelisted_keys:
+      local_params[k] = z[k]
+    self.gmodel.load_state_dict(local_params,strict=False)
+
+
+
 
 
   def run(self):

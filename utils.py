@@ -13,6 +13,7 @@ import weakref
 import signal
 import os
 import pdb
+
 from enum import Enum
 
 
@@ -174,6 +175,12 @@ class ForkablePdb(pdb.Pdb):
 
 
 def set_proc_name(newname):
+    try:
+        import setproctitle
+        setproctitle.setproctitle(str(newname))
+        return
+    except:
+        pass
     from ctypes import cdll, byref, create_string_buffer
     libc = cdll.LoadLibrary('libc.so.6')
     buff = create_string_buffer(len(newname)+1)

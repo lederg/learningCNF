@@ -99,6 +99,7 @@ def cfg():
 	debug_actions = False
 	debug = False
 	profiling = False
+	memory_profiling = False
 	use_old_rewards = True					#  Must be false if using old cadet
 	use_vsids_rewards = False
 	use_sum = False

@@ -10,6 +10,7 @@ import shelve
 import torch.multiprocessing as mp
 import torch.optim as optim
 import cProfile
+import tracemalloc
 from collections import namedtuple, deque
 from namedlist import namedlist
 
@@ -47,8 +48,6 @@ class WorkerEnv(mp.Process):
     self.training_steps = self.settings['training_steps']
     self.restart_solver_every = self.settings['restart_solver_every']    
     self.check_allowed_actions = self.settings['check_allowed_actions']
-    self.envstr = MPEnvStruct(EnvFactory().create_env(), 
-        None, None, None, None, None, True, deque(maxlen=self.rnn_iters))
     # self.gnet, self.opt = gnet, opt
     # self.lnet = Net(N_S, N_A)           # local network
     self.gmodel = model  
@@ -200,6 +199,8 @@ class WorkerEnv(mp.Process):
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
+    self.envstr = MPEnvStruct(EnvFactory().create_env(), 
+        None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = create_policy(settings=self.settings)
     self.lmodel.load_state_dict(self.gmodel.state_dict())
@@ -240,6 +241,8 @@ class WorkerEnv(mp.Process):
 
 
   def run(self):
+    if self.settings['memory_profiling']:
+      tracemalloc.start(25)
     if self.settings['profiling']:
       cProfile.runctx('self.run_loop()', globals(), locals(), 'prof_{}.prof'.format(self.name))
     else:
@@ -293,6 +296,12 @@ class WorkerEnv(mp.Process):
           self.g_steps.value += local_env_steps
           local_env_steps = 0
           global_steps = self.g_grad_steps.value
+      if self.settings['memory_profiling'] and (total_step % 10 == 1):    
+        snapshot = tracemalloc.take_snapshot()
+        top_stats = snapshot.statistics('lineno')
+        print("[ Top 20 in {}]".format(self.name))
+        for stat in top_stats[:20]:
+            print(stat)
 
 
 

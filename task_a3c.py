@@ -6,6 +6,7 @@ import ipdb
 import pdb
 import random
 import time
+import tracemalloc
 
 from multiprocessing.managers import BaseManager
 import torch.multiprocessing as mp
@@ -63,7 +64,7 @@ def a3c_main():
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(settings['rl_train_data'])
-  em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter.proxy())  
+  # em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter.proxy())  
 
   policy = create_policy()
   policy.share_memory()

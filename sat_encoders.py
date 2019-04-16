@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 import ipdb
 
+
 import utils
 from qbf_data import *
 from batch_model import GraphEmbedder, GroundCombinator, DummyGroundCombinator

@@ -9,6 +9,7 @@ import ipdb
 import time
 import logging
 import pickle
+import tracemalloc
 import multiprocessing as mp
 from settings import *
 from qbf_data import *
@@ -196,15 +197,27 @@ class SatEnvServer(mp.Process):
     self.do_lbd = self.settings['do_lbd']
     self.disable_gnn = self.settings['disable_gnn']
     self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
+    self.total_episodes = 0
 
   def proxy(self):
     return SatEnvProxy(self.queue_out, self.queue_in)
 
   def run(self):
     print('Env {} on pid {}'.format(self.env.name, os.getpid()))
-    # print('You seeing that?!?!')
     set_proc_name(str.encode('{}_{}'.format(self.env.name,os.getpid())))
+    if self.settings['memory_profiling']:
+      tracemalloc.start(25)    
     while True:
+      if self.settings['memory_profiling'] and (self.total_episodes % 10 == 1):    
+        snapshot = tracemalloc.take_snapshot()
+        top_stats = snapshot.statistics('lineno')
+        print("[ Top 20 in {}]".format(self.name))
+        for stat in top_stats[:20]:
+            print(stat)            
+        print('Number of cached formulas: {}'.format(len(self.env.formulas_dict.keys())))
+        print(self.env.formulas_dict.keys())
+
+
       if self.cmd == EnvCommands.CMD_RESET:
         # We get here only after a CMD_RESET aborted a running episode and requested a new file.
         fname = self.current_fname
@@ -227,6 +240,7 @@ class SatEnvServer(mp.Process):
         msg = self.env.EnvObservation(reward=self.winning_reward+last_step_reward, done=True)
         # msg = self.env.EnvObservation(None, None, None, None, None, None, self.winning_reward+last_step_reward, True)
         self.queue_out.put((EnvCommands.ACK_STEP,tuple(msg)))
+        self.total_episodes += 1
 
       elif self.cmd == EnvCommands.CMD_RESET:
         if self.env.current_step == 0:

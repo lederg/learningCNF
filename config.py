@@ -154,6 +154,7 @@ def cfg():
 	print_every = 0
 	vbn_init_fixed = False
 	vbn_module = False
+	preload_formulas = False
 	g2l_blacklist = []
 	l2g_whitelist = []
 

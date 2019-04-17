@@ -25,6 +25,7 @@ from mp_episode_manager import *
 # from episode_manager import test_envs
 from episode_manager import EpisodeManager
 from episode_data import *
+from formula_utils import *
 import torch.nn.utils as tutils
 import sat_policies
 settings = CnfSettings()
@@ -64,6 +65,10 @@ def a3c_main():
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(settings['rl_train_data'])
+  if settings['preload_formulas']:
+    settings.formula_cache = FormulaCache()
+    settings.formula_cache.load_files(provider.items)
+
   # em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter.proxy())  
 
   policy = create_policy()

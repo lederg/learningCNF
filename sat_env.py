@@ -49,6 +49,7 @@ class SatActiveEnv:
   def load_formula(self, fname):
     if fname not in self.formulas_dict.keys():
       self.formulas_dict[fname] = CNF(fname)
+      print('Lazily loaded {} in process {}_{}'.format(fname,self._name,os.getpid()))
     return self.formulas_dict[fname]
 
   def start_solver(self, fname=None):
@@ -65,8 +66,12 @@ class SatActiveEnv:
       self.solver.delete()
       self.solver.new(callback=thunk, reduce_base=self.reduce_base)
     if fname:
-      f1 = self.load_formula(fname)
+      if self.settings['preload_formulas']:
+        f1 = self.settings.formula_cache.load_formula(fname)
+      else:
+        f1 = self.load_formula(fname)
       self.solver.append_formula(f1.clauses)
+      del f1
     self.current_step = 0
 
   def get_orig_clauses(self):

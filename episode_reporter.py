@@ -123,8 +123,11 @@ class PGEpisodeReporter(SPReporter):
 
 		print('Data for the 10 most common envs:')
 		for vals in totals[:10]:
-			s = vals[3][-self.short_window:]
-			print('Env {} appeared {} times, with moving (100) mean/std {}/{}:'.format(vals[0], vals[1], np.mean(s), np.std(s)))
+			s = vals[2][-self.short_window:]
+			r = vals[3][-self.short_window:]
+			print('Env {} appeared {} times, with moving (100) reward mean/std {}/{}:'.format(vals[0], vals[1], np.mean(r), np.std(r)))
+			print('Env {} appeared {} times, with moving (100) steps mean/std {}/{}:'.format(vals[0], vals[1], np.mean(s), np.std(s)))
+			print(r)
 			print(s)
 			print('\n\n')
 		

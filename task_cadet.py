@@ -22,6 +22,7 @@ from cadet_utils import *
 from episode_reporter import *
 from episode_manager import *
 from episode_data import *
+from formula_utils import *
 import torch.nn.utils as tutils
 
 all_episode_files = ['data/mvs.qdimacs']
@@ -32,7 +33,7 @@ clock = GlobalTick()
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -10
 TEST_EVERY = settings['test_every']
-REPORT_EVERY = 10
+REPORT_EVERY = 1
 
 reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard'])
 env = CadetEnv(**settings.hyperparameters)
@@ -141,7 +142,7 @@ def cadet_main():
 
     if True or settings['parallelism'] > 1:
       while not em.check_batch_finished():
-        em.step_all(policy)
+        em.step_all(policy,training=(not settings['do_not_learn']))
       transition_data, lenvec = em.pop_min_normalized() if settings['episodes_per_batch'] else em.pop_min()
       total_steps = em.real_steps
       if not settings['full_pipeline']:     # We throw away all incomplete episodes to keep it on-policy
@@ -218,7 +219,7 @@ def cadet_main():
         print('Average on {}: {}'.format(settings['rl_validation_data'],val_average))
         # log_value('Validation', val_average, total_steps)
       if settings['rl_test_data']:                
-        rc = em.test_envs(settings['rl_test_data'], policy, iters=1, training=True)
+        rc = em.test_envs(settings['rl_test_data'], policy, iters=1, training=False)
         z = np.array(list(rc.values()))        
         test_average = z.mean()
         print('Average on {}: {}'.format(settings['rl_test_data'],test_average))

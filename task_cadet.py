@@ -5,6 +5,7 @@ import ipdb
 import pdb
 import random
 import time
+import cProfile
 from tensorboard_logger import configure, log_value
 
 from shared_adam import SharedAdam
@@ -33,7 +34,7 @@ clock = GlobalTick()
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -10
 TEST_EVERY = settings['test_every']
-REPORT_EVERY = 1
+REPORT_EVERY = 100
 
 reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard'])
 env = CadetEnv(**settings.hyperparameters)
@@ -74,7 +75,7 @@ def cadet_main():
     print('Times are: Loss: {}, Grad: {}, Ratio: {}'.format(mt2-mt1, mt3-mt2, ((mt3-mt2)/(mt2-mt1))))
     return logits
 
-
+  settings.hyperparameters['mp']=False
     
   if settings['do_test']:
     test_envs(cadet_test=True, iters=1)
@@ -128,6 +129,9 @@ def cadet_main():
                                        (num_steps / 2,  desired_kl * 0.1),
                                   ],
                                   outside_value=desired_kl * 0.02) 
+
+  if settings['profiling']:
+    pr = cProfile.Profile() 
 
   print('Running for {} iterations..'.format(max_iterations))
   for i in range(max_iterations):

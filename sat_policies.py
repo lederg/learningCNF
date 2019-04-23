@@ -860,18 +860,17 @@ class SatFreeThresholdPolicy(PolicyBase):
     loss = pg_loss
     return loss, threshold
 
-
-class SatHyperPlanePolicy(PolicyBase):
-  def __init__(self, encoder=None, **kwargs):
-    super(SatHyperPlanePolicy, self).__init__(**kwargs)
+class SCPolicyBase(PolicyBase):
+  def __init__(self, **kwargs):
+    super(SCPolicyBase, self).__init__(**kwargs)
     self.snorm_window = 5000
-    self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+    # self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
       self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
     if self.use_bn:
       self.clabels_vbn = MovingAverageAndStdVBN((self.snorm_window,self.clabel_dim))      
     sublayers = []
-    prev = self.settings['state_dim']
+    prev = self.input_dim()
     self.policy_layers = nn.Sequential()
     n = 0
     for (i,x) in enumerate(self.settings['policy_layers']):
@@ -898,25 +897,63 @@ class SatHyperPlanePolicy(PolicyBase):
 
   def forward(self, obs, **kwargs):
     clabels = obs.clabels
-    state = obs.state
-    aux_losses = []
-
+    state = obs.state    
     if self.settings['cuda'] and not self.settings['mp']:
       state, clabels = state.cuda(), clabels.cuda()
     clabels = clabels.view(-1,self.clabel_dim)
     if self.state_bn:      
-      state = self.state_vbn(state)
+      state = self.state_vbn(state, **kwargs)
     if self.use_bn:
-      clabels = self.clabels_vbn(clabels)
-    
-    threshold = self.policy_layers(state)    
-
-    value = None
-    return threshold, clabels
+      clabels = self.clabels_vbn(clabels, **kwargs)        
+    return state, clabels
 
 
   def get_allowed_actions(self, obs, **kwargs):
     pass
+
+  def combine_actions(self, actions, **kwargs):    
+    return actions
+    # return torch.cat(actions)
+
+  def compute_loss(self, transition_data, **kwargs):    
+    collated_batch = collate_transitions(transition_data,self.settings)
+    collated_batch.state = cudaize_obs(collated_batch.state)
+    returns = self.settings.cudaize_var(collated_batch.reward)
+    outputs, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)    
+    logprobs = self.get_logprobs(outputs, collated_batch)
+    adv_t = returns
+    value_loss = 0.
+    adv_t = (adv_t - adv_t.mean())
+    if self.settings['use_sum']:
+      pg_loss = (-adv_t*logprobs).sum()
+    else:
+      pg_loss = (-adv_t*logprobs).mean()
+
+    # Recompute moving averages
+
+    if self.state_bn:
+      self.state_vbn.recompute_moments(collated_batch.state.state.detach())
+    if self.use_bn:
+      z = collated_batch.state.clabels.detach().view(-1,6)
+      self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))
+
+    loss = pg_loss
+    return loss, outputs
+
+
+class SatHyperPlanePolicy(SCPolicyBase):
+  def __init__(self, **kwargs):
+    super(SatHyperPlanePolicy, self).__init__(**kwargs)
+    self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+
+  def input_dim(self):
+    return self.settings['state_dim']
+
+  def forward(self, obs, **kwargs):    
+    state, clabels = super(SatHyperPlanePolicy, self).forward(obs)
+    return self.policy_layers(state), clabels
+
+    return threshold, clabels
 
   def translate_action(self, action, obs, **kwargs):
     threshold, clabels = action
@@ -928,9 +965,6 @@ class SatHyperPlanePolicy(PolicyBase):
     # break_every_tick(5)
 
     return final_action
-  def combine_actions(self, actions, **kwargs):    
-    return actions
-    # return torch.cat(actions)
 
   def select_action(self, obs_batch, training=True, **kwargs):
     assert(obs_batch.clabels.shape[0]==1)
@@ -949,32 +983,107 @@ class SatHyperPlanePolicy(PolicyBase):
 
     return [(sampled_threshold, clabels)]
 
-  def compute_loss(self, transition_data):    
-    collated_batch = collate_transitions(transition_data,self.settings)
-    collated_batch.state = cudaize_obs(collated_batch.state)
-    returns = self.settings.cudaize_var(collated_batch.reward)
-    threshold, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
-    # print('Batch threshold:')
-    # print(threshold)
+  def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions]).view(-1)
-    threshold = threshold.view(-1)
-    logprobs = gaussian_logprobs(threshold,self.sigma,actions)
-    adv_t = returns
-    value_loss = 0.
-    adv_t = (adv_t - adv_t.mean())
-    if self.settings['use_sum']:
-      pg_loss = (-adv_t*logprobs).sum()
-    else:
-      pg_loss = (-adv_t*logprobs).mean()
+    threshold = outputs.view(-1)
+    return gaussian_logprobs(threshold,self.sigma,actions)
 
-    # Recompute moving averages
 
-    if self.state_bn:
-      self.state_vbn.recompute_moments(collated_batch.state.state.detach())
-    if self.use_bn:
-      z = collated_batch.state.clabels.detach().view(-1,6)
-      self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))
+class SatThresholdSCPolicy(SCPolicyBase):
+  def __init__(self, **kwargs):
+    super(SatThresholdSCPolicy, self).__init__(**kwargs)
+    self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
 
-    loss = pg_loss
-    return loss, threshold
+  def input_dim(self):
+    return self.settings['state_dim']+self.settings
+
+  def forward(self, obs, **kwargs):
+    state, clabels = super(SatThresholdSCPolicy, self).forward(obs, **kwargs)
+    threshold = self.policy_layers(state) * self.threshold_scale    
+
+    return threshold, clabels
+
+  def translate_action(self, action, obs, **kwargs):
+    threshold, clabels = action
+    rc = clabels[:,CLABEL_LBD] < threshold
+    a = rc.detach()
+    num_learned = obs.ext_data
+    locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(a.long(),locked).view(-1)
+    # break_every_tick(5)
+
+    return final_action
+
+  def select_action(self, obs_batch, training=True, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    threshold, clabels = self.forward(obs_batch)
+    break_every_tick(50)
+    if not training:
+      return [(threshold, clabels)]
+    m = Normal(threshold,self.sigma)
+    sampled_threshold = m.sample()
+    if self.settings['log_threshold']:      
+      if self.shelf_key not in self.shelf_file.keys():        
+        self.shelf_file[self.shelf_key] = []
+      tmp = self.shelf_file[self.shelf_key]
+      tmp.append((threshold.detach().numpy(),sampled_threshold.detach().numpy()))
+      self.shelf_file[self.shelf_key] = tmp
+
+    return [(sampled_threshold, clabels)]
+
+  def get_logprobs(self, outputs, collated_batch):    
+    actions = collated_batch.action
+    actions = torch.cat([a[0] for a in actions]).view(-1)
+    threshold = outputs.view(-1)
+    return gaussian_logprobs(threshold,self.sigma,actions)
+
+
+
+class SatThresholdStatePolicy(SCPolicyBase):
+  def __init__(self, **kwargs):
+    super(SatThresholdStatePolicy, self).__init__(**kwargs)
+    self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+    self.threshold_scale = self.settings.FloatTensor(np.array(float(self.settings['threshold_scale'])))
+
+  def input_dim(self):
+    return self.settings['state_dim']
+
+  def forward(self, obs, **kwargs):
+    state, clabels = super(SatThresholdStatePolicy, self).forward(obs, **kwargs)
+    threshold = self.policy_layers(state) * self.threshold_scale    
+
+    return threshold, clabels
+
+  def translate_action(self, action, obs, **kwargs):
+    threshold, clabels = action
+    rc = clabels[:,CLABEL_LBD] < threshold
+    a = rc.detach()
+    num_learned = obs.ext_data
+    locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(a.long(),locked).view(-1)
+    # break_every_tick(5)
+
+    return final_action
+
+  def select_action(self, obs_batch, training=True, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    threshold, clabels = self.forward(obs_batch, **kwargs)
+    if not training:
+      return [(threshold, clabels)]
+    m = Normal(threshold,self.sigma)
+    sampled_threshold = m.sample()
+    if self.settings['log_threshold']:      
+      if self.shelf_key not in self.shelf_file.keys():        
+        self.shelf_file[self.shelf_key] = []
+      tmp = self.shelf_file[self.shelf_key]
+      tmp.append((threshold.detach().numpy(),sampled_threshold.detach().numpy()))
+      self.shelf_file[self.shelf_key] = tmp
+
+    return [(sampled_threshold, clabels)]
+
+  def get_logprobs(self, outputs, collated_batch):    
+    actions = collated_batch.action
+    actions = torch.cat([a[0] for a in actions]).view(-1)
+    threshold = outputs.view(-1)
+    return gaussian_logprobs(threshold,self.sigma,actions)

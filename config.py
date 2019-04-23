@@ -155,6 +155,7 @@ def cfg():
 	vbn_init_fixed = False
 	vbn_module = False
 	preload_formulas = False
+	preload_cnf = False
 	g2l_blacklist = []
 	l2g_whitelist = []
 

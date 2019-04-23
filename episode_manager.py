@@ -226,6 +226,8 @@ class EpisodeManager(object):
           if self.settings['learn_from_aborted']:
             self.completed_episodes.append(envstr.episode_memory)          
         else:
+          # if (envstr.curr_step % 200) == 1:
+          #   print('Environment {} step {}'.format(envstr.fname, envstr.curr_step))
           envstr.prev_obs.append(envstr.last_obs)
           envstr.last_obs = env.process_observation(envstr.last_obs,env_obs)
 

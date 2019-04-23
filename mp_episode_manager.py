@@ -199,6 +199,7 @@ class WorkerEnv(mp.Process):
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
+    self.provider.reset()
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads

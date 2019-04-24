@@ -144,6 +144,7 @@ def cadet_main():
     policy.eval()
     clock.tick()
 
+    formula_name = provider.get_next()
     if True or settings['parallelism'] > 1:
       while not em.check_batch_finished():
         em.step_all(policy,training=(not settings['do_not_learn']))
@@ -161,7 +162,7 @@ def cadet_main():
       print('Degenerate batch, ignoring')
       continue
     ratio = total_inference_time / ns
-    print('Finished batch with total of {} steps in {} seconds. Ratio: {}'.format(ns, total_inference_time,ratio))
+    print('Finished batch (for {}) with total of {} steps in {} seconds. Ratio: {}'.format(formula_name,ns, total_inference_time,ratio))
     if not (i % REPORT_EVERY) and i>0:
       reporter.report_stats(total_steps, len(all_episode_files))
       # print('Testing all episodes:')

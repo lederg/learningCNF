@@ -38,6 +38,7 @@ class SatActiveEnv:
     self.server = server
     self.current_step = 0
     self.reduce_base = int(self.settings['sat_reduce_base'])
+    self.gc_freq = self.settings['sat_gc_freq']
     self.disable_gnn = self.settings['disable_gnn']
     self.formulas_dict = {}
     self._name = 'SatEnv'
@@ -59,12 +60,12 @@ class SatActiveEnv:
       
 
     if self.solver is None:
-      print('reduce_base is {}'.format(self.reduce_base))
+      # print('reduce_base is {}'.format(self.reduce_base))
       # self.solver = Minisat22(callback=thunk)
-      self.solver = Minisat22(callback=thunk, reduce_base=self.reduce_base)
+      self.solver = Minisat22(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
     else:
       self.solver.delete()
-      self.solver.new(callback=thunk, reduce_base=self.reduce_base)
+      self.solver.new(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
     if fname:
       if self.settings['preload_formulas']:
         f1 = self.settings.formula_cache.load_formula(fname)

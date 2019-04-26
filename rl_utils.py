@@ -228,7 +228,7 @@ def collate_transitions(batch, settings=None, packed=False, cudaize_state=False)
 
 def create_policy(settings=None, is_clone=False):
   from new_policies import Actor1Policy
-  from sat_policies import SatPolicy, SatLinearPolicy, SatMiniLinearPolicy, SatLBDPolicy, SatRandomPolicy, SatBernoulliPolicy, SatThresholdPolicy, SatFixedThresholdPolicy, SatFreeThresholdPolicy, SatHyperPlanePolicy, SatThresholdStatePolicy
+  from sat_policies import SatPolicy, SatLinearPolicy, SatMiniLinearPolicy, SatLBDPolicy, SatRandomPolicy, SatBernoulliPolicy, SatFixedThresholdPolicy, SatFreeThresholdPolicy, SatHyperPlanePolicy, SatThresholdStatePolicy
 
 
   if not settings:
@@ -367,9 +367,10 @@ def state_empty(s):
   return all([i is None for i in s])
 
 def gaussian_logprobs(ms, ss, samples):
-  bias = np.log(1/np.sqrt(2*np.pi*ss*ss))
+  bias = samples.shape[1]*np.log(1/np.sqrt(2*np.pi*ss*ss))
   a = (samples-ms)**2
   b = 2*ss*ss
-  return bias - a/b
+  rc = (bias - a/b).sum(dim=1)
+  return rc
 
 

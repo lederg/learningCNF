@@ -71,8 +71,8 @@ def cfg():
 	restart_solver_every = 0				# minisat doesn't need restart
 	# restart_solver_every = 3500
 	restart_in_test = False
-	non_linearity = 'F.relu'
-	policy_non_linearity = 'torch.tanh'
+	non_linearity = 'torch.relu'
+	policy_non_linearity = 'torch.relu'
 	attn_non_linearity = 'F.tanh'
 	episode_provider = 'UniformEpisodeProvider'
 	test_every = 1000
@@ -83,7 +83,7 @@ def cfg():
 	entropy_alpha = 0.000
 	policy = 'Actor1Policy'
 	policy_dim1 = 64
-	policy_dim2 = 32
+	policy_dim2 = 0
 	batch_backwards = False  # deprecated					# Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)
 	# greedy_rewards = True
 	greedy_rewards = False

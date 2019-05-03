@@ -9,6 +9,7 @@ import numpy as np
 from collections import namedtuple
 import ipdb
 import cadet_utils
+from vbn import *
 from qbf_data import *
 from qbf_model import *
 from settings import *
@@ -20,6 +21,7 @@ class Actor1Policy(PolicyBase):
     super(Actor1Policy, self).__init__(**kwargs)
     self.final_embedding_dim = 2*self.max_iters*self.vemb_dim+self.vlabel_dim
     self.hidden_dim = 50
+    self.snorm_window = 5000
     if self.settings['ac_baseline']:      
       self.value_attn = QbfFlattenedAttention(self.final_embedding_dim, n_heads=10, settings=self.settings)
       if self.settings['use_state_in_vn']:
@@ -43,8 +45,9 @@ class Actor1Policy(PolicyBase):
     else:
       self.action_score = nn.Linear(self.policy_dim1,1)
     if self.state_bn:
-      self.state_bn = nn.BatchNorm1d(self.state_dim)
-    self.activation = eval(self.settings['non_linearity'])
+      self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
+    self.use_global_state = self.settings['use_global_state']
+    self.activation = eval(self.settings['policy_non_linearity'])
 
   
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
@@ -78,12 +81,10 @@ class Actor1Policy(PolicyBase):
       if 'do_debug' in kwargs:
         ipdb.set_trace()
     
-    if self.state_bn:
-      state = self.state_bn(state)
 
-    if self.settings['use_global_state']:
-      # if self.batch_size > 1:
-      #   ipdb.set_trace()
+    if self.use_global_state:
+      if self.state_bn:
+        state = self.state_vbn(state)
       a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
       reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
       inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
@@ -148,6 +149,7 @@ class Actor1Policy(PolicyBase):
   def compute_loss(self, transition_data, **kwargs):
     _, _, _, rewards, *_ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=self.settings)
+    collated_batch.state = cudaize_obs(collated_batch.state)
     logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
     allowed_actions = Variable(self.get_allowed_actions(collated_batch.state))
     if self.settings['cuda']:
@@ -195,22 +197,12 @@ class Actor1Policy(PolicyBase):
       pg_loss = (-Variable(adv_t)*logprobs).sum()
     else:
       pg_loss = (-Variable(adv_t)*logprobs).mean()
-    # pg_loss = (-Variable(adv_t)*logprobs - settings['entropy_alpha']*entropies).sum()
-    # print('--------------------------------------------------------------')
-    # print('pg loss is {} and disallowed loss is {}'.format(pg_loss[0],disallowed_loss[0]))
-    # print('entropies are {}'.format(entropies.mean().data[0]))
-    # print('**************************************************************')
-    # x = pd.DataFrame({'entropies': entropies.data.numpy(), 'env_id': np.array(total_envs)})
-    # pd.options.display.max_rows = 2000
-    # print(x)
-    # # print(entropies[entropies<0.1].data)
-    # print('--------------------------------------------------------------')
-    # print(disallowed_mass)
-    # loss = value_loss + lambda_disallowed*disallowed_loss
-    total_aux_loss = sum(aux_losses) if aux_losses else 0.
-    
-    # ipdb.set_trace()
+    total_aux_loss = sum(aux_losses) if aux_losses else 0.    
     loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
+
+    if self.use_global_state and self.state_bn:
+      self.state_vbn.recompute_moments(collated_batch.state.state.detach())
+
     return loss, logits
 
 

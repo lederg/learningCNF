@@ -145,7 +145,7 @@ class Actor1Policy(PolicyBase):
     return actions
 
 
-  def compute_loss(self, transition_data):
+  def compute_loss(self, transition_data, **kwargs):
     _, _, _, rewards, *_ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=self.settings)
     logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)

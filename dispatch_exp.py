@@ -47,7 +47,7 @@ def cleanup_handler(signame):
 def main():
 	parser = argparse.ArgumentParser(description='Process some params.')
 	parser.add_argument('params', metavar='N', type=str, nargs='*',
-	                    help='an integer for the accumulator')
+	                    help='Experiment parameters')
 	parser.add_argument('--name', type=str, help='Experiment name')
 	parser.add_argument('-f', '--file', type=str, help='Settings file')	
 	parser.add_argument('-c', '--command', type=str, default='reinforce_exp.py', help='Command to run (eg: qbf_exp.py)')	

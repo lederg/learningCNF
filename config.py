@@ -153,7 +153,7 @@ def cfg():
 	policy_layers = [1,'r']
 	print_every = 0
 	vbn_init_fixed = False
-	vbn_module = False
+	vbn_module = True
 	preload_formulas = False
 	preload_cnf = False
 	g2l_blacklist = []

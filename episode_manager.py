@@ -173,7 +173,7 @@ class EpisodeManager(object):
     for i, envnum in enumerate(active_envs):
       envstr = self.envs[envnum]
       env = envstr.env
-      env_id = envstr.env_id      
+      env_id = envstr.env_id
       envstr.episode_memory.append(Transition(step_obs[i],actions[i],None, None, envstr.env_id, prev_obs[i]))
       self.real_steps += 1
       envstr.curr_step += 1      
@@ -223,11 +223,9 @@ class EpisodeManager(object):
             if 'testing' not in kwargs or not kwargs['testing']:
               self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
           rc.append((envnum,False))
-          if self.settings['learn_from_aborted']:
+          if ('testing' not in kwargs or not kwargs['testing']) and self.settings['learn_from_aborted']:
             self.completed_episodes.append(envstr.episode_memory)          
         else:
-          # if (envstr.curr_step % 200) == 1:
-          #   print('Environment {} step {}'.format(envstr.fname, envstr.curr_step))
           envstr.prev_obs.append(envstr.last_obs)
           envstr.last_obs = env.process_observation(envstr.last_obs,env_obs)
 
@@ -298,6 +296,7 @@ class EpisodeManager(object):
     total_srate = 0.
     total_scored = 0
     rc = {}
+    kwargs['testing']=True
     self.restart_all()
     available_envs = list(range(self.parallelism))    
     tasks = []

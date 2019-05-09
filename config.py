@@ -88,9 +88,9 @@ def cfg():
 	# greedy_rewards = True
 	greedy_rewards = False
 	rl_log_dir = 'runs_cadet'
-	rl_train_data = 'data/qbf_easy_train/magicSquare-8_glb[132-1000]-95292.cnf'
-	rl_validation_data = None
-	rl_test_data = 'data/sat_all/'
+	rl_train_data = 'data/qbf_easy_train/'
+	rl_validation_data = 'data/qbf_easy_test'
+	rl_test_data = 'data/qbf_hard_test/'
 	rl_log_envs = []
 	rl_log_all = False
 	rl_shelve_it = False
@@ -158,6 +158,8 @@ def cfg():
 	preload_cnf = False
 	g2l_blacklist = []
 	l2g_whitelist = []
+	def_step_cost = -1.000e-04
+	cadet_completion_reward = 1.
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

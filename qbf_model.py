@@ -20,10 +20,13 @@ def expand_ground_to_state(v, settings=None):
 
 
 class GruOperator(nn.Module):
-	def __init__(self, **kwargs):
+	def __init__(self, embedding_dim=None, **kwargs):
 		super(GruOperator, self).__init__()        
 		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
-		self.embedding_dim = self.settings['embedding_dim']		
+		if embedding_dim:
+			self.embedding_dim = embedding_dim
+		else:
+			self.embedding_dim = self.settings['embedding_dim']		
 		self.W_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
 		self.U_z = nn.Linear(self.embedding_dim,self.embedding_dim,bias=self.settings['gru_bias'])
 		self.W_r = nn.Linear(self.embedding_dim,self.embedding_dim,bias=False)
@@ -295,8 +298,12 @@ class QbfNewEncoder(nn.Module):
 			nn_init.normal_(B_C_params[i])
 			if self.settings['use_bn']:
 				self.vnorm_layers.append(nn.BatchNorm1d(self.vemb_dim))
-			if self.settings['use_ln']:
+			elif self.settings['use_ln']:
 				self.vnorm_layers.append(nn.LayerNorm(self.vemb_dim))
+
+
+		if self.settings['use_gru']:
+			self.gru = GruOperator(embeddding_dim=self.vemb_dim, settings=self.settings)
 
 		self.W_L_params = nn.ParameterList(W_L_params)
 		self.B_L_params = nn.ParameterList(B_L_params)
@@ -353,6 +360,94 @@ class QbfNewEncoder(nn.Module):
 
 
 		return pos_vars, neg_vars		
+
+
+class QbfSimpleEncoder(nn.Module):
+	def __init__(self, **kwargs):
+		super(QbfSimpleEncoder, self).__init__() 
+		self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
+		self.debug = False
+		self.vlabel_dim = self.settings['ground_dim']
+		self.clabel_dim = self.settings['clabel_dim']
+		self.vemb_dim = self.settings['vemb_dim']
+		self.cemb_dim = self.settings['cemb_dim']
+		self.max_iters = self.settings['max_iters']		
+		self.non_linearity = eval(self.settings['non_linearity'])
+		self.W_V_pos_params = nn.Parameter(torch.FloatTensor(self.vlabel_dim+self.vemb_dim,self.cemb_dim))
+		self.W_V_neg_params = nn.Parameter(torch.FloatTensor(self.vlabel_dim+self.vemb_dim,self.cemb_dim))
+		self.B_V_params = nn.Parameter(torch.FloatTensor(self.cemb_dim))
+		self.W_C_pos_params = nn.Parameter(torch.FloatTensor(self.clabel_dim+self.cemb_dim,self.vemb_dim))
+		self.W_C_neg_params = nn.Parameter(torch.FloatTensor(self.clabel_dim+self.cemb_dim,self.vemb_dim))
+		self.B_C_params = nn.Parameter(torch.FloatTensor(self.vemb_dim))
+		nn_init.normal_(self.W_V_pos_params)
+		nn_init.normal_(self.W_V_neg_params)
+		nn_init.normal_(self.B_V_params)		
+		nn_init.normal_(self.W_C_pos_params)
+		nn_init.normal_(self.W_C_neg_params)
+		nn_init.normal_(self.B_C_params)		
+		if self.settings['use_bn']:
+			self.vnorm_layer = nn.BatchNorm1d(self.vemb_dim)
+		elif self.settings['use_ln']:
+			self.vnorm_layer = nn.LayerNorm(self.vemb_dim)
+		self.const_var = self.settings.zeros(1)
+
+
+		if self.settings['use_gru']:
+			self.gru = GruOperator(embeddding_dim=self.vemb_dim, settings=self.settings)
+		
+					
+	def copy_from_encoder(self, other, freeze=False):
+		self.W_V_pos_params = other.W_V_pos_params
+		self.W_V_neg_params = other.W_V_neg_params
+		self.B_V_params = other.B_V_params
+		self.W_C_pos_params = other.W_C_pos_params
+		self.W_C_neg_params = other.W_C_neg_params
+		self.B_C_params = other.B_C_params
+		if freeze:
+			self.W_V_pos_params.requires_grad=False
+			self.W_V_neg_params.requires_grad=False
+			self.B_V_params.requires_grad=False
+			self.W_C_pos_params.requires_grad=False
+			self.W_C_neg_params.requires_grad=False
+			self.B_C_params.requires_grad=False
+		if self.settings['use_bn']:			
+			self.vnorm_layer.load_state_dict(other.vnorm_layer.state_dict())
+		elif self.settings['use_gru']:
+			self.gru.load_state_dict(other.gru.state_dict())
+
+
+# vlabels are (batch,maxvars,vlabel_dim)
+# clabels are sparse (batch,maxvars,maxvars,label_dim)
+# cmat_pos and cmat_neg is the bs*v -> bs*c block-diagonal adjacency matrix 
+
+	def forward(self, vlabels, clabels, cmat_pos, cmat_neg, **kwargs):
+		size = vlabels.size()
+		bs = size[0]
+		pos_vars = vlabels
+		neg_vars = vlabels
+		vmat_pos = cmat_pos.t()
+		vmat_neg = cmat_neg.t()		
+		vembs = self.const_var.expand(bs,self.vemb_dim)
+
+		for _ in range(self.max_iters):
+			prev_vembs = vembs
+			vs = torch.cat([vlabels,vembs],dim=1)
+			pv = torch.mm(vs,self.W_V_pos_params)
+			nv = torch.mm(vs,self.W_V_neg_params)
+			cembs = self.non_linearity(torch.mm(cmat_pos,pv) + torch.mm(cmat_neg,nv) + self.B_V_params)
+			cs = torch.cat([clabels,cembs],dim=1)
+			pc = torch.mm(cs,self.W_C_pos_params)
+			nc = torch.mm(cs,self.W_C_neg_params)
+			vembs = self.non_linearity(torch.mm(vmat_pos,pc) + torch.mm(vmat_neg,nc) + self.B_C_params)
+			if self.settings['use_bn'] or self.settings['use_ln']:
+				vembs = self.vnorm_layer(vembs)
+			elif self.settings['use_gru']:
+				vembs = self.gru(prev_vembs,vembs)
+
+		return vembs		
+
+
+
 
 class QbfAttention(nn.Module):
 	def __init__(self, emb_dim, n_heads=10, seed_dim=None, **kwargs):

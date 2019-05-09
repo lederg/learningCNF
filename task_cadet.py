@@ -238,9 +238,6 @@ def cadet_main():
         # test_average = test_envs(fnames=settings['rl_test_data'], model=policy, testing=True, iters=1)
 
 
-
-
-
   
 def test_one_env(fname, iters=None, threshold=100000, **kwargs):
   s = 0.

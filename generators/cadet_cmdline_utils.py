@@ -39,7 +39,8 @@ def eval_formula(formula, repetitions=1, decision_limit=0):
     f.seek(0)
 
     for _ in range(repetitions):
-        tool = ['./../../cadet/dev/cadet','-v','1',
+        tool = ['./cadet','-v','1',
+        # tool = ['./../../cadet/dev/cadet','-v','1',
                 '--debugging',
                 '--cegar_soft_conflict_limit',
                 '-l', f'{decision_limit}',

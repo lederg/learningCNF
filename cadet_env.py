@@ -26,7 +26,7 @@ def require_init(f, *args, **kwargs):
 class CadetEnv:
   def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, slim_state=False,
                 use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, 
-                use_vsids_rewards = False, **kwargs):
+                use_vsids_rewards = False, def_step_cost = -1e-4, cadet_completion_reward=1., logger=None, **kwargs):
     self.EnvObservation = namedtuple('EnvObservation', 
                     ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
                       'reward', 'vars_set', 'done'])
@@ -41,13 +41,17 @@ class CadetEnv:
     self.use_old_rewards = use_old_rewards
     self.use_vsids_rewards = use_vsids_rewards
     self.slim_state = slim_state
+    self.def_step_cost = def_step_cost
+    self.cadet_completion_reward = cadet_completion_reward
+    self.logger = logger
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.    
     self.tail = deque([],LOG_SIZE)
     self.start_cadet()
     
 
   def start_cadet(self):
-    cadet_params = ['--rl', '--cegar', '--sat_by_qbf']
+    cadet_params = ['--rl', '--cegar', '--sat_by_qbf', '--rl_reward_per_decision', '{}'.format(self.def_step_cost), 
+                      '--rl_completion_reward', '{}'.format(self.cadet_completion_reward)]
     if not self.use_old_rewards:
       if self.debug:
         print('Using new rewards!')
@@ -403,4 +407,3 @@ class CadetEnv:
     self.write_action(action)
     return self.read_state_update()
             
-    

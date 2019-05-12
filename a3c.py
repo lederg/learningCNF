@@ -1,6 +1,7 @@
 import ipdb
 import cProfile
 from sacred import Experiment
+from sacred.observers import MongoObserver
 from config import *
 from settings import *
 
@@ -13,7 +14,10 @@ def main():
 	settings = CnfSettings(ex.current_run.config)
 	settings.hyperparameters['name'] = ex.current_run.experiment_info['name']
 	settings.hyperparameters['mp']=True
-	# print(settings.hyperparameters)
+	if settings['mongo']:
+		print('Adding mongodb observer')
+		ex.observers.append(MongoObserver.create(url=settings['mongo_host'],
+                                         db_name=settings['mongo_dbname']))
 	from task_a3c import a3c_main
 	from task_parallel import parallel_main
 	from task_collectgrid import grid_main

@@ -253,7 +253,8 @@ class EpisodeManager(object):
           actions.append(np.random.choice(choices))
       return actions, None
     elif cadet_test:
-      return ['?']*bs, None
+      # return ['?']*bs, None
+      return '?', None
     actions = model.select_action(obs_batch, **kwargs)    
     return actions
 
@@ -325,14 +326,15 @@ class EpisodeManager(object):
       if finished_envs:
         if self.debug:
           print('Finished Envs: {}'.format(finished_envs))
-        # ipdb.set_trace()
         for i, finished in finished_envs:
           fname = self.envs[i].fname
           if finished:
             if self.debug:
               print('Finished {} on Solver #{}'.format(fname,i))
             ep = self.completed_episodes.pop(0)
-            res = sum([x.reward for x in ep])            
+            # res = sum([x.reward for x in ep])            
+            res = sum([1 for x in ep])            
+            # ipdb.set_trace()
           else:
             print('Env {} took too long on Solver #{}!'.format(fname,i))
             res = len(self.envs[i].episode_memory)

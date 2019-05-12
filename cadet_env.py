@@ -346,7 +346,6 @@ class CadetEnv:
       ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][env_obs.vars_remove] = False
     if self.use_activities:
       ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
-    ipdb.set_trace()
     if len(env_obs.vars_set):
       a = env_obs.vars_set
       idx = a[:,0][np.where(a[:,1]==1)[0]]

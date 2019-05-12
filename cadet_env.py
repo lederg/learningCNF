@@ -26,11 +26,15 @@ def require_init(f, *args, **kwargs):
 class CadetEnv:
   def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, slim_state=False,
                 use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, 
-                use_vsids_rewards = False, def_step_cost = -1e-4, cadet_completion_reward=1., logger=None, **kwargs):
+                use_vsids_rewards = False, def_step_cost = -1e-4, cadet_completion_reward=1., logger=None, settings=None, **kwargs):
     self.EnvObservation = namedtuple('EnvObservation', 
                     ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
                       'reward', 'vars_set', 'done'])
 
+    if settings:
+      self.settings = settings
+    else:
+      self.settings = CnfSettings()
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
@@ -46,6 +50,7 @@ class CadetEnv:
     self.logger = logger
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.    
     self.tail = deque([],LOG_SIZE)
+    self.use_activities = self.settings['cadet_use_activities']
     self.start_cadet()
     
 
@@ -318,12 +323,9 @@ class CadetEnv:
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
-    if not settings:
-      settings = CnfSettings()
-
     if env_obs.clause or not last_obs:
       # ipdb.set_trace()
-      cmat = get_input_from_qbf(self.qbf, settings, False) # Do not split
+      cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
     else:
       cmat, clabels = last_obs.cmat, last_obs.clabels
@@ -342,7 +344,9 @@ class CadetEnv:
     if len(env_obs.vars_remove):
       ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_remove] = False
       ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][env_obs.vars_remove] = False
-    ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
+    if self.use_activities:
+      ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
+    ipdb.set_trace()
     if len(env_obs.vars_set):
       a = env_obs.vars_set
       idx = a[:,0][np.where(a[:,1]==1)[0]]
@@ -360,8 +364,6 @@ class CadetEnv:
 # This returns already a State (higher-level) observation, not EnvObs.
 
   def new_episode(self, fname, settings=None, **kwargs):
-    if not settings:
-      settings = CnfSettings()
     try:
       env_id = int(os.path.split(fname)[1].split('_')[-2])
     except:

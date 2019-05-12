@@ -163,6 +163,7 @@ def cfg():
 	l2g_whitelist = []
 	def_step_cost = -1.000e-04
 	cadet_completion_reward = 1.
+	cadet_use_activities = True
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

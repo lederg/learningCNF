@@ -214,7 +214,8 @@ class SatEnvServer(mp.Process):
     if self.settings['memory_profiling']:
       tracemalloc.start(25)    
     while True:
-      if self.settings['memory_profiling'] and (self.total_episodes % 10 == 1):    
+      # if self.settings['memory_profiling'] and (self.total_episodes % 10 == 1):    
+      if self.settings['memory_profiling']:
         snapshot = tracemalloc.take_snapshot()
         top_stats = snapshot.statistics('lineno')
         print("[ Top 20 in {}]".format(self.name))

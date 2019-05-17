@@ -22,7 +22,7 @@ from env_factory import *
 DEF_COST = -1.000e-04
 
 EnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
+                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time', 'end_time'])
 
 
 class EpisodeManager(object):
@@ -49,7 +49,7 @@ class EpisodeManager(object):
 
     for i in range(parallelism):
       self.envs.append(EnvStruct(EnvFactory().create_env(), 
-        None, None, None, None, None, True, deque(maxlen=self.rnn_iters)))
+        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), 0, 0))
 
   def check_batch_finished(self):
     if self.settings['episodes_per_batch']:
@@ -132,6 +132,8 @@ class EpisodeManager(object):
     envstr.env_id = fname
     envstr.curr_step = 0
     envstr.fname = fname
+    envstr.start_time = time.time()
+    envstr.end_time = 0
     envstr.episode_memory = []     
     # Set up the previous observations to be None followed by the last_obs   
     envstr.prev_obs.clear()    
@@ -243,7 +245,7 @@ class EpisodeManager(object):
       for allowed in allowed_actions:
         choices = np.where(allowed.numpy())[0]
         actions.append(np.random.choice(choices))
-      return actions, None
+      return actions
     elif activity_test:
       for i,act in enumerate(activities):
         if np.any(act):
@@ -251,10 +253,10 @@ class EpisodeManager(object):
         else:
           choices = np.where(allowed_actions[i].numpy())[0]
           actions.append(np.random.choice(choices))
-      return actions, None
+      return actions
     elif cadet_test:
-      # return ['?']*bs, None
-      return '?', None
+      return ['?']*bs
+      # return '?'
     actions = model.select_action(obs_batch, **kwargs)    
     return actions
 

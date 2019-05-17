@@ -150,6 +150,7 @@ def cfg():
 	report_window=5000
 	report_uniform=True
 	short_window=500
+	report_every = 100
 	mp=False
 	main_loop = 'a3c_main'
 	gpu_cap = 100
@@ -164,6 +165,7 @@ def cfg():
 	def_step_cost = -1.000e-04
 	cadet_completion_reward = 1.
 	cadet_use_activities = True
+	report_last_envs = 10
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

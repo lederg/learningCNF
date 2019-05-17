@@ -6,6 +6,7 @@ import pdb
 import random
 import time
 import cProfile
+import tracemalloc
 from tensorboard_logger import configure, log_value
 
 from shared_adam import SharedAdam
@@ -34,7 +35,7 @@ clock = GlobalTick()
 SAVE_EVERY = 500
 INVALID_ACTION_REWARDS = -10
 TEST_EVERY = settings['test_every']
-REPORT_EVERY = 100
+REPORT_EVERY = settings['report_every']
 
 reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard'])
 env = CadetEnv(**settings.hyperparameters)
@@ -132,6 +133,9 @@ def cadet_main():
 
   if settings['profiling']:
     pr = cProfile.Profile() 
+  if settings['memory_profiling']:
+    tracemalloc.start(25)
+
 
   print('Running for {} iterations..'.format(max_iterations))
   for i in range(max_iterations):
@@ -172,6 +176,14 @@ def cadet_main():
       #   print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
     inference_time.clear()
 
+    if settings['memory_profiling']:    
+      snapshot = tracemalloc.take_snapshot()
+      top_stats = snapshot.statistics('lineno')
+      print("[ Top 20 in {}]".format('task_cadet'))
+      for stat in top_stats[:20]:
+        print(stat)
+
+
     if settings['do_not_learn']:
       continue
     begin_time = time.time()
@@ -206,8 +218,6 @@ def cadet_main():
       if new_lr != curr_lr:
         utils.set_lr(optimizer,new_lr)
         curr_lr = new_lr
-
-
 
     if settings['restart_solver_every'] and not (i % settings['restart_solver_every']) and i > 0:      
       em.restart_all()

@@ -32,6 +32,7 @@ class SPReporter(AbstractReporter):
 		self.settings = settings
 		self.report_window = self.settings['report_window']
 		self.short_window = self.settings['short_window']
+		self.report_last_envs = self.settings['report_last_envs']
 
 class MPReporter(AbstractReporter):
 	def __init__(self, fname, settings, tensorboard=False):
@@ -121,8 +122,8 @@ class PGEpisodeReporter(SPReporter):
 		if sum(steps)+1000 < total_steps:			# Not all episodes are actually used (parallelism/on-policy pg)
 			total_steps = sum(steps)
 
-		print('Data for the 10 most common envs:')
-		for vals in totals[:10]:
+		print('Data for the {} most common envs:'.format(self.report_last_envs))
+		for vals in totals[:self.report_last_envs]:
 			s = vals[2][-self.short_window:]
 			r = vals[3][-self.short_window:]
 			print('Env {} appeared {} times, with moving (100) reward mean/std {}/{}:'.format(vals[0], vals[1], np.mean(r), np.std(r)))

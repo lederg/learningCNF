@@ -891,7 +891,7 @@ class SatThresholdStatePolicy(SCPolicyBase):
 
   def forward(self, obs, **kwargs):
     state, clabels = super(SatThresholdStatePolicy, self).forward(obs, **kwargs)
-    threshold = self.policy_layers(state) * self.threshold_scale    
+    threshold = self.policy_layers(state) * self.threshold_scale
 
     return threshold, clabels
 

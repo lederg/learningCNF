@@ -12,6 +12,7 @@ MONGO_MACHINE = 'russell'
 
 def get_experiment_config(name, hostname, dbname):
     settings = CnfSettings(cfg())
+    hostname = 'mongodb://gil:blabla@' + hostname + '/?authSource={}'.format(dbname)
     with MongoClient(host=hostname) as client:
         db = client[dbname]
         runs = db['runs']

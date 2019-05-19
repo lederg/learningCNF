@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import time
 import ipdb
+import gc
 import os
 import sys
 import signal
@@ -11,6 +12,7 @@ import torch.multiprocessing as mp
 import torch.optim as optim
 import cProfile
 import tracemalloc
+import psutil
 from collections import namedtuple, deque
 from namedlist import namedlist
 
@@ -24,6 +26,7 @@ from rl_utils import *
 from cadet_utils import *
 from episode_data import *
 from env_factory import *
+from mem_report import mem_report
 
 # DEF_COST = -1.000e-04
 
@@ -71,6 +74,7 @@ class WorkerEnv(mp.Process):
     self.reset_counter += 1
     if self.restart_solver_every > 0 and (self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0)):
       self.envstr.env.restart_env(timeout=0)
+    print("({0})reset: {1}, memory: {2:.2f}MB".format(self.name,self.reset_counter, self.process.memory_info().rss / float(2 ** 20)))        
     # if not fname:
     #   if not self.reset_counter % 200:
     #     self.ds.recalc_weights()
@@ -206,6 +210,7 @@ class WorkerEnv(mp.Process):
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = create_policy(settings=self.settings)
     self.lmodel.load_state_dict(self.gmodel.state_dict())
+    self.process = psutil.Process(os.getpid())
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 
@@ -298,12 +303,19 @@ class WorkerEnv(mp.Process):
           self.g_steps.value += local_env_steps
           local_env_steps = 0
           global_steps = self.g_grad_steps.value
-      if self.settings['memory_profiling'] and (total_step % 10 == 1):    
+      # if self.settings['memory_profiling'] and (total_step % 10 == 1):    
+      if self.settings['memory_profiling']:    
+        print("({0})iter: {1}, memory: {2:.2f}MB".format(self.name,total_step, self.process.memory_info().rss / float(2 ** 20)))        
+        objects = gc.get_objects()
+        print('Number of objects is {}'.format(len(objects)))
+        del objects
         snapshot = tracemalloc.take_snapshot()
         top_stats = snapshot.statistics('lineno')
         print("[ Top 20 in {}]".format(self.name))
         for stat in top_stats[:20]:
             print(stat)
+        del snapshot
+        del top_stats
 
 
 

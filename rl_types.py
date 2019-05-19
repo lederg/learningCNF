@@ -16,4 +16,8 @@ PackedState = namedtuple('PackedState',
 Transition = namedlist('Transition',
                         ['state', 'action', 'next_state', 'reward', 'formula', 'prev_obs'])
 
+# # Inner struct for EpisodeManager and MPEpisodeManager
+# EnvStruct = namedlist('EnvStruct',
+#                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time', 'end_time'])
+
 EmptyState = State(state=None, cmat=None, ground=None, clabels=None, vmask=None, cmask=None, ext_data=None)

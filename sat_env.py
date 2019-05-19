@@ -211,18 +211,18 @@ class SatEnvServer(mp.Process):
   def run(self):
     print('Env {} on pid {}'.format(self.env.name, os.getpid()))
     set_proc_name(str.encode('{}_{}'.format(self.env.name,os.getpid())))
-    if self.settings['memory_profiling']:
-      tracemalloc.start(25)    
+    # if self.settings['memory_profiling']:
+    #   tracemalloc.start(25)    
     while True:
       # if self.settings['memory_profiling'] and (self.total_episodes % 10 == 1):    
-      if self.settings['memory_profiling']:
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        print("[ Top 20 in {}]".format(self.name))
-        for stat in top_stats[:20]:
-            print(stat)            
-        print('Number of cached formulas: {}'.format(len(self.env.formulas_dict.keys())))
-        print(self.env.formulas_dict.keys())
+      # if self.settings['memory_profiling']:
+      #   snapshot = tracemalloc.take_snapshot()
+      #   top_stats = snapshot.statistics('lineno')
+      #   print("[ Top 20 in {}]".format(self.name))
+      #   for stat in top_stats[:20]:
+      #       print(stat)            
+      #   print('Number of cached formulas: {}'.format(len(self.env.formulas_dict.keys())))
+      #   print(self.env.formulas_dict.keys())
 
 
       if self.cmd == EnvCommands.CMD_RESET:

@@ -27,7 +27,6 @@ from cadet_utils import *
 from episode_data import *
 from env_factory import *
 from policy_factory import *
-from mem_report import mem_report
 
 # DEF_COST = -1.000e-04
 

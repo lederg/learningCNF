@@ -77,7 +77,7 @@ class MovingAverageAndStdVBN(AbstractVBN):
     self.size = size
     self.total_length = 0
     self.moving_mean = nn.Parameter(self.settings.FloatTensor(*self.size), requires_grad=False)
-    self.moving_std = nn.ParTameter(self.settings.FloatTensor(*self.size), requires_grad=False)
+    self.moving_std = nn.Parameter(self.settings.FloatTensor(*self.size), requires_grad=False)
     nn.init.constant_(self.moving_mean,0.)
     nn.init.constant_(self.moving_std,1.)
     # This class -always- fixes the scale and shift, they will not be changed.

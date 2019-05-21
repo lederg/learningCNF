@@ -26,6 +26,7 @@ from mp_episode_manager import *
 from episode_manager import EpisodeManager
 from episode_data import *
 from formula_utils import *
+from policy_factory import *
 import torch.nn.utils as tutils
 import sat_policies
 settings = CnfSettings()
@@ -72,7 +73,7 @@ def a3c_main():
 
   # em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter.proxy())  
 
-  policy = create_policy()
+  policy = PolicyFactory().create_policy()
   policy.share_memory()
   optimizer = SharedAdam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)    
   num_steps = 100000000

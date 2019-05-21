@@ -27,6 +27,7 @@ from episode_reporter import *
 from episode_manager import *
 from episode_data import *
 from formula_utils import *
+from policy_factory import *
 import torch.nn.utils as tutils
 
 all_episode_files = ['data/mvs.qdimacs']
@@ -94,7 +95,7 @@ def cadet_main():
   bad_episodes_not_added = 0
   mse_loss = nn.MSELoss()
   stepsize = settings['init_lr']
-  policy = create_policy()
+  policy = PolicyFactory().create_policy()
   if not settings['do_not_learn']:
     optimizer = SharedAdam(filter(lambda p: p.requires_grad, policy.parameters()), lr=stepsize)
   else:

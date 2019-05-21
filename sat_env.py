@@ -10,7 +10,7 @@ import time
 import logging
 import pickle
 import tracemalloc
-import multiprocessing as mp
+import torch.multiprocessing as mp
 from settings import *
 from qbf_data import *
 from envbase import *

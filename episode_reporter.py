@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import multiprocessing as mp
+import torch.multiprocessing as mp
 from torch.multiprocessing import Manager
 from tensorboard_logger import configure, log_value
 from utils import *

@@ -26,6 +26,7 @@ from rl_utils import *
 from cadet_utils import *
 from episode_data import *
 from env_factory import *
+from policy_factory import *
 from mem_report import mem_report
 
 # DEF_COST = -1.000e-04
@@ -213,7 +214,7 @@ class WorkerEnv(mp.Process):
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
-    self.lmodel = create_policy(settings=self.settings)
+    self.lmodel = PolicyFactory().create_policy()
     self.lmodel.load_state_dict(self.gmodel.state_dict())
     self.process = psutil.Process(os.getpid())
     if self.settings['log_threshold']:

@@ -1,5 +1,5 @@
 import os
-import multiprocessing as mp
+import torch.multiprocessing as mp
 from enum import Enum
 from utils import set_proc_name
 

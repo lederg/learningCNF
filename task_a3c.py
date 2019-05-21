@@ -116,7 +116,8 @@ def a3c_main():
       print('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
     if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), gsteps))
-      ed.save_file()
+      if ed is not None:
+        ed.save_file()
     if i % TEST_EVERY == 0 and i>0:      
       em.test_envs(settings['rl_test_data'], policy, iters=1, training=False)
     if settings['rl_decay']:

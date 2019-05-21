@@ -5,6 +5,8 @@ import ipdb
 import pdb
 import random
 import time
+import psutil
+import gc
 import cProfile
 import tracemalloc
 from tensorboard_logger import configure, log_value
@@ -51,6 +53,7 @@ init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
 curr_lr = init_lr
 max_reroll = 0
+process = psutil.Process(os.getpid())
 
 def cadet_main():
   def train_model(transition_data, **kwargs):
@@ -175,6 +178,24 @@ def cadet_main():
       #   r = env.rewards
       #   print('Env %s completed test in %d steps with total reward %f' % (fname, len(r), sum(r)))
     inference_time.clear()
+
+    if settings['memory_profiling']:    
+      print("iter: {0}, memory: {1:.2f}MB".format(i, process.memory_info().rss / float(2 ** 20)))        
+      objects = gc.get_objects()
+      print('Number of objects is {}'.format(len(objects)))
+      del objects
+      snapshot = tracemalloc.take_snapshot()
+      top_stats = snapshot.statistics('lineno')
+      print("[ Top 20 ]")
+      for stat in top_stats[:20]:
+          print(stat)
+      del snapshot
+      del top_stats
+      tracemalloc.clear_traces()
+      print('collecting...')
+      gc.collect()
+      print('done')
+
 
     if settings['memory_profiling']:    
       snapshot = tracemalloc.take_snapshot()

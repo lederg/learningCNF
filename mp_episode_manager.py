@@ -74,7 +74,12 @@ class WorkerEnv(mp.Process):
     self.reset_counter += 1
     if self.restart_solver_every > 0 and (self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0)):
       self.envstr.env.restart_env(timeout=0)
-    print("({0})reset: {1}, memory: {2:.2f}MB".format(self.name,self.reset_counter, self.process.memory_info().rss / float(2 ** 20)))        
+    if self.settings['memory_profiling']:
+      print("({0}-{1})reset: {2}/{3}, memory: {4:.2f}MB".format(self.name, self.envstr.fname, self.reset_counter, self.envstr.curr_step, self.process.memory_info().rss / float(2 ** 20)))        
+      objects = gc.get_objects()
+      print('Number of objects is {}'.format(len(objects)))
+      del objects
+
     # if not fname:
     #   if not self.reset_counter % 200:
     #     self.ds.recalc_weights()

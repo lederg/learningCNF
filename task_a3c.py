@@ -61,7 +61,8 @@ def a3c_main():
   reporter = PGReporterServer(PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard']))
   manager.start()
   reporter.start()
-  ed = manager.EpisodeData(name=settings['name'], fname=settings['base_stats'])
+  ed = None
+  # ed = manager.EpisodeData(name=settings['name'], fname=settings['base_stats'])
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(settings['rl_train_data'])

@@ -586,7 +586,7 @@ class SatLBDPolicy(PolicyBase):
   def select_action(self, obs_batch, **kwargs):
     return [np.empty(shape=(0, 0), dtype=bool)]
 
-  def compute_loss(self, transition_data):
+  def compute_loss(self, transition_data, **kwargs):
     return None, None
 
 

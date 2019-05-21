@@ -94,8 +94,10 @@ class SatActiveEnv:
     self.current_step += 1
     if self.disable_gnn:
       adj_matrix = None
-    else:            
+      vlabels = None
+    else: 
       adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
+      vlabels = self.get_vlabels()
     if not self.server:
       log.info('Running a test version of SatEnv')
       utility = cl_label_arr[:,3] # just return the lbd
@@ -103,7 +105,7 @@ class SatActiveEnv:
       return utility
     else:
       try:
-        return self.server.callback(self.get_vlabels(), cl_label_arr, adj_matrix, reward)
+        return self.server.callback(vlabels, cl_label_arr, adj_matrix, reward)
       except Exception as e:
         print('Gah, an exception: {}'.format(e))
 
@@ -174,12 +176,13 @@ class SatEnvProxy(EnvBase):
     all_clabels[:,4] = act
 
     # Take log of vlabels[:,3] and clabels[:,4]
-    activities = env_obs.vlabels[:,3]+10
-    env_obs.vlabels[:,3]=np.log(activities)
+    if not self.disable_gnn:
+      activities = env_obs.vlabels[:,3]+10
+      env_obs.vlabels[:,3]=np.log(activities)
+      vlabels = Variable(torch.from_numpy(env_obs.vlabels).float())   # Remove first (zero) row
+    else:
+      vlabels = Variable(torch.zeros(2,self.settings['vlabel_dim']))   # Add dummy variables to keep collate_batch happy
     clabels = Variable(all_clabels)
-    # vlabels = Variable(torch.from_numpy(env_obs.vlabels[1:]).float())   # Remove first (zero) row
-    vlabels = Variable(torch.from_numpy(env_obs.vlabels).float())   # Remove first (zero) row
-    # ipdb.set_trace()
     vmask = last_obs.vmask if last_obs else None
     cmask = last_obs.cmask if last_obs else None
     state = self.settings.FloatTensor(np.concatenate([np.concatenate(env_obs.state[:-1]),env_obs.state[-1].reshape(-1)])).unsqueeze(0)

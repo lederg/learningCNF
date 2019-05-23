@@ -28,6 +28,7 @@ def main():
   parser.add_argument('-v', '--vsids', action='store_true', default=False, help='VSIDS test') 
   parser.add_argument('-p', '--parallelism', type=int, default=1, help='Use # processes') 
   parser.add_argument('-i', '--iterations', type=int, default=10, help='Average # iterations per formula') 
+  parser.add_argument('-t', '--seconds', type=int, default=0, help='Number of seconds per formula') 
   parser.add_argument('-s', '--steps', type=int, default=500, help='Maximum # of steps before quitting') 
   args = parser.parse_args()
 
@@ -38,7 +39,8 @@ def main():
   if args.host:
       hostname = args.host
   else :
-      hostname = get_mongo_addr(MONGO_MACHINE)+':27017'  
+      hostname = get_mongo_addr(MONGO_MACHINE)+':27017'
+  
   if args.experiment:
     rc = get_experiment_config(args.experiment,hostname,args.db)
     if len(rc.keys()) > 1:
@@ -70,16 +72,17 @@ def main():
   policy = create_policy()
   policy.eval()
   ed = EpisodeData(name='blabla')
-  ds = QbfCurriculumDataset(fnames=testdir)
-  em = EpisodeManager(ds, parallelism=args.parallelism,reporter=reporter)
+  ProviderClass = eval(settings['episode_provider'])
+  provider = ProviderClass(testdir)  
+  em = EpisodeManager(provider, parallelism=args.parallelism,reporter=reporter)
   start_time = time.time()
   kwargs = {'cadet_test': args.vsids, 'random_test': args.random}
   if args.parallelism > 1:
     rc = em.mp_test_envs(fnames=testdir,model=policy, ed=ed, iters=args.iterations, **kwargs)
   else:
-    rc = em.test_envs(fnames=testdir,model=policy, ed=ed, iters=args.iterations, **kwargs)
+    rc = em.test_envs(fnames=testdir,model=policy, ed=ed, iters=args.iterations, max_seconds=args.seconds, **kwargs)
   end_time = time.time()
-  print('Entire test took {} seconds'.format(end_time-start_time))
+  print('Entire test took {} seconds'.format(end_time-start_time))  
   z = np.array([x for (x) in rc.values()]).squeeze()
   vals = sorted(z.astype(int).tolist())
   if args.output:

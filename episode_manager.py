@@ -146,11 +146,14 @@ class EpisodeManager(object):
   def step_all(self, model, **kwargs):
     step_obs = []
     prev_obs = []
+    max_seconds = int(kwargs['max_seconds'])    
     rc = []     # the env structure indices that finished and got to be reset (or will reset automatically next step)
     active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
     for i in active_envs:
       envstr = self.envs[i]
-      if not envstr.last_obs or envstr.curr_step > self.max_step:
+      # if not envstr.last_obs or envstr.curr_step > self.max_step:        
+      if not envstr.last_obs:        
+        print('Reseting from step_all')
         obs = self.reset_env(envstr,fname=self.provider.get_next())
         if obs is None:    # degenerate env
           self.completed_episodes.append(envstr.episode_memory)
@@ -202,6 +205,7 @@ class EpisodeManager(object):
             envstr.episode_memory[j].reward = r
         self.completed_episodes.append(envstr.episode_memory)
         envstr.last_obs = None      # This will mark the env to reset with a new formula
+        envstr.end_time = time.time()
         rc.append((envnum,True))
         if env.finished:
           self.reporter.add_stat(env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
@@ -210,8 +214,17 @@ class EpisodeManager(object):
             self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
         else:        
           ipdb.set_trace()
-      else:
-        if envstr.curr_step > self.max_step:
+      else:        
+        break_env = False
+        if max_seconds:
+          if (time.time()-envstr.start_time) > max_seconds:
+            print('Env took {} seconds, breaking!'.format(time.time()-envstr.start_time))
+            break_env=True
+        elif envstr.curr_step > self.max_step:
+          break_env=True
+        if break_env:  
+          envstr.end_time = time.time()
+          envstr.last_obs = None
           print('Environment {} took too long, aborting it.'.format(envstr.fname))
           try:
             for record in envstr.episode_memory:
@@ -292,6 +305,7 @@ class EpisodeManager(object):
     return actions, logits
 
   def test_envs(self, fnames, model, ed=None, iters=10, **kwargs):
+    max_seconds = int(kwargs['max_seconds'])
     ds = QbfDataset(fnames=fnames)
     print('Testing {} envs..\n'.format(len(ds)))
     all_episode_files = ds.get_files_list()
@@ -335,11 +349,17 @@ class EpisodeManager(object):
               print('Finished {} on Solver #{}'.format(fname,i))
             ep = self.completed_episodes.pop(0)
             # res = sum([x.reward for x in ep])            
-            res = sum([1 for x in ep])            
+            if max_seconds:
+              res = self.envs[i].end_time - self.envs[i].start_time
+            else:
+              res = sum([1 for x in ep])
             # ipdb.set_trace()
           else:
             print('Env {} took too long on Solver #{}!'.format(fname,i))
-            res = len(self.envs[i].episode_memory)
+            if max_seconds:
+              res = self.envs[i].end_time - self.envs[i].start_time
+            else:
+              res = len(self.envs[i].episode_memory)            
           if ed is not None:
             ed.ed_add_stat(fname,res)
           if fname not in rc.keys():

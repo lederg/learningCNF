@@ -268,6 +268,7 @@ class SatEnvServer(mp.Process):
 
   def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
     self.env.current_step += 1
+    # print('clabels shape: {}'.format(cl_label_arr.shape))
     state = self.env.get_global_state()
     msg = self.env.EnvObservation(state, None, None, adj_matrix, vlabels, cl_label_arr, None, False)
     if not self.disable_gnn:      

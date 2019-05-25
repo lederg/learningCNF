@@ -323,6 +323,8 @@ class CadetEnv:
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
+    if not env_obs:
+      return None
     if env_obs.clause or not last_obs:
       # ipdb.set_trace()
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
@@ -371,7 +373,7 @@ class CadetEnv:
     obs = self.reset(fname)
     # state, vars_add, vars_remove, activities, _, _ , _, vars_set, _ = self.reset(fname)
     if obs.state is None:   # Env solved in 0 steps
-      return None, env_id, fname
+      return None, env_id
     else:
       return obs, env_id
     # assert(len(state)==settings['state_dim'])

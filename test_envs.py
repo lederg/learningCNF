@@ -84,7 +84,7 @@ def main():
   end_time = time.time()
   print('Entire test took {} seconds'.format(end_time-start_time))  
   z = np.array([x for (x) in rc.values()]).squeeze()
-  vals = sorted(z.astype(int).tolist())
+  vals = sorted(z.astype(float).tolist())
   if args.output:
     with open(args.output,'w') as f:
       f.write('number_of_formulas      decisions\n')

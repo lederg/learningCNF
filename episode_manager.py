@@ -146,14 +146,13 @@ class EpisodeManager(object):
   def step_all(self, model, **kwargs):
     step_obs = []
     prev_obs = []
-    max_seconds = int(kwargs['max_seconds'])    
+    max_seconds = int(kwargs['max_seconds']) if 'max_seconds' in kwargs else 0
     rc = []     # the env structure indices that finished and got to be reset (or will reset automatically next step)
     active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
     for i in active_envs:
       envstr = self.envs[i]
       # if not envstr.last_obs or envstr.curr_step > self.max_step:        
       if not envstr.last_obs:        
-        print('Reseting from step_all')
         obs = self.reset_env(envstr,fname=self.provider.get_next())
         if obs is None:    # degenerate env
           self.completed_episodes.append(envstr.episode_memory)

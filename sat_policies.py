@@ -857,6 +857,57 @@ class SatMiniHyperPlanePolicy(SCPolicyBase):
     actions = torch.cat([a[0] for a in actions])    
     return gaussian_logprobs(outputs,self.sigma,actions)
 
+class SatMini2HyperPlanePolicy(SCPolicyBase):
+  def __init__(self, **kwargs):
+    super(SatMini2HyperPlanePolicy, self).__init__(**kwargs)
+    self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+
+  def input_dim(self):
+    return self.settings['state_dim']
+
+  def forward(self, obs, **kwargs):    
+    state, clabels = super(SatMini2HyperPlanePolicy, self).forward(obs)
+    return self.policy_layers(state), clabels
+
+    return threshold, clabels
+
+  def translate_action(self, action, obs, **kwargs):
+    sampled_output, clabels = action
+    mini_clabels = clabels[:,[CLABEL_LBD,4]]
+    # break_every_tick(5)
+    plane = sampled_output[:,:2]
+    shift = sampled_output[:,2]
+    rc = ((mini_clabels * plane).sum(dim=1) - shift) < 0
+    a = rc.detach()
+    num_learned = obs.ext_data
+    locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(a.long(),locked).view(-1)
+
+    return final_action
+
+  def select_action(self, obs_batch, training=True, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    output, clabels = self.forward(obs_batch)
+    if not training:
+      return [(output, clabels)]
+    m = MultivariateNormal(output,torch.eye(3)*self.sigma*self.sigma)
+    sampled_output = m.sample()
+    if self.settings['log_threshold']:      
+      if self.shelf_key not in self.shelf_file.keys():        
+        self.shelf_file[self.shelf_key] = []
+      tmp = self.shelf_file[self.shelf_key]
+      tmp.append((output.detach().numpy(),sampled_output.detach().numpy()))
+      self.shelf_file[self.shelf_key] = tmp
+
+    return [(sampled_output, clabels)]
+
+  def get_logprobs(self, outputs, collated_batch):    
+    actions = collated_batch.action
+    actions = torch.cat([a[0] for a in actions])    
+    return gaussian_logprobs(outputs,self.sigma,actions)
+
+
+
 class SatHyperPlanePolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatHyperPlanePolicy, self).__init__(**kwargs)

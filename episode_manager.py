@@ -16,6 +16,7 @@ from episode_data import *
 from settings import *
 from utils import *
 from rl_utils import *
+from formula_utils import *
 from cadet_utils import *
 from env_factory import *
 
@@ -304,10 +305,9 @@ class EpisodeManager(object):
     return actions, logits
 
   def test_envs(self, fnames, model, ed=None, iters=10, **kwargs):
-    max_seconds = int(kwargs['max_seconds'])
-    ds = QbfDataset(fnames=fnames)
-    print('Testing {} envs..\n'.format(len(ds)))
-    all_episode_files = ds.get_files_list()
+    max_seconds = int(kwargs['max_seconds'])      
+    print('Testing {} envs..\n'.format(self.provider.get_total()))
+    all_episode_files = self.provider.items
     totals = 0.
     total_srate = 0.
     total_scored = 0

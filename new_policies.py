@@ -33,7 +33,8 @@ class Actor1Policy(PolicyBase):
       print('Bootstraping Policy from existing encoder')
       self.encoder = encoder
     else:
-      self.encoder = QbfNewEncoder(**kwargs)
+      self.encoder = QbfFixedEncoder(**kwargs)
+      # self.encoder = QbfNewEncoder(**kwargs)
       # self.encoder = QbfSimpleEncoder(**kwargs)
     if self.settings['use_global_state']:
       self.linear1 = nn.Linear(self.state_dim+self.final_embedding_dim, self.policy_dim1)

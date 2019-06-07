@@ -10,6 +10,7 @@ from episode_data import *
 from task_cadet import *
 from qbf_model import *
 from dispatch_utils import *
+from policy_factory import *
 from get_run import get_experiment_config
 
 HOSTNAME = 'russell.eecs.berkeley.edu:27017'
@@ -61,26 +62,31 @@ def main():
       settings.hyperparameters[k]=v
 
 # By now we have all settings except the base model
-  settings.hyperparameters['restart_cadet_every'] = 50
+  # settings.hyperparameters['restart_solver_every'] = 50
   settings.hyperparameters['base_model']=model_name
   settings.hyperparameters['parallelism']=args.parallelism
   settings.hyperparameters['max_step']=args.steps
+  settings.hyperparameters['sat_gc_freq']='glucose'
+  # settings.hyperparameters['preload_formulas']=False
   # settings.hyperparameters['debug']=True
 
 
   # ipdb.set_trace()
-  policy = create_policy()
+  policy = PolicyFactory().create_policy()  
   policy.eval()
-  ed = EpisodeData(name='blabla')
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(testdir)  
+  if settings['preload_formulas']:
+    settings.formula_cache = FormulaCache()
+    settings.formula_cache.load_files(provider.items)  
+
   em = EpisodeManager(provider, parallelism=args.parallelism,reporter=reporter)
   start_time = time.time()
   kwargs = {'cadet_test': args.vsids, 'random_test': args.random}
   if args.parallelism > 1:
-    rc = em.mp_test_envs(fnames=testdir,model=policy, ed=ed, iters=args.iterations, **kwargs)
+    rc = em.mp_test_envs(fnames=testdir,model=policy, iters=args.iterations, **kwargs)
   else:
-    rc = em.test_envs(fnames=testdir,model=policy, ed=ed, iters=args.iterations, max_seconds=args.seconds, **kwargs)
+    rc = em.test_envs(fnames=testdir,model=policy, iters=args.iterations, max_seconds=args.seconds, **kwargs)
   end_time = time.time()
   print('Entire test took {} seconds'.format(end_time-start_time))  
   z = np.array([x for (x) in rc.values()]).squeeze()

@@ -432,7 +432,6 @@ class QbfFixedEncoder(nn.Module):
 		vmat_pos = cmat_pos.t()
 		vmat_neg = cmat_neg.t()
 		for i in range(self.max_iters):
-			ipdb.set_trace()
 			if self.use_gru and i>0:
 				pos_vars = self.gru(prev_pos_vars,pos_vars)
 				neg_vars = self.gru(prev_neg_vars,neg_vars)
@@ -457,6 +456,8 @@ class QbfFixedEncoder(nn.Module):
 			neg_vars = torch.cat([nv_t_pre,pv_t_pre],dim=1)
 
 
+		pos_vars = torch.cat([vlabels,pos_vars],dim=1)
+		neg_vars = torch.cat([vlabels,neg_vars],dim=1)
 		return pos_vars, neg_vars		
 
 

@@ -156,6 +156,7 @@ class EpisodeManager(object):
       if not envstr.last_obs:        
         obs = self.reset_env(envstr,fname=self.provider.get_next())
         if obs is None:    # degenerate env
+          print('Got degenerate env: {}'.format(envstr.fname))
           self.completed_episodes.append(envstr.episode_memory)
           return True
 

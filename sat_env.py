@@ -47,11 +47,11 @@ class SatActiveEnv:
   def name(self):
     return self._name
   
-  def load_formula(self, fname):
-    if fname not in self.formulas_dict.keys():
-      self.formulas_dict[fname] = CNF(fname)
-      print('Lazily loaded {} in process {}_{}'.format(fname,self._name,os.getpid()))
-    return self.formulas_dict[fname]
+  # def load_formula(self, fname):
+  #   if fname not in self.formulas_dict.keys():
+  #     self.formulas_dict[fname] = CNF(fname)
+  #     print('Lazily loaded {} in process {}_{}'.format(fname,self._name,os.getpid()))
+  #   return self.formulas_dict[fname]
 
   def start_solver(self, fname=None):
     
@@ -67,10 +67,7 @@ class SatActiveEnv:
       self.solver.delete()
       self.solver.new(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
     if fname:
-      if self.settings['preload_formulas']:
-        f1 = self.settings.formula_cache.load_formula(fname)
-      else:
-        f1 = self.load_formula(fname)
+      f1 = self.settings.formula_cache.load_formula(fname)
       self.solver.append_formula(f1.clauses)
       del f1
     self.current_step = 0
@@ -141,7 +138,6 @@ class SatEnvProxy(EnvBase):
     if rc != None:
       return SatActiveEnv.EnvObservation(*rc)
 
-
   def new_episode(self, fname, settings=None, **kwargs):
     if not settings:
       settings = CnfSettings()
@@ -207,6 +203,7 @@ class SatEnvServer(mp.Process):
     self.disable_gnn = self.settings['disable_gnn']
     self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
     self.total_episodes = 0
+    self.uncache_after_batch = self.settings['uncache_after_batch']
 
   def proxy(self):
     return SatEnvProxy(self.queue_out, self.queue_in)
@@ -234,7 +231,9 @@ class SatEnvServer(mp.Process):
       else:
         self.cmd, fname = self.queue_in.get()
         assert self.cmd == EnvCommands.CMD_RESET, 'Unexpected command {}'.format(self.cmd)
-      self.current_fname = None
+      if self.uncache_after_batch and  fname != self.current_fname:
+        self.settings.formula_cache.delete_key(self.current_fname)
+      self.current_fname = fname
       # print('Env object is {}'.format(self.env))
       # print('The solver is {}'.format(self.env.solver))
       self.env.start_solver(fname)
@@ -254,8 +253,7 @@ class SatEnvServer(mp.Process):
 
       elif self.cmd == EnvCommands.CMD_RESET:
         if self.env.current_step == 0:
-          if self.settings['debug']:
-            print('Degenerate episode on {}'.format(fname))
+          print('Degenerate episode on {}'.format(fname))
           self.cmd = None
           self.queue_out.put((EnvCommands.ACK_RESET,None))
           # This is a degenerate episodes with no GC
@@ -298,6 +296,8 @@ class SatEnvServer(mp.Process):
     elif self.cmd == EnvCommands.CMD_RESET:
       # We were asked to abort the current episode. Notify the solver and continue as usual
       self.env.solver.terminate()
+      if self.uncache_after_batch and rc != self.current_fname:
+        self.settings.formula_cache.delete_key(self.current_fname)
       self.current_fname = rc
       return None
     elif self.cmd == EnvCommands.CMD_EXIT:

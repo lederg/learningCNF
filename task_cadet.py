@@ -106,8 +106,8 @@ def cadet_main():
   ed = EpisodeData(name=settings['name'], fname=settings['base_stats'])
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(settings['rl_train_data'])
+  settings.formula_cache = FormulaCache()
   if settings['preload_formulas']:
-    settings.formula_cache = FormulaCache()
     settings.formula_cache.load_files(provider.items)  
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter)  

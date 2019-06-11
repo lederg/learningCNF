@@ -6,6 +6,7 @@ import time
 import ipdb
 import pickle
 import itertools
+import logging
 from collections import namedtuple
 from namedlist import namedlist
 
@@ -170,9 +171,12 @@ class QbfCurriculumDataset(Dataset):
 
 
 class AbstractEpisodeProvider(object):
-  def __init__(self,flist):    
+  def __init__(self,flist):
     self.items = self.load_files(flist)
     self.settings = CnfSettings()
+    self.logger = logging.getLogger('episode_provider')
+    self.logger.setLevel(eval(self.settings['loglevel']))
+
 
   def load_dir(self, directory):
     return self.load_files([join(directory, f) for f in listdir(directory)])
@@ -193,6 +197,10 @@ class AbstractEpisodeProvider(object):
   def get_next(self):
     pass
 
+  def delete_item(self, item):
+    self.logger.warning('delete_item: Not Implemented!')
+    pass
+
   def get_total(self):
     return len(self.items)
 
@@ -204,7 +212,7 @@ class AbstractEpisodeProvider(object):
 
 class UniformEpisodeProvider(AbstractEpisodeProvider):
   def __init__(self,ds):
-    super(UniformEpisodeProvider, self).__init__(ds) 
+    super(UniformEpisodeProvider, self).__init__(ds)    
     self.current = self.sample()
 
   def sample(self):
@@ -212,6 +220,13 @@ class UniformEpisodeProvider(AbstractEpisodeProvider):
 
   def reset(self, **kwargs):
     self.current = self.sample()
+
+  def delete_item(self, item):
+    self.logger.debug('Asked to delete {}'.format(item))
+    try:
+      self.items.remove(item)
+    except ValueError:
+      self.logger.warning('Tried to delete non-existing item: {}'.format(item))
 
   def get_next(self):
     return self.current

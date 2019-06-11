@@ -1,5 +1,6 @@
 import ipdb
 import cProfile
+import logging
 from sacred import Experiment
 from sacred.observers import MongoObserver
 from config import *
@@ -14,6 +15,7 @@ def main():
 	settings = CnfSettings(ex.current_run.config)
 	settings.hyperparameters['name'] = ex.current_run.experiment_info['name']
 	settings.hyperparameters['mp']=True
+	logging.basicConfig(level=logging.DEBUG)
 	if settings['mongo']:
 		print('Adding mongodb observer')
 		ex.observers.append(MongoObserver.create(url=settings['mongo_host'],

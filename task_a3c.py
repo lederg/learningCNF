@@ -67,8 +67,8 @@ def a3c_main():
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(settings['rl_train_data'])
+  settings.formula_cache = FormulaCache()
   if settings['preload_formulas']:
-    settings.formula_cache = FormulaCache()
     settings.formula_cache.load_files(provider.items)
 
   # em = EpisodeManager(provider, ed=ed, parallelism=settings['parallelism'],reporter=reporter.proxy())  

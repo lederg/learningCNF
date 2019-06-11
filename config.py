@@ -14,9 +14,7 @@ def cfg():
 	exp_time = int(time.time())
 	state_dim = 36
 	embedding_dim = 20  # deprecated
-	# vemb_dim = 16
-	# cemb_dim = 16
-	vemb_dim = 8
+	vemb_dim = 16
 	cemb_dim = 64
 	ground_dim = 8  # deprecated
 	vlabel_dim = 8
@@ -166,6 +164,9 @@ def cfg():
 	cadet_completion_reward = 1.
 	cadet_use_activities = True
 	report_last_envs = 10
+	uncache_after_batch = False
+	loglevel = 'logging.WARNING'
+	autodelete_degenerate = False
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

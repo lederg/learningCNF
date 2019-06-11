@@ -13,6 +13,7 @@ import torch.optim as optim
 import cProfile
 import tracemalloc
 import psutil
+import logging
 from collections import namedtuple, deque
 from namedlist import namedlist
 
@@ -101,7 +102,13 @@ class WorkerEnv(mp.Process):
     envstr = self.envstr
     env = envstr.env
     if not envstr.last_obs or envstr.curr_step > self.max_step:
-      self.reset_env(fname=self.provider.get_next())   
+      obs = self.reset_env(fname=self.provider.get_next())
+      if obs is None:    # degenerate env
+        print('Got degenerate env: {}'.format(envstr.fname))
+        self.completed_episodes.append(envstr.episode_memory)
+        return True
+
+
     last_obs = collate_observations([envstr.last_obs])
     [action] = self.lmodel.select_action(last_obs, **kwargs)
     envstr.episode_memory.append(Transition(envstr.last_obs,action,None, None, envstr.env_id, envstr.prev_obs))
@@ -166,6 +173,8 @@ class WorkerEnv(mp.Process):
       steps, rewards = zip(*stats)
       return np.mean(rewards[-20:-1])
 
+    if not ep:
+      return ep      
     gamma = self.settings['gamma']    
     baseline = compute_baseline(ep[0].formula) if self.settings['stats_baseline'] else 0
     _, _, _,rewards, *_ = zip(*ep)
@@ -174,6 +183,9 @@ class WorkerEnv(mp.Process):
 
   def check_batch_finished(self):
     if self.settings['episodes_per_batch']:
+      # print('Here it is:')
+      # print(self.completed_episodes)
+      # print('returning {}'.format(not (len(self.completed_episodes) < self.settings['episodes_per_batch'])))
       return not (len(self.completed_episodes) < self.settings['episodes_per_batch'])
     else:
       return not (self.episode_lengths() < self.settings['min_timesteps_per_batch'])
@@ -210,6 +222,8 @@ class WorkerEnv(mp.Process):
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
     self.provider.reset()
+    self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
+    self.logger.setLevel(eval(self.settings['loglevel']))        
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
@@ -220,6 +234,9 @@ class WorkerEnv(mp.Process):
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 
   def train(self,transition_data, **kwargs):
+    if len(transition_data) == self.settings['episodes_per_batch']*(self.settings['max_step']+1):
+      print('A lost batch, no use training')
+      return
     if self.settings['do_not_learn']:
       return
     self.lmodel.train()
@@ -282,8 +299,17 @@ class WorkerEnv(mp.Process):
           self.lmodel.shelf_key = k
           self.lmodel.shelf_file.sync()
         rc = self.step()
-      total_inference_time = time.time() - begin_time
+      total_inference_time = time.time() - begin_time      
       transition_data, lenvec = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
+      curr_formula = self.provider.get_next()      
+      ns = len(transition_data)
+      if ns == 0:
+        print('Degenerate batch, ignoring')
+        if self.settings['autodelete_degenerate']:
+          self.provider.delete_item(curr_formula)
+          self.provider.reset()
+          self.logger.debug('After deleting degenerate formula, total number of formulas left is {}'.format(self.provider.get_total()))
+        continue
       print('Forward pass in {} ({}) got batch with length {} in {} seconds. Ratio: {}'.format(self.name,transition_data[0].formula,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))
       # After the batch is finished, advance the iterator
       self.provider.reset()

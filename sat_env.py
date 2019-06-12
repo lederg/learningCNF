@@ -66,11 +66,19 @@ class SatActiveEnv:
     else:
       self.solver.delete()
       self.solver.new(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
-    if fname:
-      f1 = self.settings.formula_cache.load_formula(fname)
-      self.solver.append_formula(f1.clauses)
-      del f1
     self.current_step = 0
+    if fname:
+      try:
+        f1 = self.settings.formula_cache.load_formula(fname)
+        self.solver.append_formula(f1.clauses)
+        del f1
+        return True
+      except:
+        return False
+    else:
+      print('Got no filename!!')
+      return False
+
 
   def get_orig_clauses(self):
     return self.solver.get_cl_arr()
@@ -137,6 +145,12 @@ class SatEnvProxy(EnvBase):
     assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'    
     if rc != None:
       return SatActiveEnv.EnvObservation(*rc)
+
+  def exit(self):
+    self.queue_out.put((EnvCommands.CMD_EXIT,None))
+    ack, rc = self.queue_in.get()
+    assert ack==EnvCommands.ACK_EXIT, 'Expected ACK_EXIT'
+
 
   def new_episode(self, fname, settings=None, **kwargs):
     if not settings:
@@ -230,18 +244,23 @@ class SatEnvServer(mp.Process):
         fname = self.current_fname
       else:
         self.cmd, fname = self.queue_in.get()
+        if self.cmd == EnvCommands.CMD_EXIT:
+          print('Got CMD_EXIT 1')
+          self.queue_out.put((EnvCommands.ACK_EXIT,None))
+          break
         assert self.cmd == EnvCommands.CMD_RESET, 'Unexpected command {}'.format(self.cmd)
       if self.uncache_after_batch and  fname != self.current_fname:
         self.settings.formula_cache.delete_key(self.current_fname)
       self.current_fname = fname
-      # print('Env object is {}'.format(self.env))
-      # print('The solver is {}'.format(self.env.solver))
-      self.env.start_solver(fname)
 
       # This call does not return until the episodes is done. Messages are going to be exchanged until then through
       # the __callback method
 
-      self.env.solver.solve()
+      if self.env.start_solver(fname):
+        self.env.solver.solve()
+      else:
+        print('Skipping {}'.format(fname))
+
 
       if self.cmd == EnvCommands.CMD_STEP:
         last_step_reward = -(self.env.get_reward() - self.last_reward)      
@@ -261,6 +280,8 @@ class SatEnvServer(mp.Process):
           pass
           # We are here because the episode was aborted. We can just move on, the client already has everything.
       elif self.cmd == EnvCommands.CMD_EXIT:
+        print('Got CMD_EXIT 2')
+        self.queue_out.put((EnvCommands.ACK_EXIT,None))
         break
 
 

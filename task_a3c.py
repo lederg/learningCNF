@@ -7,6 +7,7 @@ import pdb
 import random
 import time
 import tracemalloc
+import signal
 
 from multiprocessing.managers import BaseManager
 import torch.multiprocessing as mp
@@ -45,11 +46,17 @@ stepsize = settings['init_lr']
 curr_lr = init_lr
 max_reroll = 0
 
-class MyManager(BaseManager): pass
-MyManager.register('EpisodeData',EpisodeData)
+def handleSIGCHLD(a,b):
+  os.waitpid(-1, os.WNOHANG)
+
+class MyManager(BaseManager): 
+  pass
+# MyManager.register('EpisodeData',EpisodeData)
+MyManager.register('wsync',WorkersSynchronizer)
 
 def a3c_main():
   # mp.set_start_method('forkserver')
+  signal.signal(signal.SIGCHLD, handleSIGCHLD)
   if settings['do_not_run']:
     print('Not running. Printing settings instead:')
     print(settings.hyperparameters)
@@ -60,8 +67,9 @@ def a3c_main():
   global_episodes = mp.Value('i', 0)
   manager = MyManager()
   reporter = PGReporterServer(PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard']))
-  manager.start()
   reporter.start()
+  manager.start()
+  wsync = manager.wsync()
   ed = None
   # ed = manager.EpisodeData(name=settings['name'], fname=settings['base_stats'])
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
@@ -97,7 +105,7 @@ def a3c_main():
                                   ],
                                   outside_value=desired_kl * 0.02) 
   mp.set_sharing_strategy('file_system')
-  workers = [WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, i, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
+  workers = [WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, i, wsync, init_model=None, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
   print('Running with {} workers...'.format(len(workers)))
   for w in workers:
     w.start()  
@@ -108,6 +116,11 @@ def a3c_main():
   set_proc_name(str.encode('a3c_main'))
   while True:
     time.sleep(UNIT_LENGTH)
+    while wsync.get_total() > 0:
+      w = wsync.pop()
+      print('restarting worker {}'.format(w[0]))
+      new_worker = WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, w[0], wsync, init_model=w[1], reporter=reporter.proxy())
+      new_worker.start()
     gsteps = global_steps.value
     if i % REPORT_EVERY == 0 and i>0:
       if type(policy) == sat_policies.SatBernoulliPolicy:

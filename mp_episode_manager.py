@@ -35,15 +35,39 @@ MPEnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
 
 
+class WorkersSynchronizer:
+  def __init__(self):
+    self.settings = CnfSettings()
+    self.logger = logging.getLogger('workers_sync')
+    self.logger.setLevel(eval(self.settings['loglevel']))    
+    self.workers_to_replace = []
+    if self.settings['mp']:
+      self.logger.info('MultiProcessing: {} (pid: {})'.format(self.settings['mp'],os.getpid()))
+      set_proc_name(str.encode('a3c_workers_sync'))
+
+  def get_total(self):
+    return len(self.workers_to_replace)
+
+  def pop(self):
+    rc = self.workers_to_replace.pop()
+    self.logger.info('Worker {} poped'.format(rc[0]))
+    return rc
+
+  def add_worker(self,worker):
+    self.logger.info('Worker {} finished and is waiting to be replaced'.format(worker[0]))
+    self.workers_to_replace.insert(0,worker)
+
 class WorkerEnv(mp.Process):
-  def __init__(self, settings, model, opt, provider, ed, global_steps, global_grad_steps, global_episodes, name, reporter=None):
+  def __init__(self, settings, model, opt, provider, ed, global_steps, global_grad_steps, global_episodes, name, wsync, init_model=None, reporter=None):
     super(WorkerEnv, self).__init__()
+    self.index = name
     self.name = 'a3c_worker%i' % name
     self.g_steps = global_steps
     self.g_grad_steps = global_grad_steps
     self.g_episodes = global_episodes
     self.settings = settings
-    # self.ds = ds
+    self.wsync = wsync
+    self.init_model = init_model
     self.ed = ed
     self.completed_episodes = []
     self.reporter = reporter
@@ -52,6 +76,7 @@ class WorkerEnv(mp.Process):
     self.training_steps = self.settings['training_steps']
     self.restart_solver_every = self.settings['restart_solver_every']    
     self.check_allowed_actions = self.settings['check_allowed_actions']
+    self.memory_cap = self.settings['memory_cap']
     # self.gnet, self.opt = gnet, opt
     # self.lnet = Net(N_S, N_A)           # local network
     self.gmodel = model  
@@ -228,7 +253,11 @@ class WorkerEnv(mp.Process):
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()
-    self.lmodel.load_state_dict(self.gmodel.state_dict())
+    if self.init_model is None:
+      self.lmodel.load_state_dict(self.gmodel.state_dict())
+    else:
+      self.logger.info('Loading model at runtime!')
+      self.lmodel.load_state_dict(self.init_model)
     self.process = psutil.Process(os.getpid())
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
@@ -335,6 +364,15 @@ class WorkerEnv(mp.Process):
           local_env_steps = 0
           global_steps = self.g_grad_steps.value
       # if self.settings['memory_profiling'] and (total_step % 10 == 1):    
+
+      total_process_memory = self.process.memory_info().rss / float(2 ** 20)
+      if total_process_memory > self.memory_cap:
+        self.logger.info('Total memory is {}, greater than memory cap which is {}'.format(total_process_memory,self.memory_cap))
+        self.envstr.env.exit()
+        self.wsync.add_worker((self.index,self.lmodel.state_dict()))
+        exit()
+        print("Shouldn't be here")
+
       if self.settings['memory_profiling']:    
         print("({0})iter: {1}, memory: {2:.2f}MB".format(self.name,total_step, self.process.memory_info().rss / float(2 ** 20)))        
         objects = gc.get_objects()

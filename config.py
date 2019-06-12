@@ -168,6 +168,7 @@ def cfg():
 	loglevel = 'logging.WARNING'
 	autodelete_degenerate = False
 	memory_cap=2000
+	vbn_window=5000
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

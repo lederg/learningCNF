@@ -730,7 +730,7 @@ class SatFreeThresholdPolicy(PolicyBase):
 class SCPolicyBase(PolicyBase):
   def __init__(self, **kwargs):
     super(SCPolicyBase, self).__init__(**kwargs)
-    self.snorm_window = 5000
+    self.snorm_window = self.settings['vbn_window']
     # self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
       self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))

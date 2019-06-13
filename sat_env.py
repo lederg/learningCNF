@@ -1,4 +1,4 @@
-from pysat.solvers import Minisat22
+from pysat.solvers import Minisat22, Glucose3
 from pysat.formula import CNF
 from subprocess import Popen, PIPE, STDOUT
 from collections import deque
@@ -62,7 +62,7 @@ class SatActiveEnv:
     if self.solver is None:
       # print('reduce_base is {}'.format(self.reduce_base))
       # self.solver = Minisat22(callback=thunk)
-      self.solver = Minisat22(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
+      self.solver = Glucose3(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
     else:
       self.solver.delete()
       self.solver.new(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
@@ -260,7 +260,6 @@ class SatEnvServer(mp.Process):
         self.env.solver.solve()
       else:
         print('Skipping {}'.format(fname))
-
 
       if self.cmd == EnvCommands.CMD_STEP:
         last_step_reward = -(self.env.get_reward() - self.last_reward)      

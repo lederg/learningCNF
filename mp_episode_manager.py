@@ -100,6 +100,7 @@ class WorkerEnv(mp.Process):
     self.reset_counter += 1
     if self.restart_solver_every > 0 and (self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0)):
       self.envstr.env.restart_env(timeout=0)
+    self.memlog.debug("({0}-{1})reset: {2}/{3}, memory: {4:.2f}MB".format(self.name, self.envstr.fname, self.reset_counter, self.envstr.curr_step, self.process.memory_info().rss / float(2 ** 20)))        
     if self.settings['memory_profiling']:
       print("({0}-{1})reset: {2}/{3}, memory: {4:.2f}MB".format(self.name, self.envstr.fname, self.reset_counter, self.envstr.curr_step, self.process.memory_info().rss / float(2 ** 20)))        
       objects = gc.get_objects()
@@ -248,7 +249,15 @@ class WorkerEnv(mp.Process):
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
     self.provider.reset()
     self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
+    self.memlog = logging.getLogger('memlog-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))        
+    self.memlog.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    fh = logging.FileHandler('memprof_{}.log'.format(self.name))
+    fh.setLevel(logging.DEBUG)
+    self.memlog.addHandler(ch)
+    self.memlog.addHandler(fh)
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads

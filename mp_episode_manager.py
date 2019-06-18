@@ -58,7 +58,7 @@ class WorkersSynchronizer:
     self.workers_to_replace.insert(0,worker)
 
 class WorkerEnv(mp.Process):
-  def __init__(self, settings, model, opt, provider, ed, global_steps, global_grad_steps, global_episodes, name, wsync, init_model=None, reporter=None):
+  def __init__(self, settings, model, opt, provider, ed, global_steps, global_grad_steps, global_episodes, name, wsync, batch_sem, init_model=None, reporter=None):
     super(WorkerEnv, self).__init__()
     self.index = name
     self.name = 'a3c_worker%i' % name
@@ -67,6 +67,7 @@ class WorkerEnv(mp.Process):
     self.g_episodes = global_episodes
     self.settings = settings
     self.wsync = wsync
+    self.batch_sem = batch_sem
     self.init_model = init_model
     self.ed = ed
     self.completed_episodes = []
@@ -250,7 +251,7 @@ class WorkerEnv(mp.Process):
     self.provider.reset()
     self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
     self.memlog = logging.getLogger('memlog-{}'.format(self.name))
-    self.logger.setLevel(eval(self.settings['loglevel']))        
+    self.logger.setLevel(eval(self.settings['loglevel']))
     self.memlog.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
@@ -277,6 +278,12 @@ class WorkerEnv(mp.Process):
       return
     if self.settings['do_not_learn']:
       return
+    need_sem = False
+    if len(transition_data) >= self.settings['episodes_per_batch']*(self.settings['max_step']+1)*self.settings['batch_size_threshold']:
+      self.logger.info('Large batch encountered. Acquiring batch semaphore')
+      need_sem = True
+    if need_sem:
+      self.batch_sem.acquire()
     self.lmodel.train()
     mt = time.time()
     loss, logits = self.lmodel.compute_loss(transition_data, **kwargs)
@@ -302,6 +309,9 @@ class WorkerEnv(mp.Process):
     for k in self.whitelisted_keys:
       local_params[k] = z[k]
     self.gmodel.load_state_dict(local_params,strict=False)
+
+    if need_sem:
+      self.batch_sem.release()
 
 
 
@@ -337,9 +347,9 @@ class WorkerEnv(mp.Process):
           self.lmodel.shelf_key = k
           self.lmodel.shelf_file.sync()
         rc = self.step()
-      total_inference_time = time.time() - begin_time      
+      total_inference_time = time.time() - begin_time
       transition_data, lenvec = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
-      curr_formula = self.provider.get_next()      
+      curr_formula = self.provider.get_next()
       ns = len(transition_data)
       if ns == 0:
         print('Degenerate batch, ignoring')
@@ -356,6 +366,14 @@ class WorkerEnv(mp.Process):
       self.train(transition_data,lenvec=lenvec)
       total_train_time = time.time() - begin_time
       print('Backward pass in {} done in {} seconds!'.format(self.name,total_train_time))
+
+      total_process_memory = self.process.memory_info().rss / float(2 ** 20)
+      if total_process_memory > self.memory_cap:
+        self.logger.info('Total memory is {}, greater than memory cap which is {}'.format(total_process_memory,self.memory_cap))
+        self.envstr.env.exit()
+        self.wsync.add_worker((self.index,self.lmodel.state_dict()))
+        exit()
+        print("Shouldn't be here")
 
       # Sync to global step counts
       total_step += 1
@@ -374,13 +392,6 @@ class WorkerEnv(mp.Process):
           global_steps = self.g_grad_steps.value
       # if self.settings['memory_profiling'] and (total_step % 10 == 1):    
 
-      total_process_memory = self.process.memory_info().rss / float(2 ** 20)
-      if total_process_memory > self.memory_cap:
-        self.logger.info('Total memory is {}, greater than memory cap which is {}'.format(total_process_memory,self.memory_cap))
-        self.envstr.env.exit()
-        self.wsync.add_worker((self.index,self.lmodel.state_dict()))
-        exit()
-        print("Shouldn't be here")
 
       if self.settings['memory_profiling']:    
         print("({0})iter: {1}, memory: {2:.2f}MB".format(self.name,total_step, self.process.memory_info().rss / float(2 ** 20)))        

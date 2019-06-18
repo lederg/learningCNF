@@ -70,6 +70,7 @@ def a3c_main():
   reporter.start()
   manager.start()
   wsync = manager.wsync()
+  batch_sem = mp.Semaphore(settings['batch_sem_value'])
   ed = None
   # ed = manager.EpisodeData(name=settings['name'], fname=settings['base_stats'])
   # ds = QbfCurriculumDataset(fnames=settings['rl_train_data'], ed=ed)
@@ -105,7 +106,7 @@ def a3c_main():
                                   ],
                                   outside_value=desired_kl * 0.02) 
   mp.set_sharing_strategy('file_system')
-  workers = [WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, i, wsync, init_model=None, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
+  workers = [WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, i, wsync, batch_sem, init_model=None, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
   print('Running with {} workers...'.format(len(workers)))
   for w in workers:
     w.start()  
@@ -119,7 +120,7 @@ def a3c_main():
     while wsync.get_total() > 0:
       w = wsync.pop()
       print('restarting worker {}'.format(w[0]))
-      new_worker = WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, w[0], wsync, init_model=w[1], reporter=reporter.proxy())
+      new_worker = WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, w[0], wsync, batch_sem, init_model=w[1], reporter=reporter.proxy())
       new_worker.start()
     gsteps = global_steps.value
     if i % REPORT_EVERY == 0 and i>0:

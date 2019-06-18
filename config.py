@@ -167,8 +167,11 @@ def cfg():
 	uncache_after_batch = False
 	loglevel = 'logging.WARNING'
 	autodelete_degenerate = False
-	memory_cap=2000
+	memory_cap=3000
 	vbn_window=5000
+	batch_size_threshold = 1.
+	batch_sem_value = 3
+
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

@@ -101,7 +101,7 @@ class WorkerEnv(mp.Process):
     self.reset_counter += 1
     if self.restart_solver_every > 0 and (self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0)):
       self.envstr.env.restart_env(timeout=0)
-    self.memlog.debug("({0}-{1})reset: {2}/{3}, memory: {4:.2f}MB".format(self.name, self.envstr.fname, self.reset_counter, self.envstr.curr_step, self.process.memory_info().rss / float(2 ** 20)))        
+    self.logger.debug("({0}-{1})reset: {2}/{3}, memory: {4:.2f}MB".format(self.name, self.envstr.fname, self.reset_counter, self.envstr.curr_step, self.process.memory_info().rss / float(2 ** 20)))        
     if self.settings['memory_profiling']:
       print("({0}-{1})reset: {2}/{3}, memory: {4:.2f}MB".format(self.name, self.envstr.fname, self.reset_counter, self.envstr.curr_step, self.process.memory_info().rss / float(2 ** 20)))        
       objects = gc.get_objects()
@@ -131,7 +131,7 @@ class WorkerEnv(mp.Process):
     if not envstr.last_obs or envstr.curr_step > self.max_step:
       obs = self.reset_env(fname=self.provider.get_next())
       if obs is None:    # degenerate env
-        print('Got degenerate env: {}'.format(envstr.fname))
+        self.logger.info('Got degenerate env: {}'.format(envstr.fname))
         self.completed_episodes.append(envstr.episode_memory)
         return True
 
@@ -167,7 +167,7 @@ class WorkerEnv(mp.Process):
 
     else:
       if envstr.curr_step > self.max_step:
-        print('Environment {} took too long, aborting it.'.format(envstr.fname))
+        self.logger.info('Environment {} took too long, aborting it.'.format(envstr.fname))
         try:
           for record in envstr.episode_memory:
             record.reward = self.def_step_cost
@@ -250,15 +250,10 @@ class WorkerEnv(mp.Process):
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
     self.provider.reset()
     self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
-    self.memlog = logging.getLogger('memlog-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))
-    self.memlog.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    fh = logging.FileHandler('memprof_{}.log'.format(self.name))
+    fh = logging.FileHandler('{}.log'.format(self.name))
     fh.setLevel(logging.DEBUG)
-    self.memlog.addHandler(ch)
-    self.memlog.addHandler(fh)
+    self.logger.addHandler(fh)
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
@@ -272,9 +267,9 @@ class WorkerEnv(mp.Process):
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 
-  def train(self,transition_data, **kwargs):
+  def train(self,transition_data, curr_formula=None, **kwargs):
     if len(transition_data) == self.settings['episodes_per_batch']*(self.settings['max_step']+1):
-      print('A lost batch, no use training')
+      self.logger.info('A lost batch, no use training')
       return
     if self.settings['do_not_learn']:
       return
@@ -288,11 +283,11 @@ class WorkerEnv(mp.Process):
     mt = time.time()
     loss, logits = self.lmodel.compute_loss(transition_data, **kwargs)
     mt1 = time.time()
-    print('Loss computation took {} seconds'.format(mt1-mt))
+    self.logger.info('Loss computation took {} seconds on {} with length {}'.format(mt1-mt,curr_formula,len(transition_data)))
     self.optimizer.zero_grad()
     loss.backward()
     mt2 = time.time()
-    print('Backward took {} seconds'.format(mt2-mt1))
+    self.logger.info('Backward took {} seconds'.format(mt2-mt1))
     # torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
     for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
         gp._grad = lp.grad
@@ -352,20 +347,20 @@ class WorkerEnv(mp.Process):
       curr_formula = self.provider.get_next()
       ns = len(transition_data)
       if ns == 0:
-        print('Degenerate batch, ignoring')
+        self.logger.info('Degenerate batch, ignoring')
         if self.settings['autodelete_degenerate']:
           self.provider.delete_item(curr_formula)
           self.provider.reset()
           self.logger.debug('After deleting degenerate formula, total number of formulas left is {}'.format(self.provider.get_total()))
         continue
-      print('Forward pass in {} ({}) got batch with length {} in {} seconds. Ratio: {}'.format(self.name,transition_data[0].formula,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))
+      self.logger.info('Forward pass in {} ({}) got batch with length {} in {} seconds. Ratio: {}'.format(self.name,transition_data[0].formula,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))
       # After the batch is finished, advance the iterator
       self.provider.reset()
       self.reset_env(fname=self.provider.get_next())
       begin_time = time.time()
-      self.train(transition_data,lenvec=lenvec)
+      self.train(transition_data,lenvec=lenvec,curr_formula=curr_formula)
       total_train_time = time.time() - begin_time
-      print('Backward pass in {} done in {} seconds!'.format(self.name,total_train_time))
+      self.logger.info('Backward pass in {} done in {} seconds!'.format(self.name,total_train_time))
 
       total_process_memory = self.process.memory_info().rss / float(2 ** 20)
       if total_process_memory > self.memory_cap:

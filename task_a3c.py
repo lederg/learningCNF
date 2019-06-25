@@ -127,7 +127,7 @@ def a3c_main():
     time.sleep(UNIT_LENGTH)
     while wsync.get_total() > 0:
       w = wsync.pop()
-      print('restarting worker {}'.format(w[0]))
+      logger.info('restarting worker {}'.format(w[0]))
       new_worker = WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, w[0], wsync, batch_sem, init_model=w[1], reporter=reporter.proxy())
       new_worker.start()
     gsteps = global_steps.value
@@ -136,7 +136,7 @@ def a3c_main():
         pval = float(policy.pval.detach().numpy())
       reporter.proxy().report_stats(gsteps, provider.get_total(), pval)
       eps = global_episodes.value
-      print('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
+      logger.info('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
     if i % SAVE_EVERY == 0 and i>0:
       torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), gsteps))
       if ed is not None:

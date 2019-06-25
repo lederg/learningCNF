@@ -40,6 +40,9 @@ class WorkersSynchronizer:
     self.settings = CnfSettings()
     self.logger = logging.getLogger('workers_sync')
     self.logger.setLevel(eval(self.settings['loglevel']))    
+    fh = logging.FileHandler('workers_sync.log', mode='w')
+    fh.setLevel(logging.DEBUG)
+    self.logger.addHandler(fh)    
     self.workers_to_replace = []
     if self.settings['mp']:
       self.logger.info('MultiProcessing: {} (pid: {})'.format(self.settings['mp'],os.getpid()))

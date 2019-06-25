@@ -8,6 +8,7 @@ import random
 import time
 import tracemalloc
 import signal
+import logging
 
 from multiprocessing.managers import BaseManager
 import torch.multiprocessing as mp
@@ -61,6 +62,12 @@ def a3c_main():
     print('Not running. Printing settings instead:')
     print(settings.hyperparameters)
     return
+  logger = logging.getLogger('task_a3c')
+  logger.setLevel(eval(settings['loglevel']))    
+  fh = logging.FileHandler('a3c_main.log')
+  fh.setLevel(logging.DEBUG)
+  logger.addHandler(fh)    
+
   total_steps = 0
   global_steps = mp.Value('i', 0)
   global_grad_steps = mp.Value('i', 0)
@@ -116,6 +123,7 @@ def a3c_main():
   pval = None
   set_proc_name(str.encode('a3c_main'))
   while True:
+    logger.info('Round {}'.format(i))
     time.sleep(UNIT_LENGTH)
     while wsync.get_total() > 0:
       w = wsync.pop()

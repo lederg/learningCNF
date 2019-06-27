@@ -7,6 +7,7 @@ from utils import *
 from settings import *
 import ipdb
 import shelve
+import logging
 
 DEF_WINDOW = 100
 CMD_EXIT = 1
@@ -33,6 +34,11 @@ class SPReporter(AbstractReporter):
 		self.report_window = self.settings['report_window']
 		self.short_window = self.settings['short_window']
 		self.report_last_envs = self.settings['report_last_envs']
+		self.logger = logging.getLogger('episode_reporter')
+		self.logger.setLevel(eval(self.settings['loglevel']))    
+		fh = logging.FileHandler('reporter.log', mode='w')
+		fh.setLevel(logging.DEBUG)
+		self.logger.addHandler(fh)    
 
 class MPReporter(AbstractReporter):
 	def __init__(self, fname, settings, tensorboard=False):
@@ -56,7 +62,7 @@ class PGReporterServer(mp.Process):
 
 	def run(self):
 		obj = None
-		print('Reporter on pid {}'.format(os.getpid()))
+		self.reporter.logger.info('Reporter on pid {}'.format(os.getpid()))
 		set_proc_name(str.encode('a3c_reporter'))
 		while True:
 			cmd, obj = self.queue.get()
@@ -100,9 +106,9 @@ class PGEpisodeReporter(SPReporter):
 	def report_stats(self, total_steps, total_envs, pval=None):
 		_, steps, rewards, ents = zip(*self.stats)		
 		# self.report_window = total_envs*60
-		print('Total episodes so far: %d' % len(steps))
-		print('Total steps learned from so far: %d' % sum(steps))
-		print('Total rewards so far: %f' % sum(rewards))
+		self.logger.info('Total episodes so far: %d' % len(steps))
+		self.logger.info('Total steps learned from so far: %d' % sum(steps))
+		self.logger.info('Total rewards so far: %f' % sum(rewards))
 		# ipdb.set_trace()
 		totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
 		if self.settings['report_uniform']:
@@ -113,24 +119,24 @@ class PGEpisodeReporter(SPReporter):
 			# windowed_stats = [np.array(x[-100:]) for x in all_stats]
 			mean_rewards = [x.mean(axis=0)[1] for x in windowed_stats]
 			mean_steps = [x.mean(axis=0)[0] for x in windowed_stats]
-			print('Mean steps for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_steps)))
-			print('Mean reward for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_rewards)))
+			self.logger.info('Mean steps for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_steps)))
+			self.logger.info('Mean reward for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_rewards)))
 		else:			
-			print('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
-			print('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
+			self.logger.info('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
+			self.logger.info('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
 
 		if sum(steps)+1000 < total_steps:			# Not all episodes are actually used (parallelism/on-policy pg)
 			total_steps = sum(steps)
 
-		print('Data for the {} most common envs:'.format(self.report_last_envs))
+		self.logger.info('Data for the {} most common envs:'.format(self.report_last_envs))
 		for vals in totals[:self.report_last_envs]:
 			s = vals[2][-self.short_window:]
 			r = vals[3][-self.short_window:]
-			print('Env {} appeared {} times, with moving (100) reward mean/std {}/{}:'.format(vals[0], vals[1], np.mean(r), np.std(r)))
-			print('Env {} appeared {} times, with moving (100) steps mean/std {}/{}:'.format(vals[0], vals[1], np.mean(s), np.std(s)))
-			print(r)
-			print(s)
-			print('\n\n')
+			self.logger.info('Env {} appeared {} times, with moving (100) reward mean/std {}/{}:'.format(vals[0], vals[1], np.mean(r), np.std(r)))
+			self.logger.info('Env {} appeared {} times, with moving (100) steps mean/std {}/{}:'.format(vals[0], vals[1], np.mean(s), np.std(s)))
+			self.logger.info(r)
+			self.logger.info(s)
+			self.logger.info('\n\n')
 		
 
 		if self.settings['rl_shelve_it']:

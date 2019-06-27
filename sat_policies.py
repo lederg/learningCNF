@@ -1076,6 +1076,7 @@ class SatThresholdStatePolicy(SCPolicyBase):
 
   def translate_action(self, action, obs, **kwargs):
     threshold, clabels = action
+    # print('Threshold is {}'.format(threshold))
     rc = clabels[:,CLABEL_LBD] < threshold
     a = rc.detach()
     num_learned = obs.ext_data

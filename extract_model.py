@@ -4,8 +4,8 @@ import torch
 import argparse
 
 def main():
-    parser = argparse.ArgumentParser(description='Process some params.')
-    parser.add_argument('params', metavar='N', type=str, nargs='*',
+    parser = argparse.ArgumentParser(description='Extract a torch model into numpy')
+    parser.add_argument('params', metavar='1', type=str, nargs='*',
                         help='torch_model')
     parser.add_argument('-o', '--out', type=str, default=None, help='Output file name') 
     args = parser.parse_args()

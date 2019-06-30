@@ -35,63 +35,27 @@ MPEnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
 
 
-class WorkersSynchronizer:
-  def __init__(self):
-    self.settings = CnfSettings()
-    self.logger = logging.getLogger('workers_sync')
-    self.logger.setLevel(eval(self.settings['loglevel']))    
-    fh = logging.FileHandler('workers_sync.log', mode='w')
-    fh.setLevel(logging.DEBUG)
-    self.logger.addHandler(fh)    
-    self.workers_to_replace = []
-    if self.settings['mp']:
-      self.logger.info('MultiProcessing: {} (pid: {})'.format(self.settings['mp'],os.getpid()))
-      set_proc_name(str.encode('a3c_workers_sync'))
-
-  def get_total(self):
-    return len(self.workers_to_replace)
-
-  def pop(self):
-    rc = self.workers_to_replace.pop()
-    self.logger.info('Worker {} poped'.format(rc[0]))
-    return rc
-
-  def add_worker(self,worker):
-    self.logger.info('Worker {} finished and is waiting to be replaced'.format(worker[0]))
-    self.workers_to_replace.insert(0,worker)
-
-class WorkerEnv(mp.Process):
-  def __init__(self, settings, model, opt, provider, ed, global_steps, global_grad_steps, global_episodes, name, wsync, batch_sem, init_model=None, reporter=None):
-    super(WorkerEnv, self).__init__()
-    self.index = name
-    self.name = 'a3c_worker%i' % name
-    self.g_steps = global_steps
-    self.g_grad_steps = global_grad_steps
-    self.g_episodes = global_episodes
+class EnvInteractor:
+  def __init__(self, settings, model, ed, name, init_model=None, reporter=None):
+    super(EnvInteractor, self).__init__()
+    self.name = 'interactor_{}'.format(name)
     self.settings = settings
-    self.wsync = wsync
-    self.batch_sem = batch_sem
     self.init_model = init_model
     self.ed = ed
     self.completed_episodes = []
     self.reporter = reporter
     self.max_step = self.settings['max_step']
     self.rnn_iters = self.settings['rnn_iters']
-    self.training_steps = self.settings['training_steps']
     self.restart_solver_every = self.settings['restart_solver_every']    
     self.check_allowed_actions = self.settings['check_allowed_actions']
-    self.memory_cap = self.settings['memory_cap']
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))        
-    # self.gnet, self.opt = gnet, opt
-    # self.lnet = Net(N_S, N_A)           # local network
     self.gmodel = model  
     self.optimizer = opt  
     self.reset_counter = 0
     self.env_steps = 0
     self.real_steps = 0
     self.def_step_cost = self.settings['def_step_cost']
-    self.provider = provider
     self.blacklisted_keys = []
     self.whitelisted_keys = []
     global_params = self.gmodel.state_dict()
@@ -100,8 +64,7 @@ class WorkerEnv(mp.Process):
         self.blacklisted_keys.append(k)    
       if any([x in k for x in self.settings['l2g_whitelist']]):
         self.whitelisted_keys.append(k)    
-
-    self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
+    self.logger = logging.getLogger('EnvInteractor-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))
     fh = logging.FileHandler('{}.log'.format(self.name))
     fh.setLevel(logging.DEBUG)
@@ -120,11 +83,6 @@ class WorkerEnv(mp.Process):
       print('Number of objects is {}'.format(len(objects)))
       del objects
 
-    # if not fname:
-    #   if not self.reset_counter % 200:
-    #     self.ds.recalc_weights()
-    #   (fname,) = self.ds.weighted_sample()
-    # last_obs, env_id = self.envstr.env.new_episode(fname=fname, **kwargs)
     env_obs = self.envstr.env.new_episode(fname=fname, **kwargs)
     self.envstr.last_obs = self.envstr.env.process_observation(None,env_obs)
     self.envstr.env_id = fname
@@ -137,15 +95,17 @@ class WorkerEnv(mp.Process):
       self.envstr.prev_obs.append(None)
     return self.envstr.last_obs
 
+# Assumes last observation in self.envstr.env.last_obs
+
   def step(self, **kwargs):
     envstr = self.envstr
     env = envstr.env
-    if not envstr.last_obs or envstr.curr_step > self.max_step:
-      obs = self.reset_env(fname=self.provider.get_next())
-      if obs is None:    # degenerate env
-        self.logger.info('Got degenerate env: {}'.format(envstr.fname))
-        self.completed_episodes.append(envstr.episode_memory)
-        return True
+    # if not envstr.last_obs or envstr.curr_step > self.max_step:
+    #   obs = self.reset_env(fname=self.provider.get_next())
+    #   if obs is None:    # degenerate env
+    #     self.logger.info('Got degenerate env: {}'.format(envstr.fname))
+    #     self.completed_episodes.append(envstr.episode_memory)
+    #     return True
 
 
     last_obs = collate_observations([envstr.last_obs])
@@ -271,60 +231,6 @@ class WorkerEnv(mp.Process):
     self.process = psutil.Process(os.getpid())
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
-
-  def train(self,transition_data, curr_formula=None, **kwargs):
-    if len(transition_data) == self.settings['episodes_per_batch']*(self.settings['max_step']+1):
-      self.logger.info('A lost batch, no use training')
-      return
-    if self.settings['do_not_learn']:
-      return
-    need_sem = False
-    if len(transition_data) >= self.settings['episodes_per_batch']*(self.settings['max_step']+1)*self.settings['batch_size_threshold']:
-      self.logger.info('Large batch encountered. Acquiring batch semaphore')
-      need_sem = True
-    if need_sem:
-      self.batch_sem.acquire()
-    self.lmodel.train()
-    mt = time.time()
-    loss, logits = self.lmodel.compute_loss(transition_data, **kwargs)
-    mt1 = time.time()
-    self.logger.info('Loss computation took {} seconds on {} with length {}'.format(mt1-mt,curr_formula,len(transition_data)))
-    self.optimizer.zero_grad()
-    loss.backward()
-    mt2 = time.time()
-    self.logger.info('Backward took {} seconds'.format(mt2-mt1))
-    # torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
-    for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
-        gp._grad = lp.grad
-    self.optimizer.step()
-    global_params = self.gmodel.state_dict()
-    for k in self.blacklisted_keys:
-      global_params.pop(k,None)
-    self.lmodel.load_state_dict(global_params,strict=False)
-    z = self.lmodel.state_dict()
-
-    # We may want to sync that
-
-    local_params = {}
-    for k in self.whitelisted_keys:
-      local_params[k] = z[k]
-    self.gmodel.load_state_dict(local_params,strict=False)
-
-    if need_sem:
-      self.batch_sem.release()
-
-
-
-
-
-  def run(self):
-    if self.settings['memory_profiling']:
-      tracemalloc.start(25)
-    if self.settings['profiling']:
-      cProfile.runctx('self.run_loop()', globals(), locals(), 'prof_{}.prof'.format(self.name))
-    else:
-      self.run_loop()
-
 
   def run_loop(self):
     self.init_proc()

@@ -128,7 +128,7 @@ class EpisodeManager(object):
     #   if not self.reset_counter % 20:
     #     self.ds.recalc_weights()
     #   (fname,) = self.ds.weighted_sample()
-    env_obs, env_id = envstr.env.new_episode(fname=fname, **kwargs)
+    env_obs = envstr.env.new_episode(fname=fname, **kwargs)
     envstr.last_obs = envstr.env.process_observation(None,env_obs)
     envstr.env_id = fname
     envstr.curr_step = 0
@@ -228,6 +228,7 @@ class EpisodeManager(object):
           envstr.last_obs = None
           print('Environment {} took too long, aborting it.'.format(envstr.fname))
           try:
+            ipdb.set_trace()
             for record in envstr.episode_memory:
               record.reward = DEF_COST
             env.rewards = [DEF_COST]*len(envstr.episode_memory)            

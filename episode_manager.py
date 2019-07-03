@@ -228,10 +228,11 @@ class EpisodeManager(object):
           envstr.last_obs = None
           print('Environment {} took too long, aborting it.'.format(envstr.fname))
           try:
-            ipdb.set_trace()
-            for record in envstr.episode_memory:
-              record.reward = DEF_COST
-            env.rewards = [DEF_COST]*len(envstr.episode_memory)            
+            if env.rewards is None:
+              env.rewards = [DEF_COST]*len(envstr.episode_memory)            
+            # print('Finished env, rewards are: {}, sum is {}'.format(env.rewards, sum(env.rewards)))
+            for j,r in enumerate(env.rewards):
+              envstr.episode_memory[j].reward = r
           except:
             ipdb.set_trace()
 

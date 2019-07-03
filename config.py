@@ -12,6 +12,8 @@ def cfg():
 	mongo_host='russell.eecs.berkeley.edu:27017'
 	mongo_dbname='rl_exp'
 	exp_time = int(time.time())
+	save_config = True
+	update_config=None
 	state_dim = 36
 	embedding_dim = 20  # deprecated
 	vemb_dim = 16
@@ -205,3 +207,4 @@ def cfg():
 
 	# return vars()
 
+ex.add_config({'gil': 'moshe'})

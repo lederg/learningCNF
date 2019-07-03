@@ -14,10 +14,10 @@ import signal
 import os
 import pdb
 
-from enum import Enum
+from enum import IntEnum
 
 
-class BaseMode(Enum):
+class BaseMode(IntEnum):
     ALL = 1
     EMBEDDING = 2
     ITERS = 3

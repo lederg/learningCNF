@@ -83,8 +83,6 @@ class WorkerEnv(mp.Process):
     self.memory_cap = self.settings['memory_cap']
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))        
-    # self.gnet, self.opt = gnet, opt
-    # self.lnet = Net(N_S, N_A)           # local network
     self.gmodel = model  
     self.optimizer = opt  
     self.reset_counter = 0
@@ -100,6 +98,14 @@ class WorkerEnv(mp.Process):
         self.blacklisted_keys.append(k)    
       if any([x in k for x in self.settings['l2g_whitelist']]):
         self.whitelisted_keys.append(k)    
+
+    self.lmodel = PolicyFactory().create_policy()
+    if self.init_model is None:
+      self.lmodel.load_state_dict(self.gmodel.state_dict())
+    else:
+      self.logger.info('Loading model at runtime!')
+      self.lmodel.load_state_dict(self.init_model)
+
 
     self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))
@@ -262,12 +268,6 @@ class WorkerEnv(mp.Process):
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
     self.provider.reset()
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
-    self.lmodel = PolicyFactory().create_policy()
-    if self.init_model is None:
-      self.lmodel.load_state_dict(self.gmodel.state_dict())
-    else:
-      self.logger.info('Loading model at runtime!')
-      self.lmodel.load_state_dict(self.init_model)
     self.process = psutil.Process(os.getpid())
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      

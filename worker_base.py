@@ -19,11 +19,7 @@ from rl_utils import *
 from cadet_utils import *
 from episode_data import *
 from env_factory import *
-
-DEF_COST = -1.000e-04
-
-MPEnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
+from env_interactor import *  
 
 
 class WorkerBase(mp.Process):

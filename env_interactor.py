@@ -5,11 +5,7 @@ import ipdb
 import gc
 import os
 import sys
-import signal
-import select
 import shelve
-import torch.multiprocessing as mp
-import torch.optim as optim
 import cProfile
 import tracemalloc
 import psutil
@@ -17,15 +13,11 @@ import logging
 from collections import namedtuple, deque
 from namedlist import namedlist
 
-from tick import *
-from tick_utils import *
 from cadet_env import *
 from qbf_data import *
 from settings import *
 from utils import *
 from rl_utils import *
-from cadet_utils import *
-from episode_data import *
 from env_factory import *
 from policy_factory import *
 
@@ -64,6 +56,16 @@ class EnvInteractor:
         self.blacklisted_keys.append(k)    
       if any([x in k for x in self.settings['l2g_whitelist']]):
         self.whitelisted_keys.append(k)    
+    self.lmodel = PolicyFactory().create_policy()
+    if self.init_model is None:
+      self.lmodel.load_state_dict(self.gmodel.state_dict())
+    else:
+      self.logger.info('Loading model at runtime!')
+      self.lmodel.load_state_dict(self.init_model)        
+    if self.settings['log_threshold']:
+      self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
+    np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
+    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
     self.logger = logging.getLogger('EnvInteractor-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))
     fh = logging.FileHandler('{}.log'.format(self.name))
@@ -157,161 +159,40 @@ class EnvInteractor:
       envstr.prev_obs.append(envstr.last_obs)
       envstr.last_obs = env.process_observation(envstr.last_obs,env_obs)
 
-
     return done
 
-  def discount_episode(self, ep):
-    def compute_baseline(formula):
-      d = self.ed.get_data()
-      if not formula in d.keys() or len(d[formula]) < 3:
-        latest_stats = list(x for y in d.values() for x in y[-20:])
-        _, r = zip(*latest_stats)        
-        return np.mean(r)
-
-      stats = d[formula]
-      steps, rewards = zip(*stats)
-      return np.mean(rewards[-20:-1])
-
-    if not ep:
-      return ep      
-    gamma = self.settings['gamma']    
-    baseline = compute_baseline(ep[0].formula) if self.settings['stats_baseline'] else 0
-    _, _, _,rewards, *_ = zip(*ep)
-    r = discount(rewards, gamma) - baseline
-    return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
-
-  def check_batch_finished(self):
-    if self.settings['episodes_per_batch']:
-      # print('Here it is:')
-      # print(self.completed_episodes)
-      # print('returning {}'.format(not (len(self.completed_episodes) < self.settings['episodes_per_batch'])))
-      return not (len(self.completed_episodes) < self.settings['episodes_per_batch'])
-    else:
-      return not (self.episode_lengths() < self.settings['min_timesteps_per_batch'])
-
-  def episode_lengths(self, num=0):
-    rc = self.completed_episodes if num==0 else self.completed_episodes[:num]
-    return sum([len(x) for x in rc])
-
-  def pop_min(self, num=0):
-    if num == 0:
-      num = self.settings['min_timesteps_per_batch']
-    rc = []
-    i=0
-    while len(rc) < num:
-      ep = self.discount_episode(self.completed_episodes.pop(0))      
-      rc.extend(ep)
+  def run_episode(self, fname, **kwargs):
+    self.lmodel.eval()
+    obs = self.reset_env(fname)
+    if not obs:   # degenerate episode, return 0 actions taken
+      return 0
+    rc = False
+    i = 0
+    while not rc:
+      rc = self.step()
       i += 1
+    
+    return i      
 
-    return rc, i
+  def run_batch(self, *args, batch_size=0, **kwargs):
+    if batch_size == 0:
+      batch_size = self.settings['episodes_per_batch']
 
-  def pop_min_normalized(self, num=0):
-    if num == 0:
-      num = self.settings['episodes_per_batch']
+    total_length = 0
+    for i in range(batch_size):
+      total_length += self.run_episode(*args, **kwargs)
+      if total_length == 0:    # If thats a degenerate episode, just return, the entire batch is degenerate.
+        return 0, 0
+    return total_length, batch_size
+
+  def collect_batch(self, *args, **kwargs)
+    total_length, bs = self.run_batch(*args, **kwargs)
+    if total_length == 0:
+      return None
+
     rc = []
-    rc_len = []
-    for i in range(num):
-      ep = self.discount_episode(self.completed_episodes.pop(0))
-      rc.extend(ep)
-      rc_len.extend([i]*len(ep))
-    return rc, rc_len
+    for i in range(bs):
+      rc.append(self.completed_episodes.pop(0))
 
-  def init_proc(self):
-    set_proc_name(str.encode(self.name))
-    np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
-    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
-    self.provider.reset()
-    self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
-    self.lmodel = PolicyFactory().create_policy()
-    if self.init_model is None:
-      self.lmodel.load_state_dict(self.gmodel.state_dict())
-    else:
-      self.logger.info('Loading model at runtime!')
-      self.lmodel.load_state_dict(self.init_model)
-    self.process = psutil.Process(os.getpid())
-    if self.settings['log_threshold']:
-      self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
-
-  def run_loop(self):
-    self.init_proc()
-    clock = GlobalTick()
-    SYNC_STATS_EVERY = 1
-    # SYNC_STATS_EVERY = 5+np.random.randint(10)
-    total_step = 0
-    total_eps = 0
-    local_env_steps = 0
-    global_steps = 0
-    # self.episodes_files = self.ds.get_files_list()
-    while global_steps < self.training_steps:
-      self.lmodel.eval()
-      begin_time = time.time()
-      rc = False
-      while (not rc) or (not self.check_batch_finished()):
-        if self.settings['log_threshold']:
-          k = '{}_{}'.format(global_steps,len(self.completed_episodes))
-          print('setting key to {}'.format(k))
-          self.lmodel.shelf_key = k
-          self.lmodel.shelf_file.sync()
-        rc = self.step()
-      total_inference_time = time.time() - begin_time
-      transition_data, lenvec = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
-      curr_formula = self.provider.get_next()
-      ns = len(transition_data)
-      if ns == 0:
-        self.logger.info('Degenerate batch, ignoring')
-        if self.settings['autodelete_degenerate']:
-          self.provider.delete_item(curr_formula)
-          self.provider.reset()
-          self.logger.debug('After deleting degenerate formula, total number of formulas left is {}'.format(self.provider.get_total()))
-        continue
-      self.logger.info('Forward pass in {} ({}) got batch with length {} in {} seconds. Ratio: {}'.format(self.name,transition_data[0].formula,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))
-      # After the batch is finished, advance the iterator
-      self.provider.reset()
-      self.reset_env(fname=self.provider.get_next())
-      begin_time = time.time()
-      self.train(transition_data,lenvec=lenvec,curr_formula=curr_formula)
-      total_train_time = time.time() - begin_time
-      self.logger.info('Backward pass in {} done in {} seconds!'.format(self.name,total_train_time))
-
-      total_process_memory = self.process.memory_info().rss / float(2 ** 20)
-      if total_process_memory > self.memory_cap:
-        self.logger.info('Total memory is {}, greater than memory cap which is {}'.format(total_process_memory,self.memory_cap))
-        self.envstr.env.exit()
-        self.wsync.add_worker((self.index,self.lmodel.state_dict()))
-        exit()
-        print("Shouldn't be here")
-
-      # Sync to global step counts
-      total_step += 1
-      clock.tick()
-      local_env_steps += len(transition_data)
-      total_eps += (max(lenvec)+1)
-      if total_step % SYNC_STATS_EVERY == 0:
-        with self.g_grad_steps.get_lock():
-          self.g_grad_steps.value += SYNC_STATS_EVERY
-        with self.g_episodes.get_lock():
-          self.g_episodes.value += total_eps
-          total_eps = 0
-        with self.g_steps.get_lock():
-          self.g_steps.value += local_env_steps
-          local_env_steps = 0
-          global_steps = self.g_grad_steps.value
-      # if self.settings['memory_profiling'] and (total_step % 10 == 1):    
-
-
-      if self.settings['memory_profiling']:    
-        print("({0})iter: {1}, memory: {2:.2f}MB".format(self.name,total_step, self.process.memory_info().rss / float(2 ** 20)))        
-        objects = gc.get_objects()
-        print('Number of objects is {}'.format(len(objects)))
-        del objects
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        print("[ Top 20 in {}]".format(self.name))
-        for stat in top_stats[:20]:
-            print(stat)
-        del snapshot
-        del top_stats
-
-
-
+    return rc, total_length
 

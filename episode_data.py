@@ -191,10 +191,10 @@ class AbstractEpisodeProvider(object):
   def reset(self, **kwargs):
     pass
 
-  def sample(self):
+  def sample(self, **kwargs):
     pass
 
-  def get_next(self):
+  def get_next(self, **kwargs):
     pass
 
   def delete_item(self, item):
@@ -215,11 +215,11 @@ class UniformEpisodeProvider(AbstractEpisodeProvider):
     super(UniformEpisodeProvider, self).__init__(ds)    
     self.current = self.sample()
 
-  def sample(self):
-    return np.random.choice(self.items)
+  def sample(self, **kwargs):
+    return np.random.choice(self.items, **kwargs)
 
   def reset(self, **kwargs):
-    self.current = self.sample()
+    self.current = self.sample(**kwargs)
 
   def delete_item(self, item):
     self.logger.debug('Asked to delete {}'.format(item))
@@ -228,7 +228,7 @@ class UniformEpisodeProvider(AbstractEpisodeProvider):
     except ValueError:
       self.logger.warning('Tried to delete non-existing item: {}'.format(item))
 
-  def get_next(self):
+  def get_next(self, **kwargs):
     return self.current
 
   def __iter__(self):
@@ -240,7 +240,7 @@ class OnePassProvider(AbstractEpisodeProvider):
     print('items: {}'.format(len(self.items)))
     self.current = 0
 
-  def sample(self):    
+  def sample(self, **kwargs):
     if self.current >= len(self.items):
       print('OnePassProvider: Finished ({})'.format(self.current))
       return None
@@ -250,8 +250,8 @@ class OnePassProvider(AbstractEpisodeProvider):
   def reset(self, **kwargs):
     self.current += 1
 
-  def get_next(self):
-    return self.sample()
+  def get_next(self, **kwargs):
+    return self.sample(**kwargs)
 
   def __iter__(self):
     return self.get_next()
@@ -269,16 +269,16 @@ class OrderedProvider(AbstractEpisodeProvider):
   def reset(self, **kwargs):
     self.current += 1
 
-  def get_next(self):
-    return self.sample()
+  def get_next(self, **kwargs):
+    return self.sample(**kwargs)
 
   def __iter__(self):
     return self.get_next()
 
     
 class RandomEpisodeProvider(AbstractEpisodeProvider):
-  def sample(self):
-    return np.random.choice(self.items)
-  def get_next(self):
-    return self.sample()
+  def sample(self, **kwargs):
+    return np.random.choice(self.items, **kwargs)
+  def get_next(self, **kwargs):
+    return self.sample(**kwargs)
 

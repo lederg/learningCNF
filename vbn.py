@@ -83,6 +83,8 @@ class MovingAverageAndStdVBN(AbstractVBN):
     # This class -always- fixes the scale and shift, they will not be changed.
     nn.init.constant_(self.shift,0.)
     nn_init.constant_(self.scale,1.)
+    self.settings['g2l_blacklist'].append('moving_mean')
+    self.settings['g2l_blacklist'].append('moving_std')
 
   def recompute_moments(self, data_mean, data_std):
     assert(len(data_mean) == len(data_std))

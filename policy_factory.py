@@ -13,7 +13,7 @@ class PolicyFactory(metaclass=Singleton):
       settings = CnfSettings()
     self.settings = settings
 
-  def create_policy(self, is_clone=False):
+  def create_policy(self, is_clone=False, requires_grad=True, **kwargs):
     base_model = self.settings['base_model']
     policy_class = eval(self.settings['policy'])
     if base_model and not is_clone:
@@ -42,6 +42,11 @@ class PolicyFactory(metaclass=Singleton):
       policy = policy_class(settings=self.settings)
     if self.settings['cuda']:
       policy = policy.cuda()
+
+    if not requires_grad:
+      for param in policy.parameters():
+        param.requires_grad = False
+      policy.eval()
 
     self.settings.policy = policy
     return policy

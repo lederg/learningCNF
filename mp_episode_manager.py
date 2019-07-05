@@ -40,7 +40,7 @@ class WorkersSynchronizer:
     self.settings = CnfSettings()
     self.logger = logging.getLogger('workers_sync')
     self.logger.setLevel(eval(self.settings['loglevel']))    
-    fh = logging.FileHandler('workers_sync.log', mode='w')
+    fh = logging.FileHandler('logs/{}_workers_sync.log'.format(log_name(self.settings)), mode='w')
     fh.setLevel(logging.DEBUG)
     self.logger.addHandler(fh)    
     self.workers_to_replace = []
@@ -256,7 +256,7 @@ class WorkerEnv(mp.Process):
     self.provider.reset()
     self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))
-    fh = logging.FileHandler('{}.log'.format(self.name))
+    fh = logging.FileHandler('logs/{}_{}.log'.format(log_name(self.settings), self.name))
     fh.setLevel(logging.DEBUG)
     self.logger.addHandler(fh)
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 

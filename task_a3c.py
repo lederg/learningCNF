@@ -64,7 +64,7 @@ def a3c_main():
     return
   logger = logging.getLogger('task_a3c')
   logger.setLevel(eval(settings['loglevel']))    
-  fh = logging.FileHandler('a3c_main.log')
+  fh = logging.FileHandler('a3c_main_{}.log'.format(log_name(settings)))
   fh.setLevel(logging.DEBUG)
   logger.addHandler(fh)    
 

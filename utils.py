@@ -64,9 +64,7 @@ def convert_var(v, reverse=False):
     val = abs(v)
 
 def log_name(settings):
-    return 'run_%s_bs%d_ed%d_iters%d__%s' % (settings['name'], 
-        settings['batch_size'], settings['embedding_dim'], 
-        settings['max_iters'], settings['exp_time'])
+    return 'exp_{}'.format(settings['name'])
 
 # Get a distribution p, return (1-eps)*p + eps*U 
 def epsilonize(p, eps):

@@ -36,7 +36,7 @@ class SPReporter(AbstractReporter):
 		self.report_last_envs = self.settings['report_last_envs']
 		self.logger = logging.getLogger('episode_reporter')
 		self.logger.setLevel(eval(self.settings['loglevel']))    
-		fh = logging.FileHandler('reporter_{}.log'.format(log_name(self.settings)), mode='w')
+		fh = logging.FileHandler('logs/{}_reporter.log'.format(log_name(self.settings)), mode='w')
 		fh.setLevel(logging.DEBUG)
 		self.logger.addHandler(fh)    
 

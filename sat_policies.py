@@ -812,6 +812,7 @@ class SatMiniHyperPlanePolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatMiniHyperPlanePolicy, self).__init__(**kwargs)
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+    self.threshold_shift = float(self.settings['threshold_shift'])
 
   def input_dim(self):
     return self.settings['state_dim']
@@ -826,7 +827,7 @@ class SatMiniHyperPlanePolicy(SCPolicyBase):
     sampled_output, clabels = action
     mini_clabels = clabels[:,CLABEL_LBD]
     # break_every_tick(5)
-    plane = sampled_output[:,0]
+    plane = sampled_output[:,0] + self.threshold_shift
     shift = sampled_output[:,1]
     rc = ((mini_clabels * plane) - shift) < 0
     a = rc.detach()

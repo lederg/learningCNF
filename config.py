@@ -190,6 +190,7 @@ def cfg():
 	disable_gnn = True 				# Note, disabled by default!!
 	threshold_sigma = 1.0
 	threshold_scale = 1.0
+	threshold_shift = 0.
 	log_threshold = False
 	init_threshold = None
 # RL - DQN

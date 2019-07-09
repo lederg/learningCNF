@@ -745,6 +745,8 @@ class SCPolicyBase(PolicyBase):
         self.policy_layers.add_module('activation_{}'.format(i), nn.ReLU())
       elif x == 'h':
         self.policy_layers.add_module('activation_{}'.format(i), nn.Tanh())        
+      elif x == 's':
+        self.policy_layers.add_module('activation_{}'.format(i), nn.Sigmoid())        
       else:
         n += 1
         layer = nn.Linear(prev,x)
@@ -771,7 +773,7 @@ class SCPolicyBase(PolicyBase):
     if self.state_bn:      
       state = self.state_vbn(state, **kwargs)
     if self.use_bn:
-      clabels = self.clabels_vbn(clabels, **kwargs)        
+      clabels = self.clabels_vbn(clabels, **kwargs)
     return state, clabels
 
 

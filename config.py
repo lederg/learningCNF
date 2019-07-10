@@ -173,6 +173,7 @@ def cfg():
 	vbn_window=5000
 	batch_size_threshold = 1.
 	batch_sem_value = 3
+	stale_threshold = 50
 
 
 	EPS_START = 0.9  # deprecated

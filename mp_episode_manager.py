@@ -81,6 +81,7 @@ class WorkerEnv(mp.Process):
     self.restart_solver_every = self.settings['restart_solver_every']    
     self.check_allowed_actions = self.settings['check_allowed_actions']
     self.memory_cap = self.settings['memory_cap']
+    self.stale_threshold = self.settings['stale_threshold']
     # self.gnet, self.opt = gnet, opt
     # self.lnet = Net(N_S, N_A)           # local network
     self.gmodel = model  
@@ -213,6 +214,14 @@ class WorkerEnv(mp.Process):
     r = discount(rewards, gamma) - baseline
     return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
 
+  def global_to_local(self):
+    global_params = self.gmodel.state_dict()
+    for k in self.blacklisted_keys:
+      global_params.pop(k,None)
+    self.lmodel.load_state_dict(global_params,strict=False)
+    self.last_grad_steps = self.g_grad_steps.value
+
+
   def check_batch_finished(self):
     if self.settings['episodes_per_batch']:
       # print('Here it is:')
@@ -288,22 +297,30 @@ class WorkerEnv(mp.Process):
     mt = time.time()
     loss, logits = self.lmodel.compute_loss(transition_data, **kwargs)
     mt1 = time.time()
+    if self.check_stale():
+      self.clean_after_stale(curr_formula)
+      self.logger.info('Training aborted after loss computation')
+      if need_sem:
+        self.batch_sem.release()
+      return
     self.logger.info('Loss computation took {} seconds on {} with length {}'.format(mt1-mt,curr_formula,len(transition_data)))
     self.optimizer.zero_grad()
     loss.backward()
     mt2 = time.time()
     self.logger.info('Backward took {} seconds'.format(mt2-mt1))
+    if self.check_stale():
+      self.clean_after_stale(curr_formula)
+      self.logger.info('Training aborted after backwards computation')
+      if need_sem:
+        self.batch_sem.release()
+      return
+
     # torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
     for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
         gp._grad = lp.grad
     self.logger.info('Grad steps taken before step are {}'.format(self.g_grad_steps.value-self.last_grad_steps))
     self.optimizer.step()
-    global_params = self.gmodel.state_dict()
-    for k in self.blacklisted_keys:
-      global_params.pop(k,None)
-    self.lmodel.load_state_dict(global_params,strict=False)
     z = self.lmodel.state_dict()
-    self.last_grad_steps = self.g_grad_steps.value
     # We may want to sync that
 
     local_params = {}
@@ -314,9 +331,18 @@ class WorkerEnv(mp.Process):
     if need_sem:
       self.batch_sem.release()
 
+  def check_stale(self):
+    rc = (self.g_grad_steps.value - self.last_grad_steps)
+    if rc > self.stale_threshold:
+      self.logger.debug('check_stale: gradient delay is {}'.format(rc))
+      return True
+    else:
+      return False
 
-
-
+  def clean_after_stale(self, curr_formula):
+    self.completed_episodes = []
+    self.provider.reset()
+    self.logger.info('Batch aborted due to stale gradients in formula {}'.format(curr_formula))
 
   def run(self):
     if self.settings['memory_profiling']:
@@ -338,19 +364,26 @@ class WorkerEnv(mp.Process):
     global_steps = 0
     # self.episodes_files = self.ds.get_files_list()
     while global_steps < self.training_steps:
+      clock.tick()
       self.lmodel.eval()
+      self.global_to_local()      
       begin_time = time.time()
       rc = False
+      curr_formula = self.provider.get_next()
       while (not rc) or (not self.check_batch_finished()):
         if self.settings['log_threshold']:
           k = '{}_{}'.format(global_steps,len(self.completed_episodes))
           print('setting key to {}'.format(k))
           self.lmodel.shelf_key = k
-          self.lmodel.shelf_file.sync()
+          self.lmodel.shelf_file.sync()          
         rc = self.step()
+        if rc and self.check_stale():
+          break
+      if self.check_stale():
+        self.clean_after_stale(curr_formula)
+        continue
       total_inference_time = time.time() - begin_time
       transition_data, lenvec = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
-      curr_formula = self.provider.get_next()
       ns = len(transition_data)
       if ns == 0:
         self.logger.info('Degenerate batch, ignoring')
@@ -367,6 +400,9 @@ class WorkerEnv(mp.Process):
       self.train(transition_data,lenvec=lenvec,curr_formula=curr_formula)
       total_train_time = time.time() - begin_time
       self.logger.info('Backward pass in {} done in {} seconds!'.format(self.name,total_train_time))
+      if self.check_stale():
+        self.clean_after_stale(curr_formula)
+        continue      
 
       total_process_memory = self.process.memory_info().rss / float(2 ** 20)
       if total_process_memory > self.memory_cap:
@@ -378,7 +414,6 @@ class WorkerEnv(mp.Process):
 
       # Sync to global step counts
       total_step += 1
-      clock.tick()
       local_env_steps += len(transition_data)
       total_eps += (max(lenvec)+1)
       if total_step % SYNC_STATS_EVERY == 0:

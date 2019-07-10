@@ -90,6 +90,7 @@ class WorkerEnv(mp.Process):
     self.real_steps = 0
     self.def_step_cost = self.settings['def_step_cost']
     self.provider = provider
+    self.last_grad_steps = 0
     self.blacklisted_keys = []
     self.whitelisted_keys = []
     global_params = self.gmodel.state_dict()
@@ -189,7 +190,6 @@ class WorkerEnv(mp.Process):
 
       envstr.prev_obs.append(envstr.last_obs)
       envstr.last_obs = env.process_observation(envstr.last_obs,env_obs)
-
 
     return done
 
@@ -296,13 +296,14 @@ class WorkerEnv(mp.Process):
     # torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
     for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
         gp._grad = lp.grad
+    self.logger.info('Grad steps taken before step are {}'.format(self.g_grad_steps.value-self.last_grad_steps))
     self.optimizer.step()
     global_params = self.gmodel.state_dict()
     for k in self.blacklisted_keys:
       global_params.pop(k,None)
     self.lmodel.load_state_dict(global_params,strict=False)
     z = self.lmodel.state_dict()
-
+    self.last_grad_steps = self.g_grad_steps.value
     # We may want to sync that
 
     local_params = {}

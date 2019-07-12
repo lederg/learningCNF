@@ -103,3 +103,10 @@ class MovingAverageAndStdVBN(AbstractVBN):
     self.total_length = min(self.total_length+dsize, window_size)
     self.effective_mean.data = self.moving_mean[:self.total_length].mean(dim=0)
     self.effective_std.data = self.moving_std[:self.total_length].mean(dim=0)
+
+class FixedVBN(AbstractVBN):
+  def __init__(self, size, fixed_mean=0., fixed_std=1.,  **kwargs):
+    super(FixedVBN,self).__init__(size[1])
+    self.size = size
+    self.effective_mean.data = torch.ones(self.effective_mean.shape)*fixed_mean
+    self.effective_std.data = torch.ones(self.effective_std.shape)*fixed_std

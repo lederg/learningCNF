@@ -1,3 +1,4 @@
+import logging
 import torch.nn as nn
 from settings import *
 import cadet_utils
@@ -22,6 +23,8 @@ class PolicyBase(nn.Module):
     self.lambda_aux = self.settings['lambda_aux']
     self.non_linearity = self.settings['policy_non_linearity']
     self.print_every = self.settings['print_every']
+    self.logger = logging.getLogger('policy_base')
+    self.logger.setLevel(eval(self.settings['loglevel']))    
 
     if self.non_linearity is not None:
       self.activation = eval(self.non_linearity)

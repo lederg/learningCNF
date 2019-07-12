@@ -756,7 +756,7 @@ class SCPolicyBase(PolicyBase):
           if n == len([x for x in self.settings['policy_layers'] if type(x) is int]):
             nn.init.constant_(layer.bias,self.settings['init_threshold'])
           else:
-            nn.init.constant_(layer.bias,0.)     
+            nn.init.constant_(layer.bias,0.)
         self.policy_layers.add_module('linear_{}'.format(i), layer)
 
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
@@ -870,16 +870,16 @@ class SatMini2HyperPlanePolicy(SCPolicyBase):
 
   def forward(self, obs, **kwargs):    
     state, clabels = super(SatMini2HyperPlanePolicy, self).forward(obs)
-    return self.policy_layers(state), clabels
-
-    return threshold, clabels
+    rc = self.policy_layers(state)
+    hp = torch.cat([rc[:,:2],rc[:,2].reshape(rc.shape[0],1)*2],dim=1)
+    return hp, clabels
 
   def translate_action(self, action, obs, **kwargs):
     sampled_output, clabels = action
     mini_clabels = clabels[:,[CLABEL_LBD,4]]
-    # break_every_tick(5)
     plane = sampled_output[:,:2]
     shift = sampled_output[:,2]
+    # break_every_tick(50)
     rc = ((mini_clabels * plane).sum(dim=1) - shift) < 0
     a = rc.detach()
     num_learned = obs.ext_data

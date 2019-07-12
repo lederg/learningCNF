@@ -272,6 +272,7 @@ class WorkerEnv(mp.Process):
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()
+    self.lmodel.logger = self.logger    # override logger object with process-specific one
     if self.init_model is None:
       self.lmodel.load_state_dict(self.gmodel.state_dict())
     else:

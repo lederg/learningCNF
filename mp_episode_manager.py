@@ -277,7 +277,9 @@ class WorkerEnv(mp.Process):
       self.lmodel.load_state_dict(self.gmodel.state_dict())
     else:
       self.logger.info('Loading model at runtime!')
-      self.lmodel.load_state_dict(self.init_model)
+      statedict = self.lmodel.state_dict()
+      numpy_into_statedict(statedict,self.init_model)
+      self.lmodel.load_state_dict(statedict)
     self.process = psutil.Process(os.getpid())
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
@@ -409,7 +411,7 @@ class WorkerEnv(mp.Process):
       if total_process_memory > self.memory_cap:
         self.logger.info('Total memory is {}, greater than memory cap which is {}'.format(total_process_memory,self.memory_cap))
         self.envstr.env.exit()
-        self.wsync.add_worker((self.index,self.lmodel.state_dict()))
+        self.wsync.add_worker((self.index,statedict_to_numpy(self.lmodel.state_dict())))
         exit()
         print("Shouldn't be here")
 

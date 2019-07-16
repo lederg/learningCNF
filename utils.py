@@ -279,3 +279,14 @@ def make_one_hot(labels, C=2):
     
 def unsig(y):
     return -np.log(1/y-1)
+
+def statedict_to_numpy(state_dict):
+    z = {}
+    for k in state_dict.keys():
+        z[k] = state_dict[k].numpy()
+    return z
+
+def numpy_into_statedict(state_dict, np_dict):    
+    for k in state_dict.keys():
+        state_dict[k] = torch.from_numpy(np_dict[k])
+

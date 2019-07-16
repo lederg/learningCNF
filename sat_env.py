@@ -306,6 +306,9 @@ class SatEnvServer(mp.Process):
       # print('Got reward: {}'.format(msg.reward))
       self.last_reward = last_reward
       ack = EnvCommands.ACK_STEP
+    elif self.cmd == EnvCommands.CMD_EXIT:
+      log.warning('self.cmd is CMD_EXIT, yet we are in the callback again!')
+      return None
     else:
       assert True, 'Invalid last command detected'
 

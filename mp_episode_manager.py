@@ -172,13 +172,13 @@ class WorkerEnv(mp.Process):
 
     else:
       if envstr.curr_step > self.max_step:
-        self.logger.info('Environment {} took too long, aborting it.'.format(envstr.fname))
         try:
           if env.rewards is None:
             env.rewards = [DEF_COST]*len(envstr.episode_memory)            
           # print('Finished env, rewards are: {}, sum is {}'.format(env.rewards, sum(env.rewards)))
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
+        self.logger.info('Environment {} took too long, aborting it. reward: {}'.format(envstr.fname, sum(env.rewards)))
         except:
           ipdb.set_trace()
         if self.reporter:

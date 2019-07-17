@@ -226,7 +226,6 @@ class EpisodeManager(object):
         if break_env:  
           envstr.end_time = time.time()
           envstr.last_obs = None
-          print('Environment {} took too long, aborting it.'.format(envstr.fname))
           try:
             if env.rewards is None:
               env.rewards = [DEF_COST]*len(envstr.episode_memory)            
@@ -235,6 +234,9 @@ class EpisodeManager(object):
               envstr.episode_memory[j].reward = r
           except:
             ipdb.set_trace()
+          print('Environment {} took too long, aborting it. reward: {}'.format(envstr.fname, sum(env.rewards)))          
+          if self.reporter:
+            self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)          
 
           if self.ed:
             # We add to the statistics the envs that aborted, even though they're not learned from

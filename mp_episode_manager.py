@@ -181,6 +181,8 @@ class WorkerEnv(mp.Process):
             envstr.episode_memory[j].reward = r
         except:
           ipdb.set_trace()
+        if self.reporter:
+          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)          
         if self.ed:
           if 'testing' not in kwargs or not kwargs['testing']:
             self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))

@@ -113,24 +113,32 @@ def a3c_main():
                                   ],
                                   outside_value=desired_kl * 0.02) 
   mp.set_sharing_strategy('file_system')
-  workers = [WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, i, wsync, batch_sem, init_model=None, reporter=reporter.proxy()) for i in range(settings['parallelism'])]  
+  workers = {i: WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, i, wsync, batch_sem, init_model=None, reporter=reporter.proxy()) for i in range(settings['parallelism'])}  
   print('Running with {} workers...'.format(len(workers)))
-  for w in workers:
+  for i,w in workers.items():
     w.start()  
-    # Change learning rate according to KL
 
   i = 0
   pval = None
+  main_proc = psutil.Process(os.getpid())
   set_proc_name(str.encode('a3c_main'))
   while True:
-    logger.info('Round {}'.format(i))
     time.sleep(UNIT_LENGTH)
+    logger.info('Round {}'.format(i))
     while wsync.get_total() > 0:
       w = wsync.pop()
-      logger.info('restarting worker {}'.format(w[0]))
-      new_worker = WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, w[0], wsync, batch_sem, init_model=w[1], reporter=reporter.proxy())
-      new_worker.start()
+      j = w[0]
+      logger.info('restarting worker {}'.format(j))
+      workers[j] = WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, j, wsync, batch_sem, init_model=w[1], reporter=reporter.proxy())
+      workers[j].start()
     gsteps = global_steps.value
+    total_mem = main_proc.memory_info().rss / float(2 ** 20)
+    children = main_proc.children(recursive=True)
+    for child in children:
+      child_mem = child.memory_info().rss / float(2 ** 20)
+      total_mem += child_mem
+      logger.info('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
+    logger.info('Total memory is {}'.format(total_mem))
     if i % REPORT_EVERY == 0 and i>0:
       if type(policy) == sat_policies.SatBernoulliPolicy:
         pval = float(policy.pval.detach().numpy())

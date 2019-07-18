@@ -178,7 +178,7 @@ class WorkerEnv(mp.Process):
           # print('Finished env, rewards are: {}, sum is {}'.format(env.rewards, sum(env.rewards)))
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
-        self.logger.info('Environment {} took too long, aborting it. reward: {}'.format(envstr.fname, sum(env.rewards)))
+          self.logger.info('Environment {} took too long, aborting it. reward: {}'.format(envstr.fname, sum(env.rewards)))
         except:
           ipdb.set_trace()
         if self.reporter:

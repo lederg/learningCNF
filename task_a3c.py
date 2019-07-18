@@ -132,13 +132,16 @@ def a3c_main():
       workers[j] = WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, j, wsync, batch_sem, init_model=w[1], reporter=reporter.proxy())
       workers[j].start()
     gsteps = global_steps.value
-    total_mem = main_proc.memory_info().rss / float(2 ** 20)
-    children = main_proc.children(recursive=True)
-    for child in children:
-      child_mem = child.memory_info().rss / float(2 ** 20)
-      total_mem += child_mem
-      logger.info('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
-    logger.info('Total memory is {}'.format(total_mem))
+    try:
+      total_mem = main_proc.memory_info().rss / float(2 ** 20)
+      children = main_proc.children(recursive=True)
+      for child in children:
+        child_mem = child.memory_info().rss / float(2 ** 20)
+        total_mem += child_mem
+        logger.info('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
+      logger.info('Total memory is {}'.format(total_mem))
+    except:       # A child could already be dead due to a race. Just ignore it this round.
+      pass
     if i % REPORT_EVERY == 0 and i>0:
       if type(policy) == sat_policies.SatBernoulliPolicy:
         pval = float(policy.pval.detach().numpy())

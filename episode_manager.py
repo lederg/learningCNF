@@ -201,7 +201,7 @@ class EpisodeManager(object):
         done = True       
       if done:
         if env.rewards is not None:
-          # print('Finished env, rewards are: {}, sum is {}'.format(env.rewards, sum(env.rewards)))
+          print('Finished env {}. reward is: {}'.format(envstr.fname,sum(env.rewards)))
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
         self.completed_episodes.append(envstr.episode_memory)
@@ -234,7 +234,7 @@ class EpisodeManager(object):
               envstr.episode_memory[j].reward = r
           except:
             ipdb.set_trace()
-          print('Environment {} took too long, aborting it. reward: {}'.format(envstr.fname, sum(env.rewards)))          
+          print('Environment {} took too long, aborting it. reward is: {}'.format(envstr.fname, sum(env.rewards)))
           if self.reporter:
             self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)          
 

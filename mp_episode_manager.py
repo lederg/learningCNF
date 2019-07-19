@@ -32,7 +32,7 @@ from policy_factory import *
 # DEF_COST = -1.000e-04
 
 MPEnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
+                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time'])
 
 
 class WorkersSynchronizer:
@@ -76,6 +76,8 @@ class WorkerEnv(mp.Process):
     self.completed_episodes = []
     self.reporter = reporter
     self.max_step = self.settings['max_step']
+    self.max_seconds = self.settings['max_seconds']
+    self.sat_min_reward = self.settings['sat_min_reward']
     self.rnn_iters = self.settings['rnn_iters']
     self.training_steps = self.settings['training_steps']
     self.restart_solver_every = self.settings['restart_solver_every']    
@@ -123,6 +125,7 @@ class WorkerEnv(mp.Process):
     self.envstr.env_id = fname
     self.envstr.curr_step = 0
     self.envstr.fname = fname
+    self.envstr.start_time = time.time()    
     self.envstr.episode_memory = []     
     # Set up the previous observations to be None followed by the last_obs   
     self.envstr.prev_obs.clear()    
@@ -171,7 +174,18 @@ class WorkerEnv(mp.Process):
         ipdb.set_trace()
 
     else:
-      if envstr.curr_step > self.max_step:
+      break_env = False
+      if self.max_seconds:
+        if (time.time()-envstr.start_time) > self.max_seconds:
+          self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
+          break_env=True
+      elif self.sat_min_reward:
+        if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
+          self.logger.info('Env {} at reward {}, breaking!'.format(envstr.fname, sum(env.rewards)))
+          break_env=True
+      elif envstr.curr_step > self.max_step:
+        break_env=True
+      if break_env:
         try:
           if env.rewards is None:
             env.rewards = [DEF_COST]*len(envstr.episode_memory)            
@@ -271,7 +285,7 @@ class WorkerEnv(mp.Process):
     fh.setLevel(logging.DEBUG)
     self.logger.addHandler(fh)
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
-        None, None, None, None, None, True, deque(maxlen=self.rnn_iters))    
+        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time())    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()
     self.lmodel.logger = self.logger    # override logger object with process-specific one

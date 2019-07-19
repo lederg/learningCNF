@@ -36,6 +36,7 @@ def cfg():
 	training_steps = 100000000
 	max_iters = 1
 	max_step = 250			# Maximum steps per formula
+	max_seconds = 0	
 	batch_size = 128  # deprecated
 	val_size = 100  # deprecated?
 	threshold = 10  # deprecated
@@ -187,6 +188,7 @@ def cfg():
 	sat_gc_freq = 'fixed'
 	sat_reward_scale = 1e7
 	sat_winning_reward = 10
+	sat_min_reward = None
 	sat_reduce_base = 500
 	do_lbd = False
 	sat_random_p = 0.5

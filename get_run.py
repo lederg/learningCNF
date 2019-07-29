@@ -10,7 +10,7 @@ from dispatch_utils import *
 
 MONGO_MACHINE = 'russell'
 
-def get_experiment_config(name, hostname, dbname):
+def get_experiment_config(name, hostname, dbname, show_all=False):
     settings = CnfSettings(cfg())
     hostname = 'mongodb://gil:blabla@' + hostname + '/?authSource={}'.format(dbname)
     with MongoClient(host=hostname) as client:
@@ -26,6 +26,8 @@ def get_experiment_config(name, hostname, dbname):
             for k in c.keys():
                 if k not in trivial and (k not in settings.hyperparameters.keys() or settings[k] != c[k]):
                     fc[k] = c[k]
+            if show_all:
+                fc['experiment'] = x['experiment']
             rc[x['experiment']['name']]=fc
 
         return rc
@@ -37,6 +39,7 @@ def main():
     parser.add_argument('--host', type=str, help='Host address') 
     parser.add_argument('-d', '--db', type=str, default='rl_exp', help='Database name')    
     parser.add_argument('-r', '--remote', action='store_true', default=False, help='Use default remote machine ({})'.format(MONGO_MACHINE)) 
+    parser.add_argument('-a', '--all', action='store_true', default=False, help='Include experiment information') 
     args = parser.parse_args()
 
     assert(len(args.params)>0)
@@ -48,7 +51,7 @@ def main():
     else:
         hostname = None
 
-    rc = get_experiment_config(expname,hostname,args.db)    
+    rc = get_experiment_config(expname, hostname, args.db, args.all)
     pprint(rc)
 if __name__=='__main__':
     main()

@@ -29,7 +29,7 @@ def cfg():
 	model_dir = 'saved_models'
 	base_model = None
 	# base_mode = BaseMode.ITERS 
-	base_mode = BaseMode.ALL
+	base_mode = BaseMode.ALL	
 	base_iters = 1
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
@@ -156,6 +156,7 @@ def cfg():
 	main_loop = 'a3c_main'
 	gpu_cap = 100
 	policy_layers = [1,'r']
+	policy_initializer = None
 	print_every = 0
 	vbn_init_fixed = False
 	vbn_module = True
@@ -178,6 +179,7 @@ def cfg():
 	fixed_bn = False
 	fixed_bn_mean = 4.
 	fixed_bn_std = 10.
+	hp_normalize_shift = True
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated

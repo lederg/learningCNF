@@ -864,6 +864,7 @@ class SatMini2HyperPlanePolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatMini2HyperPlanePolicy, self).__init__(**kwargs)
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+    self.hp_normalize = self.settings['hp_normalize_shift']
 
   def input_dim(self):
     return self.settings['state_dim']
@@ -871,8 +872,10 @@ class SatMini2HyperPlanePolicy(SCPolicyBase):
   def forward(self, obs, **kwargs):    
     state, clabels = super(SatMini2HyperPlanePolicy, self).forward(obs)
     rc = self.policy_layers(state)
-    hp = torch.cat([rc[:,:2],rc[:,2].reshape(rc.shape[0],1)*2],dim=1)
-    return hp, clabels
+    if self.hp_normalize:
+      hp = torch.cat([rc[:,:2],rc[:,2].reshape(rc.shape[0],1)*2],dim=1)
+      rc = hp
+    return rc, clabels
 
   def translate_action(self, action, obs, **kwargs):
     sampled_output, clabels = action
@@ -926,7 +929,7 @@ class SatMini3HyperPlanePolicy(SCPolicyBase):
 
   def translate_action(self, action, obs, **kwargs):
     sampled_output, clabels = action
-    mini_clabels = clabels[:,[1,CLABEL_LBD]]
+    mini_clabels = clabels[:,[CLABEL_LBD,1]]
     # break_every_tick(5)
     plane = sampled_output[:,:2]
     shift = sampled_output[:,2]

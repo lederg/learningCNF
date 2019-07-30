@@ -6,6 +6,7 @@ from utils import Singleton
 from settings import *
 from new_policies import *
 from sat_policies import *
+from policy_config import *
 
 class PolicyFactory(metaclass=Singleton):
   def __init__(self, settings=None, **kwargs):
@@ -21,7 +22,10 @@ class PolicyFactory(metaclass=Singleton):
       if self.settings['base_mode'] == BaseMode.ALL:
         policy = policy_class(settings=self.settings)
         fname = base_model if os.path.exists(base_model) else '{}/{}'.format(self.settings['model_dir'],base_model)
-        policy.load_state_dict(torch.load(fname))
+        if self.settings['policy_initializer'] is None:
+          policy.load_state_dict(torch.load(fname))
+        else:
+          eval(self.settings['policy_initializer'])(policy,torch.load(fname))
       elif self.settings['base_mode'] == BaseMode.ITERS:
         base_iters = self.settings['base_iters']
         if base_iters != self.settings['max_iters']:

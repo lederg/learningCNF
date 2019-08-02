@@ -15,6 +15,7 @@ from settings import *
 from qbf_data import *
 from envbase import *
 from rl_types import *
+from reduce_base_provider import *
 
 LOG_SIZE = 200
 DEF_STEP_REWARD = -0.01     # Temporary reward until Pash sends something from minisat
@@ -37,10 +38,12 @@ class SatActiveEnv:
     self.solver = None
     self.server = server
     self.current_step = 0
-    self.reduce_base = int(self.settings['sat_reduce_base'])
+    # self.reduce_base = int(self.settings['sat_reduce_base'])
     self.gc_freq = self.settings['sat_gc_freq']
     self.disable_gnn = self.settings['disable_gnn']
     self.formulas_dict = {}
+    ProviderClass = eval(self.settings['sat_reduce_base_provider'])
+    self.rb_provider = ProviderClass(self.settings)
     self._name = 'SatEnv'
 
   @property
@@ -62,10 +65,10 @@ class SatActiveEnv:
     if self.solver is None:
       # print('reduce_base is {}'.format(self.reduce_base))
       # self.solver = Minisat22(callback=thunk)
-      self.solver = Glucose3(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
+      self.solver = Glucose3(callback=thunk, reduce_base=self.rb_provider.get_reduce_base(), gc_freq=self.gc_freq)
     else:
       self.solver.delete()
-      self.solver.new(callback=thunk, reduce_base=self.reduce_base, gc_freq=self.gc_freq)
+      self.solver.new(callback=thunk, reduce_base=self.rb_provider.get_reduce_base(), gc_freq=self.gc_freq)
     self.current_step = 0
     if fname:
       try:

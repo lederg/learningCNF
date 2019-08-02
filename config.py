@@ -191,7 +191,10 @@ def cfg():
 	sat_reward_scale = 1e7
 	sat_winning_reward = 10
 	sat_min_reward = None
-	sat_reduce_base = 500
+	sat_reduce_base_provider = 'FixedReduceBaseProvider'
+	sat_reduce_base = 2000
+	sat_rb_min = 1000
+	sat_rb_max = 4000	
 	do_lbd = False
 	sat_random_p = 0.5
 	disable_gnn = True 				# Note, disabled by default!!

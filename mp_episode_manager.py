@@ -28,6 +28,7 @@ from cadet_utils import *
 from episode_data import *
 from env_factory import *
 from policy_factory import *
+from dispatcher import *
 
 # DEF_COST = -1.000e-04
 
@@ -93,6 +94,7 @@ class WorkerEnv(mp.Process):
     self.real_steps = 0
     self.def_step_cost = self.settings['def_step_cost']
     self.provider = provider
+    self.dispatcher = ObserverDispatcher()
     self.last_grad_steps = 0
     self.blacklisted_keys = []
     self.whitelisted_keys = []
@@ -278,7 +280,7 @@ class WorkerEnv(mp.Process):
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
-    self.provider.reset()
+    self.dispatcher.notify('new_batch')
     self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))
     fh = logging.FileHandler('logs/{}_{}.log'.format(log_name(self.settings), self.name))
@@ -360,7 +362,7 @@ class WorkerEnv(mp.Process):
 
   def clean_after_stale(self, curr_formula):
     self.completed_episodes = []
-    self.provider.reset()
+    self.dispatcher.notify('new_batch')
     self.logger.info('Batch aborted due to stale gradients in formula {}'.format(curr_formula))
 
   def run(self):
@@ -408,12 +410,12 @@ class WorkerEnv(mp.Process):
         self.logger.info('Degenerate batch, ignoring')
         if self.settings['autodelete_degenerate']:
           self.provider.delete_item(curr_formula)
-          self.provider.reset()
           self.logger.debug('After deleting degenerate formula, total number of formulas left is {}'.format(self.provider.get_total()))
+        self.dispatcher.notify('new_batch')
         continue
       self.logger.info('Forward pass in {} ({}) got batch with length {} in {} seconds. Ratio: {}'.format(self.name,transition_data[0].formula,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))
       # After the batch is finished, advance the iterator
-      self.provider.reset()
+      self.dispatcher.notify('new_batch')
       self.reset_env(fname=self.provider.get_next())
       begin_time = time.time()
       self.train(transition_data,lenvec=lenvec,curr_formula=curr_formula)

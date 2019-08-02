@@ -17,6 +17,7 @@ from settings import *
 from utils import *
 from rl_utils import *
 from cadet_utils import *
+from dispatcher import *
 
 ED_RECALC_THRESHOLD = 50
 
@@ -170,13 +171,13 @@ class QbfCurriculumDataset(Dataset):
     return self.samples[idx].as_np_dict()
 
 
-class AbstractEpisodeProvider(object):
+class AbstractEpisodeProvider(AbstractProvider):
   def __init__(self,flist):
     self.items = self.load_files(flist)
     self.settings = CnfSettings()
     self.logger = logging.getLogger('episode_provider')
     self.logger.setLevel(eval(self.settings['loglevel']))
-
+    ObserverDispatcher().register('new_batch',self)
 
   def load_dir(self, directory):
     return self.load_files([join(directory, f) for f in listdir(directory)])
@@ -200,6 +201,9 @@ class AbstractEpisodeProvider(object):
   def delete_item(self, item):
     self.logger.warning('delete_item: Not Implemented!')
     pass
+
+  def notify(self, *args, **kwargs):
+    self.reset()
 
   def get_total(self):
     return len(self.items)

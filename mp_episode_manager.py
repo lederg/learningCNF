@@ -9,7 +9,6 @@ import signal
 import select
 import shelve
 import torch.multiprocessing as mp
-import torch.optim as optim
 import cProfile
 import tracemalloc
 import psutil
@@ -62,20 +61,16 @@ class WorkersSynchronizer:
     self.workers_to_replace.insert(0,worker)
 
 class WorkerEnv(mp.Process):
-  def __init__(self, settings, model, opt, provider, ed, global_steps, global_grad_steps, global_episodes, name, wsync, batch_sem, init_model=None, reporter=None):
+  def __init__(self, settings, provider, ed, name, wsync, batch_sem, init_model=None):
     super(WorkerEnv, self).__init__()
     self.index = name
     self.name = 'a3c_worker%i' % name
-    self.g_steps = global_steps
-    self.g_grad_steps = global_grad_steps
-    self.g_episodes = global_episodes
     self.settings = settings
     self.wsync = wsync
     self.batch_sem = batch_sem
     self.init_model = init_model
     self.ed = ed
-    self.completed_episodes = []
-    self.reporter = reporter
+    self.completed_episodes = []    
     self.max_step = self.settings['max_step']
     self.max_seconds = self.settings['max_seconds']
     self.sat_min_reward = self.settings['sat_min_reward']
@@ -85,10 +80,6 @@ class WorkerEnv(mp.Process):
     self.check_allowed_actions = self.settings['check_allowed_actions']
     self.memory_cap = self.settings['memory_cap']
     self.stale_threshold = self.settings['stale_threshold']
-    # self.gnet, self.opt = gnet, opt
-    # self.lnet = Net(N_S, N_A)           # local network
-    self.gmodel = model  
-    self.optimizer = opt  
     self.reset_counter = 0
     self.env_steps = 0
     self.real_steps = 0
@@ -96,14 +87,6 @@ class WorkerEnv(mp.Process):
     self.provider = provider
     self.dispatcher = ObserverDispatcher()
     self.last_grad_steps = 0
-    self.blacklisted_keys = []
-    self.whitelisted_keys = []
-    global_params = self.gmodel.state_dict()
-    for k in global_params.keys():
-      if any([x in k for x in self.settings['g2l_blacklist']]):
-        self.blacklisted_keys.append(k)    
-      if any([x in k for x in self.settings['l2g_whitelist']]):
-        self.whitelisted_keys.append(k)    
 
 # This discards everything from the old env
   def reset_env(self, fname, **kwargs):
@@ -233,11 +216,9 @@ class WorkerEnv(mp.Process):
     return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
 
   def global_to_local(self):
-    global_params = self.gmodel.state_dict()
-    for k in self.blacklisted_keys:
-      global_params.pop(k,None)
+    global_params = self.node_sync.get_state_dict()
     self.lmodel.load_state_dict(global_params,strict=False)
-    self.last_grad_steps = self.g_grad_steps.value
+    self.last_grad_steps = self.node_sync.g_grad_steps
 
 
   def check_batch_finished(self):
@@ -276,10 +257,15 @@ class WorkerEnv(mp.Process):
       rc_len.extend([i]*len(ep))
     return rc, rc_len
 
-  def init_proc(self):
+
+  def setup_node(self):
+
+  def init_proc(self):    
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
-    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
+    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)    
+    self.reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(self.settings['pyro_name']))
+    self.node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(self.settings['pyro_name']))
     self.dispatcher.notify('new_batch')
     self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))
@@ -291,8 +277,16 @@ class WorkerEnv(mp.Process):
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()
     self.lmodel.logger = self.logger    # override logger object with process-specific one
+    self.blacklisted_keys = []
+    self.whitelisted_keys = []
+    global_params = self.lmodel.state_dict()
+    for k in global_params.keys():
+      if any([x in k for x in self.settings['g2l_blacklist']]):
+        self.blacklisted_keys.append(k)    
+      if any([x in k for x in self.settings['l2g_whitelist']]):
+        self.whitelisted_keys.append(k)    
     if self.init_model is None:
-      self.lmodel.load_state_dict(self.gmodel.state_dict())
+      self.lmodel.load_state_dict(self.node_sync.get_state_dict(include_all=True))
     else:
       self.logger.info('Loading model at runtime!')
       statedict = self.lmodel.state_dict()
@@ -325,7 +319,7 @@ class WorkerEnv(mp.Process):
         self.batch_sem.release()
       return
     self.logger.info('Loss computation took {} seconds on {} with length {}'.format(mt1-mt,curr_formula,len(transition_data)))
-    self.optimizer.zero_grad()
+    self.node_sync.zero_grad()
     loss.backward()
     mt2 = time.time()
     self.logger.info('Backward took {} seconds'.format(mt2-mt1))
@@ -337,23 +331,23 @@ class WorkerEnv(mp.Process):
       return
 
     # torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
-    for lp, gp in zip(self.lmodel.parameters(), self.gmodel.parameters()):
-        gp._grad = lp.grad
-    self.logger.info('Grad steps taken before step are {}'.format(self.g_grad_steps.value-self.last_grad_steps))
-    self.optimizer.step()
+    grads = [x.grad for x in self.lmodel.parameters()]
+    self.node_sync.update_grad(grads)
+    self.logger.info('Grad steps taken before step are {}'.format(self.node_sync.g_grad_steps-self.last_grad_steps))
+    self.node_sync.step()
     z = self.lmodel.state_dict()
     # We may want to sync that
 
     local_params = {}
     for k in self.whitelisted_keys:
       local_params[k] = z[k]
-    self.gmodel.load_state_dict(local_params,strict=False)
+    self.node_sycy.set_state_dict(local_params)
 
     if need_sem:
       self.batch_sem.release()
 
   def check_stale(self):
-    rc = (self.g_grad_steps.value - self.last_grad_steps)
+    rc = (self.node_sync.g_grad_steps - self.last_grad_steps)
     if rc > self.stale_threshold:
       self.logger.debug('check_stale: gradient delay is {}'.format(rc))
       return True
@@ -437,18 +431,13 @@ class WorkerEnv(mp.Process):
       total_step += 1
       local_env_steps += len(transition_data)
       total_eps += (max(lenvec)+1)
-      if total_step % SYNC_STATS_EVERY == 0:
-        with self.g_grad_steps.get_lock():
-          self.g_grad_steps.value += SYNC_STATS_EVERY
-        with self.g_episodes.get_lock():
-          self.g_episodes.value += total_eps
-          total_eps = 0
-        with self.g_steps.get_lock():
-          self.g_steps.value += local_env_steps
-          local_env_steps = 0
-          global_steps = self.g_grad_steps.value
-      # if self.settings['memory_profiling'] and (total_step % 10 == 1):    
-
+      if total_step % SYNC_STATS_EVERY == 0:      
+        self.node_sync.mod_g_grad_steps(SYNC_STATS_EVERY)
+        self.node_sync.mod_g_episodes(total_eps)
+        self.node_sync.mod_g_steps(local_env_steps)
+        total_eps = 0        
+        local_env_steps = 0
+        global_steps = self.node_sync.g_grad_steps
 
       if self.settings['memory_profiling']:    
         print("({0})iter: {1}, memory: {2:.2f}MB".format(self.name,total_step, self.process.memory_info().rss / float(2 ** 20)))        
@@ -462,7 +451,3 @@ class WorkerEnv(mp.Process):
             print(stat)
         del snapshot
         del top_stats
-
-
-
-

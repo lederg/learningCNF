@@ -8,6 +8,8 @@ from settings import *
 import ipdb
 import shelve
 import logging
+import Pyro4
+
 
 DEF_WINDOW = 100
 CMD_EXIT = 1
@@ -88,6 +90,7 @@ class PGProxyReporter(AbstractReporter):
 	def report_stats(self, *args):
 		self.queue.put((CMD_REPORT,args))
 
+@Pyro4.expose
 class PGEpisodeReporter(SPReporter):	
 	def add_stat(self, env_id, steps, reward, entropy, total_steps):
 		self.stats = self.stats+[[env_id,steps,reward, entropy]]

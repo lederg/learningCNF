@@ -86,34 +86,42 @@ def pyro_main():
   logger.addHandler(fh)    
   manager = MyManager()
   manager.start()
-
+  main_node = False
+  ns = None
   try:
     ns = Pyro4.locateNS()
-    main_node = False
-    logger.info('client node starting up')
+    nsyncuri = ns.lookup("{}.node_sync".format(settings['pyro_name']))
+    if not nsyncuri:
+      main_node = True
   except:
-    logger.info('Main node starting up')
     main_node = True
 
+  if main_node:
+    logger.info('Main node starting up')
+  else:
+    logger.info('client node starting up')
 
   if main_node:
-    nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=my_ip, port=settings['pyro_port'])
-    assert broadcastServer is not None, "expect a broadcast server to be created"
-    logger.info("got a Nameserver, uri={}".format(nameserverUri))
     pyrodaemon = Pyro4.core.Daemon(host=hostname)
+    if ns is None:
+      nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=my_ip, port=settings['pyro_port'])
+      assert broadcastServer is not None, "expect a broadcast server to be created"
+      logger.info("got a Nameserver, uri={}".format(nameserverUri))
+      ns = nameserverDaemon.nameserver
+      pyrodaemon.combine(nameserverDaemon)
+      pyrodaemon.combine(broadcastServer)
     reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard'])
     node_sync = NodeSync(settings)
     reporter_uri = pyrodaemon.register(reporter)
     node_sync_uri = pyrodaemon.register(node_sync)
-    nameserverDaemon.nameserver.register("{}.reporter".format(settings['pyro_name']), reporter_uri)
-    nameserverDaemon.nameserver.register("{}.node_sync".format(settings['pyro_name']), node_sync_uri)
-    pyrodaemon.combine(nameserverDaemon)
-    pyrodaemon.combine(broadcastServer)
+    ns.register("{}.reporter".format(settings['pyro_name']), reporter_uri)
+    ns.register("{}.node_sync".format(settings['pyro_name']), node_sync_uri)
+    # nameserverDaemon.nameserver.register("{}.reporter".format(settings['pyro_name']), reporter_uri)
+    # nameserverDaemon.nameserver.register("{}.node_sync".format(settings['pyro_name']), node_sync_uri)
 
   else:
     reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(settings['pyro_name']))
     node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(settings['pyro_name']))
-
 
   total_steps = 0
   wsync = manager.wsync()

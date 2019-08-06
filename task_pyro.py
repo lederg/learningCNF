@@ -9,6 +9,7 @@ import time
 import tracemalloc
 import signal
 import logging
+import socket
 import Pyro4
 import Pyro4.core
 import Pyro4.naming
@@ -34,16 +35,20 @@ from episode_manager import EpisodeManager
 from episode_data import *
 from formula_utils import *
 from policy_factory import *
-import torch.nn.utils as tutils
-import sat_policies
+from node_sync import *
+
 
 Pyro4.config.SERVERTYPE = "multiplex"
+Pyro4.config.SERIALIZER = "pickle"
+Pyro4.config.SERIALIZERS_ACCEPTED = ["json", "marshal", "serpent", "pickle"]
 Pyro4.config.POLLTIMEOUT = 3
 
 
 hostname = socket.gethostname()
 my_ip = Pyro4.socketutil.getIpAddress(None, workaround127=True)
 settings = CnfSettings()
+first_time = time.time()
+last_time = first_time
 
 # Units of 30 seconds
 
@@ -55,9 +60,9 @@ SAVE_EVERY = 20
 TEST_EVERY = settings['test_every']
 init_lr = settings['init_lr']
 desired_kl = settings['desired_kl']
-stepsize = settings['init_lr']
 curr_lr = init_lr
 max_reroll = 0
+round_num = 0
 
 def handleSIGCHLD(a,b):
   os.waitpid(-1, os.WNOHANG)
@@ -92,7 +97,7 @@ def pyro_main():
 
 
   if main_node:
-    nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=my_ip)
+    nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=my_ip, port=settings['pyro_port'])
     assert broadcastServer is not None, "expect a broadcast server to be created"
     logger.info("got a Nameserver, uri={}".format(nameserverUri))
     pyrodaemon = Pyro4.core.Daemon(host=hostname)
@@ -105,13 +110,12 @@ def pyro_main():
     pyrodaemon.combine(nameserverDaemon)
     pyrodaemon.combine(broadcastServer)
 
+  else:
+    reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(settings['pyro_name']))
+    node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(settings['pyro_name']))
 
 
   total_steps = 0
-  global_steps = mp.Value('i', 0)
-  global_grad_steps = mp.Value('i', 0)
-  global_episodes = mp.Value('i', 0)
-  reporter.start()
   wsync = manager.wsync()
   batch_sem = mp.Semaphore(settings['batch_sem_value'])
   ed = None
@@ -143,25 +147,26 @@ def pyro_main():
                                   outside_value=desired_kl * 0.02) 
 
   mp.set_sharing_strategy('file_system')
-  workers = {i: WorkerEnv(settings, provider, ed, global_steps, global_grad_steps, global_episodes, i, wsync, batch_sem, init_model=None) for i in range(settings['parallelism'])}
+  workers = {}
+  for _ in range(settings['parallelism']):
+    wnum = node_sync.get_worker_num()
+    workers[wnum] = WorkerEnv(settings, provider, ed, wnum, wsync, batch_sem, init_model=None)
   print('Running with {} workers...'.format(len(workers)))
-  for i,w in workers.items():
+  for _,w in workers.items():
     w.start()  
 
-  i = 0
   pval = None
   main_proc = psutil.Process(os.getpid())
   set_proc_name(str.encode('a3c_main'))
-  while True:
-    time.sleep(UNIT_LENGTH)
-    logger.info('Round {}'.format(i))
+
+  def common_loop_tasks():
+    global round_num
     while wsync.get_total() > 0:
       w = wsync.pop()
       j = w[0]
       logger.info('restarting worker {}'.format(j))
-      workers[j] = WorkerEnv(settings,policy,optimizer,provider,ed,global_steps, global_grad_steps, global_episodes, j, wsync, batch_sem, init_model=w[1], reporter=reporter.proxy())
+      workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem, init_model=w[1])
       workers[j].start()
-    gsteps = global_steps.value
     try:
       total_mem = main_proc.memory_info().rss / float(2 ** 20)
       children = main_proc.children(recursive=True)
@@ -169,26 +174,48 @@ def pyro_main():
         child_mem = child.memory_info().rss / float(2 ** 20)
         total_mem += child_mem
         logger.info('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
-      logger.info('Total memory is {}'.format(total_mem))
+      logger.info('Total memory on host {} is {}'.format(my_ip, total_mem))
     except:       # A child could already be dead due to a race. Just ignore it this round.
       pass
-    if i % REPORT_EVERY == 0 and i>0:
-      if type(policy) == sat_policies.SatBernoulliPolicy:
-        pval = float(policy.pval.detach().numpy())
-      reporter.proxy().report_stats(gsteps, provider.get_total(), pval)
-      eps = global_episodes.value
-      logger.info('Average number of simulated episodes per time unit: {}'.format(global_episodes.value/i))
-    if i % SAVE_EVERY == 0 and i>0:
-      torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), gsteps))
-      if ed is not None:
-        ed.save_file()
-    if i % TEST_EVERY == 0 and i>0:      
-      em.test_envs(settings['rl_test_data'], policy, iters=1, training=False)
-    if settings['rl_decay']:
-      new_lr = lr_schedule.value(gsteps)
-      if new_lr != curr_lr:
-        utils.set_lr(optimizer,new_lr)
-        print('setting new learning rate to {}'.format(new_lr))
-        curr_lr = new_lr
 
-    i += 1
+    round_num += 1
+
+  def main_node_tasks():
+    global last_time
+    curr_time = time.time()
+    if curr_time-last_time > UNIT_LENGTH:
+      logger.info('Round {}'.format(round_num))
+      last_time = curr_time
+      common_loop_tasks()
+      gsteps = node_sync.g_steps
+      policy = node_sync.gmodel
+      if round_num % REPORT_EVERY == 0 and round_num>0:
+        reporter.report_stats(gsteps, provider.get_total(), pval)
+        eps = node_sync.g_episodes
+        logger.info('Average number of simulated episodes per time unit: {} ({}/{})'.format(eps/round_num,eps,round_num))
+      if round_num % SAVE_EVERY == 0 and round_num>0:
+        torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), gsteps))
+        if ed is not None:
+          ed.save_file()
+      if round_num % TEST_EVERY == 0 and round_num>0:      
+        em.test_envs(settings['rl_test_data'], policy, iters=1, training=False)
+      if settings['rl_decay']:
+        new_lr = lr_schedule.value(gsteps)
+        if new_lr != curr_lr:
+          utils.set_lr(node_sync.optimizer,new_lr)
+          print('setting new learning rate to {}'.format(new_lr))
+          curr_lr = new_lr
+
+    return True
+
+  if main_node:
+    pyrodaemon.requestLoop(main_node_tasks)
+
+    nameserverDaemon.close()
+    broadcastServer.close()
+    pyrodaemon.close()
+  else:    
+    while True:
+      time.sleep(UNIT_LENGTH)
+      common_loop_tasks()
+

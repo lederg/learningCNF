@@ -13,6 +13,7 @@ import cProfile
 import tracemalloc
 import psutil
 import logging
+import Pyro4
 from collections import namedtuple, deque
 from namedlist import namedlist
 
@@ -257,9 +258,6 @@ class WorkerEnv(mp.Process):
       rc_len.extend([i]*len(ep))
     return rc, rc_len
 
-
-  def setup_node(self):
-
   def init_proc(self):    
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
@@ -286,7 +284,12 @@ class WorkerEnv(mp.Process):
       if any([x in k for x in self.settings['l2g_whitelist']]):
         self.whitelisted_keys.append(k)    
     if self.init_model is None:
-      self.lmodel.load_state_dict(self.node_sync.get_state_dict(include_all=True))
+      try:
+        a = self.node_sync.get_state_dict(include_all=True)
+      except Exception as e:
+        print('Uh uh...')
+        print(e)      
+      self.lmodel.load_state_dict(a)
     else:
       self.logger.info('Loading model at runtime!')
       statedict = self.lmodel.state_dict()
@@ -341,7 +344,7 @@ class WorkerEnv(mp.Process):
     local_params = {}
     for k in self.whitelisted_keys:
       local_params[k] = z[k]
-    self.node_sycy.set_state_dict(local_params)
+    self.node_sync.set_state_dict(local_params)
 
     if need_sem:
       self.batch_sem.release()
@@ -373,8 +376,7 @@ class WorkerEnv(mp.Process):
     clock = GlobalTick()
     SYNC_STATS_EVERY = 1
     # SYNC_STATS_EVERY = 5+np.random.randint(10)
-    total_step = 0
-    total_eps = 0
+    total_step = 0    
     local_env_steps = 0
     global_steps = 0
     # self.episodes_files = self.ds.get_files_list()
@@ -429,13 +431,11 @@ class WorkerEnv(mp.Process):
 
       # Sync to global step counts
       total_step += 1
-      local_env_steps += len(transition_data)
-      total_eps += (max(lenvec)+1)
+      local_env_steps += len(transition_data)            
       if total_step % SYNC_STATS_EVERY == 0:      
         self.node_sync.mod_g_grad_steps(SYNC_STATS_EVERY)
-        self.node_sync.mod_g_episodes(total_eps)
+        self.node_sync.mod_g_episodes(max(lenvec)+1)
         self.node_sync.mod_g_steps(local_env_steps)
-        total_eps = 0        
         local_env_steps = 0
         global_steps = self.node_sync.g_grad_steps
 

@@ -15,13 +15,15 @@ class NodeSync(object):
     if settings:
       self.settings = settings
     else:
-      settings = CnfSettings()    
+      self.settings = CnfSettings()    
+    stepsize = self.settings['init_lr']
     self.gmodel = PolicyFactory().create_policy()
     self.gmodel.share_memory()
     self.optimizer = SharedAdam(filter(lambda p: p.requires_grad, self.gmodel.parameters()), lr=stepsize)    
     self._g_steps = 0
     self._g_grad_steps = 0
     self._g_episodes = 0
+    self.curr_worker = 0
 
 
     self.blacklisted_keys = []
@@ -72,9 +74,13 @@ class NodeSync(object):
   def zero_grad(self):
     self.optimizer.zero_grad()
 
+  def get_worker_num(self):
+    self.curr_worker += 1
+    return self.curr_worker
+
   # We don't bother to return the blacklisted values between nodes
 
-  def get_state_dict(self, include_all=False)
+  def get_state_dict(self, include_all=False):
     global_params = self.gmodel.state_dict()
     if not include_all:
       for k in self.blacklisted_keys:

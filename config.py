@@ -13,6 +13,7 @@ def cfg():
 	mongo_dbname='rl_exp'
 	exp_time = int(time.time())
 	pyro_name = None   		# This will become the experiment name
+	pyro_port=None
 	save_config = True
 	update_config=None
 	state_dim = 36

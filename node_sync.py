@@ -68,9 +68,6 @@ class NodeSync(object):
   def mod_g_episodes(self, i):
     self._g_episodes += i
 
-  def step(self):
-    self.optimizer.step()
-
   def zero_grad(self):
     self.optimizer.zero_grad()
 
@@ -92,6 +89,7 @@ class NodeSync(object):
   def set_state_dict(self, sdict):
     self.gmodel.load_state_dict(sdict,strict=False)
 
-  def update_grad(self, grads):
+  def update_grad_and_step(self, grads):
     for lp, gp in zip(grads, self.gmodel.parameters()):
         gp._grad = lp
+    self.optimizer.step()

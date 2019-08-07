@@ -335,9 +335,8 @@ class WorkerEnv(mp.Process):
 
     # torch.nn.utils.clip_grad_norm_(self.lmodel.parameters(), self.settings['grad_norm_clipping'])
     grads = [x.grad for x in self.lmodel.parameters()]
-    self.node_sync.update_grad(grads)
-    self.logger.info('Grad steps taken before step are {}'.format(self.node_sync.g_grad_steps-self.last_grad_steps))
-    self.node_sync.step()
+    self.node_sync.update_grad_and_step(grads)
+    # self.logger.info('Grad steps taken before step are {}'.format(self.node_sync.g_grad_steps-self.last_grad_steps))
     z = self.lmodel.state_dict()
     # We may want to sync that
 
@@ -350,6 +349,8 @@ class WorkerEnv(mp.Process):
       self.batch_sem.release()
 
   def check_stale(self):
+    if not self.settings['check_stale']:
+      return False
     rc = (self.node_sync.g_grad_steps - self.last_grad_steps)
     if rc > self.stale_threshold:
       self.logger.debug('check_stale: gradient delay is {}'.format(rc))

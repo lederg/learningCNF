@@ -178,6 +178,7 @@ def cfg():
 	batch_size_threshold = 1.
 	batch_sem_value = 3
 	stale_threshold = 50
+	check_stale = True
 	fixed_bn = False
 	fixed_bn_mean = 4.
 	fixed_bn_std = 10.

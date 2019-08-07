@@ -210,7 +210,7 @@ def pyro_main():
       if settings['rl_decay']:
         new_lr = lr_schedule.value(gsteps)
         if new_lr != curr_lr:
-          utils.set_lr(node_sync.optimizer,new_lr)
+          node_sync.update_lr(new_lr)
           print('setting new learning rate to {}'.format(new_lr))
           curr_lr = new_lr
 

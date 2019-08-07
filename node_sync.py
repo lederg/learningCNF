@@ -16,14 +16,21 @@ class NodeSync(object):
       self.settings = settings
     else:
       self.settings = CnfSettings()    
-    stepsize = self.settings['init_lr']
+    self.curr_lr = self.settings['init_lr']
     self.gmodel = PolicyFactory().create_policy()
     self.gmodel.share_memory()
-    self.optimizer = SharedAdam(filter(lambda p: p.requires_grad, self.gmodel.parameters()), lr=stepsize)    
+    self.optimizer = SharedAdam(filter(lambda p: p.requires_grad, self.gmodel.parameters()), lr=self.curr_lr)    
     self._g_steps = 0
     self._g_grad_steps = 0
     self._g_episodes = 0
     self.curr_worker = 0
+
+    self.logger = logging.getLogger('node_sync')
+    self.logger.setLevel(eval(self.settings['loglevel']))    
+    fh = logging.FileHandler('logs/{}_node_sync.log'.format(log_name(self.settings)), mode='w')
+    fh.setLevel(logging.DEBUG)
+    self.logger.addHandler(fh)    
+
 
 
     self.blacklisted_keys = []
@@ -84,6 +91,7 @@ class NodeSync(object):
         global_params.pop(k,None)
     return global_params
 
+
   # This should be called with already filtered (whitelisted) keys
 
   def set_state_dict(self, sdict):
@@ -93,3 +101,10 @@ class NodeSync(object):
     for lp, gp in zip(grads, self.gmodel.parameters()):
         gp._grad = lp
     self.optimizer.step()
+
+  def update_lr(self, new_lr):
+    if new_lr != self.curr_lr:
+      utils.set_lr(self.optimizer,new_lr)
+      self.curr_lr = new_lr
+      self.logger.info('setting new learning rate to {}'.format(new_lr))
+    return self.curr_lr

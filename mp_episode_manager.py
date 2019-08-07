@@ -275,6 +275,7 @@ class WorkerEnv(mp.Process):
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()
     self.lmodel.logger = self.logger    # override logger object with process-specific one
+    self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.lmodel.parameters()))
     self.blacklisted_keys = []
     self.whitelisted_keys = []
     global_params = self.lmodel.state_dict()
@@ -322,7 +323,7 @@ class WorkerEnv(mp.Process):
         self.batch_sem.release()
       return
     self.logger.info('Loss computation took {} seconds on {} with length {}'.format(mt1-mt,curr_formula,len(transition_data)))
-    self.node_sync.zero_grad()
+    self.optimizer.zero_grad()      # Local model grads are being zeros here!
     loss.backward()
     mt2 = time.time()
     self.logger.info('Backward took {} seconds'.format(mt2-mt1))

@@ -97,9 +97,9 @@ def pyro_main():
     main_node = True
 
   if main_node:
-    logger.info('Main node starting up')
+    logger.info('Main node starting up for cluster {}, experiment {}, ip {}'.format(settings['pyro_name'],settings['name'],my_ip))
   else:
-    logger.info('client node starting up')
+    logger.info('client node starting up for cluster {}, experiment {}, ip {}'.format(settings['pyro_name'],settings['name'],my_ip))
 
   if main_node:
     pyrodaemon = Pyro4.core.Daemon(host=hostname)

@@ -88,6 +88,9 @@ class WorkerEnv(mp.Process):
     self.provider = provider
     self.dispatcher = ObserverDispatcher()
     self.last_grad_steps = 0
+    self.envstr = MPEnvStruct(EnvFactory().create_env(), 
+        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time())    
+    
 
 # This discards everything from the old env
   def reset_env(self, fname, **kwargs):
@@ -270,8 +273,6 @@ class WorkerEnv(mp.Process):
     fh = logging.FileHandler('logs/{}_{}.log'.format(log_name(self.settings), self.name))
     fh.setLevel(logging.DEBUG)
     self.logger.addHandler(fh)
-    self.envstr = MPEnvStruct(EnvFactory().create_env(), 
-        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time())    
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()
     self.lmodel.logger = self.logger    # override logger object with process-specific one

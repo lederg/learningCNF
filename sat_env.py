@@ -118,7 +118,7 @@ class SatActiveEnv:
         print('Gah, an exception: {}'.format(e))
 
 class SatEnvProxy(EnvBase):
-  def __init__(self, queue_in, queue_out,settings=None):
+  def __init__(self, queue_in, queue_out, server_pid, settings=None):
     self.settings = settings if settings else CnfSettings()
     self.queue_in = queue_in
     self.queue_out = queue_out
@@ -128,6 +128,7 @@ class SatEnvProxy(EnvBase):
     self.finished = False
     self.reward_scale = self.settings['sat_reward_scale']
     self.disable_gnn = self.settings['disable_gnn']
+    self.server_pid = server_pid
 
   def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))    
@@ -223,7 +224,7 @@ class SatEnvServer(mp.Process):
     self.uncache_after_batch = self.settings['uncache_after_batch']
 
   def proxy(self):
-    return SatEnvProxy(self.queue_out, self.queue_in)
+    return SatEnvProxy(self.queue_out, self.queue_in, self.pid)
 
   def run(self):
     print('Env {} on pid {}'.format(self.env.name, os.getpid()))

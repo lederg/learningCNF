@@ -169,12 +169,33 @@ def pyro_main():
 
   def common_loop_tasks():
     global round_num
+
+    # Restart worker processes cooperatively
     while wsync.get_total() > 0:
       w = wsync.pop()
       j = w[0]
       logger.info('restarting worker {}'.format(j))
       workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem, init_model=w[1])
       workers[j].start()
+
+    # Restart worker processes uncooperatively
+
+    for j,w in workers.items():
+      worker_running = True
+      if psutil.pid_exists(w.pid):
+        worker_proc = psutil.Process(w.pid)        
+        if not worker_proc.is_running() or worker_proc.status() is 'zombie':
+          worker_running = False
+      else:
+        worker_running = False
+      if not worker_running:
+        env_pid = w.envstr.env.server_pid
+        logger.info('restarting worker (probably killed by oom) {}'.format(j))
+        if psutil.pid_exists(env_pid):
+          logger.info('defunct SatEnv on pid {}, killing it'.format(env_pid))
+          os.kill(env_pid, signal.SIGTERM)
+        workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem)
+        workers[j].start()
     try:
       total_mem = main_proc.memory_info().rss / float(2 ** 20)
       children = main_proc.children(recursive=True)

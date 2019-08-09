@@ -155,7 +155,7 @@ def cfg():
 	short_window=500
 	report_every = 100
 	mp=False
-	main_loop = 'a3c_main'
+	main_loop = 'pyro_main'
 	gpu_cap = 100
 	policy_layers = [1,'r']
 	policy_initializer = None

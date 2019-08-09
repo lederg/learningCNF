@@ -128,8 +128,8 @@ class PGEpisodeReporter(SPReporter):
 			self.logger.info('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
 			self.logger.info('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
 
-		if sum(steps)+1000 < total_steps:			# Not all episodes are actually used (parallelism/on-policy pg)
-			total_steps = sum(steps)
+		# if sum(steps)+1000 < total_steps:			# Not all episodes are actually used (parallelism/on-policy pg)
+		# 	total_steps = sum(steps)
 
 		self.logger.info('Data for the {} most common envs:'.format(self.report_last_envs))
 		for vals in totals[:self.report_last_envs]:

@@ -90,7 +90,7 @@ class WorkerEnv(mp.Process):
     self.last_grad_steps = 0
     self.envstr = MPEnvStruct(EnvFactory().create_env(), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time())    
-    
+
 
 # This discards everything from the old env
   def reset_env(self, fname, **kwargs):
@@ -389,7 +389,7 @@ class WorkerEnv(mp.Process):
       self.global_to_local()      
       begin_time = time.time()
       rc = False
-      curr_formula = self.provider.get_next()
+      curr_formula = self.provider.get_next()      
       while (not rc) or (not self.check_batch_finished()):
         if self.settings['log_threshold']:
           k = '{}_{}'.format(global_steps,len(self.completed_episodes))

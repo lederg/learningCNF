@@ -271,7 +271,10 @@ class WorkerEnv(mp.Process):
     self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
     self.logger.setLevel(eval(self.settings['loglevel']))
     fh = logging.FileHandler('logs/{}_{}.log'.format(log_name(self.settings), self.name))
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s',
+                                    '%Y-%m-%d %H:%M:%S')
     fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
     self.logger.addHandler(fh)
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()

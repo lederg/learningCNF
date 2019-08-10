@@ -82,7 +82,11 @@ def pyro_main():
   logger = logging.getLogger('task_a3c')
   logger.setLevel(eval(settings['loglevel']))    
   fh = logging.FileHandler('logs/{}_a3c_main.log'.format(log_name(settings)))
+  formatter = logging.Formatter('%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s',
+                                  '%Y-%m-%d %H:%M:%S')
+
   fh.setLevel(logging.DEBUG)
+  fh.setFormatter(formatter)
   logger.addHandler(fh)    
   manager = MyManager()
   manager.start()

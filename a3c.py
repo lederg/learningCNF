@@ -1,3 +1,4 @@
+import sys
 import ipdb
 import cProfile
 import logging
@@ -22,7 +23,8 @@ def main():
 	settings = CnfSettings(ex.current_run.config)
 	settings.hyperparameters['name'] = ex.current_run.experiment_info['name']
 	settings.hyperparameters['mp']=True
-	logging.basicConfig(level=logging.DEBUG)
+	settings.hyperparameters['cmd_line']=' '.join(sys.argv)
+	logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s')
 	if settings['mongo']:
 		print('Adding mongodb observer')
 		ex.observers.append(MongoObserver.create(url=settings['mongo_host'],

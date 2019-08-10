@@ -79,21 +79,13 @@ def pyro_main():
     print('Not running. Printing settings instead:')
     print(settings.hyperparameters)
     return
-  logger = logging.getLogger('task_a3c')
-  logger.setLevel(eval(settings['loglevel']))    
-  fh = logging.FileHandler('logs/{}_a3c_main.log'.format(log_name(settings)))
-  formatter = logging.Formatter('%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s',
-                                  '%Y-%m-%d %H:%M:%S')
-
-  fh.setLevel(logging.DEBUG)
-  fh.setFormatter(formatter)
-  logger.addHandler(fh)    
+  logger = utils.get_logger(settings, 'task_pyro', 'logs/{}_a3c_main.log'.format(log_name(settings)))
   manager = MyManager()
   manager.start()
   main_node = False
   ns = None
   try:
-    ns = Pyro4.locateNS()
+    ns = Pyro4.locateNS(host=settings['pyro_host'], port=settings['pyro_port'])
     nsyncuri = ns.lookup("{}.node_sync".format(settings['pyro_name']))
     if not nsyncuri:
       main_node = True
@@ -183,11 +175,14 @@ def pyro_main():
       workers[j].start()
 
     # Restart worker processes uncooperatively
-
+    
+    total_workers_num = 0    
     for j,w in workers.items():
       worker_running = True
-      if psutil.pid_exists(w.pid):
+      if psutil.pid_exists(w.pid):        
         worker_proc = psutil.Process(w.pid)        
+        logger.info('Worker {} (pid: {}) status: {}, on host {}'.format(j,w.pid,worker_proc.status(),my_ip))
+        total_workers_num += 1
         if not worker_proc.is_running() or worker_proc.status() is 'zombie':
           worker_running = False
       else:
@@ -200,6 +195,7 @@ def pyro_main():
           os.kill(env_pid, signal.SIGTERM)
         workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem)
         workers[j].start()
+    logger.info('Total number of running workers: {}'.format(total_workers_num))
     try:
       total_mem = main_proc.memory_info().rss / float(2 ** 20)
       children = main_proc.children(recursive=True)

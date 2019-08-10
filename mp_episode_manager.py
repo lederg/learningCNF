@@ -39,11 +39,7 @@ MPEnvStruct = namedlist('EnvStruct',
 class WorkersSynchronizer:
   def __init__(self):
     self.settings = CnfSettings()
-    self.logger = logging.getLogger('workers_sync')
-    self.logger.setLevel(eval(self.settings['loglevel']))    
-    fh = logging.FileHandler('logs/{}_workers_sync.log'.format(log_name(self.settings)), mode='w')
-    fh.setLevel(logging.DEBUG)
-    self.logger.addHandler(fh)    
+    self.logger = utils.get_logger(self.settings, 'workers_sync', 'logs/{}_workers_sync.log'.format(log_name(self.settings)))
     self.workers_to_replace = []
     if self.settings['mp']:
       self.logger.info('MultiProcessing: {} (pid: {})'.format(self.settings['mp'],os.getpid()))
@@ -268,14 +264,8 @@ class WorkerEnv(mp.Process):
     self.reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(self.settings['pyro_name']))
     self.node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(self.settings['pyro_name']))
     self.dispatcher.notify('new_batch')
-    self.logger = logging.getLogger('WorkerEnv-{}'.format(self.name))
-    self.logger.setLevel(eval(self.settings['loglevel']))
-    fh = logging.FileHandler('logs/{}_{}.log'.format(log_name(self.settings), self.name))
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s',
-                                    '%Y-%m-%d %H:%M:%S')
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(formatter)
-    self.logger.addHandler(fh)
+    self.logger = utils.get_logger(self.settings, 'WorkerEnv-{}'.format(self.name), 
+                                    'logs/{}_{}.log'.format(log_name(self.settings), self.name))
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()
     self.lmodel.logger = self.logger    # override logger object with process-specific one

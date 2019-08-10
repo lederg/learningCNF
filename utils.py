@@ -1,6 +1,7 @@
 import torch
 import itertools
 import ipdb
+import logging
 import numpy as np
 from torch.autograd import Variable
 import pandas as pd
@@ -289,4 +290,20 @@ def statedict_to_numpy(state_dict):
 def numpy_into_statedict(state_dict, np_dict):    
     for k in state_dict.keys():
         state_dict[k] = torch.from_numpy(np_dict[k])
+
+def get_logger(settings, logger_name, filename=None):
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(eval(settings['loglevel']))
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s',
+                                    '%Y-%m-%d %H:%M:%S')
+    if filename:
+        fh = logging.FileHandler(filename, mode='w')
+        fh.setFormatter(formatter)
+        fh.setLevel(logging.DEBUG)
+        logger.addHandler(fh)    
+    # ch = logging.StreamHandler()
+    # ch.setFormatter(formatter)        
+    # logger.addHandler(ch)
+
+    return logger
 

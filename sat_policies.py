@@ -929,10 +929,10 @@ class SatMini3HyperPlanePolicy(SCPolicyBase):
 
   def translate_action(self, action, obs, **kwargs):
     sampled_output, clabels = action
-    mini_clabels = clabels[:,[CLABEL_LBD,1]]
+    mini_clabels = clabels[:,[CLABEL_LBD,4,1]]
     # break_every_tick(5)
-    plane = sampled_output[:,:2]
-    shift = sampled_output[:,2]
+    plane = sampled_output[:,:3]
+    shift = sampled_output[:,3]
     rc = ((mini_clabels * plane).sum(dim=1) - shift) < 0
     a = rc.detach()
     num_learned = obs.ext_data
@@ -946,7 +946,7 @@ class SatMini3HyperPlanePolicy(SCPolicyBase):
     output, clabels = self.forward(obs_batch)
     if not training:
       return [(output, clabels)]
-    m = MultivariateNormal(output,torch.eye(3)*self.sigma*self.sigma)
+    m = MultivariateNormal(output,torch.eye(4)*self.sigma*self.sigma)
     sampled_output = m.sample()
     if self.settings['log_threshold']:      
       if self.shelf_key not in self.shelf_file.keys():        

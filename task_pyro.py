@@ -44,9 +44,9 @@ Pyro4.config.SERIALIZERS_ACCEPTED = ["json", "marshal", "serpent", "pickle"]
 Pyro4.config.POLLTIMEOUT = 3
 
 
-hostname = socket.gethostname()
-my_ip = Pyro4.socketutil.getIpAddress(None, workaround127=True)
 settings = CnfSettings()
+hostname = settings['pyro_host'] if settings['pyro_host'] else socket.gethostname()
+my_ip = Pyro4.socketutil.getIpAddress(None, workaround127=True)
 first_time = time.time()
 last_time = first_time
 
@@ -100,7 +100,7 @@ def pyro_main():
   if main_node:
     pyrodaemon = Pyro4.core.Daemon(host=hostname)
     if ns is None:
-      nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=my_ip, port=settings['pyro_port'])
+      nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=(hostname if settings['pyro_host'] else my_ip), port=settings['pyro_port'])
       assert broadcastServer is not None, "expect a broadcast server to be created"
       logger.info("got a Nameserver, uri={}".format(nameserverUri))
       ns = nameserverDaemon.nameserver

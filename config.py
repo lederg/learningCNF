@@ -179,7 +179,7 @@ def cfg():
 	batch_size_threshold = 1.
 	batch_sem_value = 3
 	stale_threshold = 50
-	check_stale = True
+	check_stale = False
 	fixed_bn = False
 	fixed_bn_mean = 4.
 	fixed_bn_std = 10.
@@ -195,6 +195,7 @@ def cfg():
 	sat_reward_scale = 1e7
 	sat_winning_reward = 10
 	sat_min_reward = None
+	sat_win_scale = 2.
 	sat_reduce_base_provider = 'FixedReduceBaseProvider'
 	sat_reduce_base = 2000
 	sat_rb_min = 1000

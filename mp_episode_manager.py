@@ -164,20 +164,22 @@ class WorkerEnv(mp.Process):
         if (time.time()-envstr.start_time) > self.max_seconds:
           self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
           break_env=True
-      elif self.sat_min_reward:
-        if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
-          self.logger.info('Env {} at reward {}, breaking!'.format(envstr.fname, sum(env.rewards)))
-          break_env=True
-      elif envstr.curr_step > self.max_step:
-        break_env=True
+      else:
+        if self.sat_min_reward:
+          if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
+            # self.logger.info('Env {} at reward {}, breaking!'.format(envstr.fname, sum(env.rewards)))
+            break_env=True
+          if envstr.curr_step > self.max_step:
+            break_env=True
       if break_env:
         try:
+          # We set the entire reward to zero all along
           if env.rewards is None:
-            env.rewards = [DEF_COST]*len(envstr.episode_memory)            
+            env.rewards = [0.]*len(envstr.episode_memory)            
           # print('Finished env, rewards are: {}, sum is {}'.format(env.rewards, sum(env.rewards)))
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
-          self.logger.info('Environment {} took too long, aborting it. reward: {}'.format(envstr.fname, sum(env.rewards)))
+          self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
         except:
           ipdb.set_trace()
         if self.reporter:

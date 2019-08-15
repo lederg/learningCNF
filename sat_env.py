@@ -219,7 +219,10 @@ class SatEnvServer(mp.Process):
     self.last_orig_clause_size = 0
     self.do_lbd = self.settings['do_lbd']
     self.disable_gnn = self.settings['disable_gnn']
-    self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
+    if self.settings['sat_min_reward']:
+      self.winning_reward = -self.settings['sat_min_reward']*self.settings['sat_reward_scale']*self.settings['sat_win_scale']
+    else:
+      self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
     self.total_episodes = 0
     self.uncache_after_batch = self.settings['uncache_after_batch']
 

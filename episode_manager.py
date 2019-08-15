@@ -31,6 +31,8 @@ class EpisodeManager(object):
     self.settings = CnfSettings()
     self.debug = False
     self.parallelism = parallelism
+    self.max_seconds = self.settings['max_seconds']
+    self.sat_min_reward = self.settings['sat_min_reward']    
     self.max_step = self.settings['max_step']
     self.rnn_iters = self.settings['rnn_iters']
     self.ed = ed
@@ -146,8 +148,7 @@ class EpisodeManager(object):
 
   def step_all(self, model, **kwargs):
     step_obs = []
-    prev_obs = []
-    max_seconds = int(kwargs['max_seconds']) if 'max_seconds' in kwargs else 0
+    prev_obs = []    
     rc = []     # the env structure indices that finished and got to be reset (or will reset automatically next step)
     active_envs = [i for i in range(self.parallelism) if self.envs[i].active]
     for i in active_envs:
@@ -217,12 +218,25 @@ class EpisodeManager(object):
           ipdb.set_trace()
       else:        
         break_env = False
-        if max_seconds:
-          if (time.time()-envstr.start_time) > max_seconds:
-            print('Env took {} seconds, breaking!'.format(time.time()-envstr.start_time))
+        if self.max_seconds:
+          if (time.time()-envstr.start_time) > self.max_seconds:
+            self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
             break_env=True
-        elif envstr.curr_step > self.max_step:
-          break_env=True
+        else:
+          if self.sat_min_reward:
+            if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
+              # self.logger.info('Env {} at reward {}, breaking!'.format(envstr.fname, sum(env.rewards)))
+              break_env=True
+            if envstr.curr_step > self.max_step:
+              break_env=True
+
+        # break_env = False
+        # if max_seconds:
+        #   if (time.time()-envstr.start_time) > max_seconds:
+        #     print('Env took {} seconds, breaking!'.format(time.time()-envstr.start_time))
+        #     break_env=True
+        # elif envstr.curr_step > self.max_step:
+        #   break_env=True
         if break_env:  
           envstr.end_time = time.time()
           envstr.last_obs = None

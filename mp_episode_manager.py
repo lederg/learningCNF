@@ -174,12 +174,10 @@ class WorkerEnv(mp.Process):
       if break_env:
         try:
           # We set the entire reward to zero all along
-          if env.rewards is None:
-            env.rewards = [0.]*len(envstr.episode_memory)            
-          # print('Finished env, rewards are: {}, sum is {}'.format(env.rewards, sum(env.rewards)))
+          self.logger.info('Environment {} took too long, aborting it and. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
+          env.rewards = [0.]*len(envstr.episode_memory)            
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
-          self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
         except:
           ipdb.set_trace()
         if self.reporter:

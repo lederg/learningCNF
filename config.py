@@ -183,7 +183,7 @@ def cfg():
 	fixed_bn = False
 	fixed_bn_mean = 4.
 	fixed_bn_std = 10.
-	hp_normalize_shift = True
+	hp_normalize_shift = True	
 
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated
@@ -200,6 +200,7 @@ def cfg():
 	sat_reduce_base = 2000
 	sat_rb_min = 1000
 	sat_rb_max = 4000	
+	minimum_episodes = 3
 	do_lbd = False
 	sat_random_p = 0.5
 	disable_gnn = True 				# Note, disabled by default!!
@@ -208,6 +209,7 @@ def cfg():
 	threshold_shift = 0.
 	log_threshold = False
 	init_threshold = None
+	drop_abort_technical = False
 # RL - DQN
 	learning_starts = 50000
 	replay_size = 400000

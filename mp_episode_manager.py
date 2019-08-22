@@ -31,6 +31,8 @@ from policy_factory import *
 from dispatcher import *
 
 # DEF_COST = -1.000e-04
+BREAK_CRIT_LOGICAL = 1
+BREAK_CRIT_TECHNICAL = 2
 
 MPEnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time'])
@@ -71,12 +73,14 @@ class WorkerEnv(mp.Process):
     self.max_step = self.settings['max_step']
     self.max_seconds = self.settings['max_seconds']
     self.sat_min_reward = self.settings['sat_min_reward']
+    self.drop_technical = self.settings['drop_abort_technical']
     self.rnn_iters = self.settings['rnn_iters']
     self.training_steps = self.settings['training_steps']
     self.restart_solver_every = self.settings['restart_solver_every']    
     self.check_allowed_actions = self.settings['check_allowed_actions']
     self.memory_cap = self.settings['memory_cap']
     self.stale_threshold = self.settings['stale_threshold']
+    self.minimum_episodes = self.settings['minimum_episodes']
     self.reset_counter = 0
     self.env_steps = 0
     self.real_steps = 0
@@ -160,6 +164,7 @@ class WorkerEnv(mp.Process):
 
     else:
       break_env = False
+      break_crit = BREAK_CRIT_LOGICAL
       if self.max_seconds:
         if (time.time()-envstr.start_time) > self.max_seconds:
           self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
@@ -167,19 +172,23 @@ class WorkerEnv(mp.Process):
       else:
         if self.sat_min_reward:
           if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
-            # self.logger.info('Env {} at reward {}, breaking!'.format(envstr.fname, sum(env.rewards)))
             break_env=True
-          if envstr.curr_step > self.max_step:
+          elif envstr.curr_step > self.max_step:
             break_env=True
+            break_crit = BREAK_CRIT_TECHNICAL
       if break_env:
+        envstr.last_obs = None
         try:
           # We set the entire reward to zero all along
-          self.logger.info('Environment {} took too long, aborting it and. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
+          self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
           env.rewards = [0.]*len(envstr.episode_memory)            
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
         except:
           ipdb.set_trace()
+        if break_crit == BREAK_CRIT_TECHNICAL and self.drop_technical:
+          self.logger.info('Environment {} technically dropped.'.format(envstr.fname))          
+          return True
         if self.reporter:
           self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)          
         if self.ed:
@@ -187,7 +196,6 @@ class WorkerEnv(mp.Process):
             self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))
         if self.settings['learn_from_aborted']:
           self.completed_episodes.append(envstr.episode_memory)
-        envstr.last_obs = None
         return True        
 
       envstr.prev_obs.append(envstr.last_obs)
@@ -246,6 +254,18 @@ class WorkerEnv(mp.Process):
 
     return rc, i
 
+  def pop_all(self):
+    rc = []
+    rc_len = []
+    i = 0
+    while self.completed_episodes:
+      ep = self.discount_episode(self.completed_episodes.pop(0))
+      rc.extend(ep)
+      rc_len.extend([i]*len(ep))
+      i += 1
+    return rc, rc_len, i
+
+
   def pop_min_normalized(self, num=0):
     if num == 0:
       num = self.settings['episodes_per_batch']
@@ -295,7 +315,9 @@ class WorkerEnv(mp.Process):
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 
   def train(self,transition_data, curr_formula=None, **kwargs):
-    if len(transition_data) == self.settings['episodes_per_batch']*(self.settings['max_step']+1):
+    print('train: batch size is {} and reward is {}'.format(len(transition_data),sum([t.reward for t in transition_data])))
+    if sum([t.reward for t in transition_data]) == 0:
+    # if len(transition_data) == self.settings['episodes_per_batch']*(self.settings['max_step']+1):
       self.logger.info('A lost batch, no use training')
       return
     if self.settings['do_not_learn']:
@@ -383,20 +405,23 @@ class WorkerEnv(mp.Process):
       begin_time = time.time()
       rc = False
       curr_formula = self.provider.get_next()      
-      while (not rc) or (not self.check_batch_finished()):
+      total_episodes = 0
+      while (not rc) or (total_episodes < self.settings['episodes_per_batch']):
         if self.settings['log_threshold']:
           k = '{}_{}'.format(global_steps,len(self.completed_episodes))
           print('setting key to {}'.format(k))
           self.lmodel.shelf_key = k
           self.lmodel.shelf_file.sync()          
         rc = self.step()
-        if rc and self.check_stale():
-          break
+        if rc:
+          total_episodes += 1
+          if self.check_stale():
+            break
       if self.check_stale():
         self.clean_after_stale(curr_formula)
         continue
       total_inference_time = time.time() - begin_time
-      transition_data, lenvec = self.pop_min_normalized() if self.settings['episodes_per_batch'] else self.pop_min()
+      transition_data, lenvec, num_episodes = self.pop_all()
       ns = len(transition_data)
       if ns == 0:
         self.logger.info('Degenerate batch, ignoring')
@@ -405,6 +430,10 @@ class WorkerEnv(mp.Process):
           self.logger.debug('After deleting degenerate formula, total number of formulas left is {}'.format(self.provider.get_total()))
         self.dispatcher.notify('new_batch')
         continue
+      elif num_episodes < self.minimum_episodes:
+        self.logger.info('too few episodes ({}), dropping batch'.format(num_episodes))
+        self.dispatcher.notify('new_batch')
+        continue        
       self.logger.info('Forward pass in {} ({}) got batch with length {} in {} seconds. Ratio: {}'.format(self.name,transition_data[0].formula,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))
       # After the batch is finished, advance the iterator
       self.dispatcher.notify('new_batch')

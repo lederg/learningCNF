@@ -79,7 +79,7 @@ def pyro_main():
     print('Not running. Printing settings instead:')
     print(settings.hyperparameters)
     return
-  logger = utils.get_logger(settings, 'task_pyro', 'logs/{}_a3c_main.log'.format(log_name(settings)))
+  logger = utils.get_logger(settings, 'task_pyro', 'logs/{}_a3c_main_{}.log'.format(log_name(settings),my_ip))
   manager = MyManager()
   manager.start()
   main_node = False

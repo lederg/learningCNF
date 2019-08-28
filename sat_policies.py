@@ -733,7 +733,8 @@ class SCPolicyBase(PolicyBase):
     self.snorm_window = self.settings['vbn_window']
     # self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
-      self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
+      # self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
+      self.state_vbn = NodeAverageAndStdVBN(self.state_dim, 'state_vbn', **kwargs)
     if self.use_bn:
       self.clabels_vbn = MovingAverageAndStdVBN((self.snorm_window,self.clabel_dim))      
     sublayers = []

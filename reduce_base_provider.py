@@ -26,20 +26,27 @@ class FixedReduceBaseProvider(AbstractReduceBaseProvider):
   def get_reduce_base(self):
     return self.reduce_base
 
-class UniformReduceBaseProvider(AbstractReduceBaseProvider):
+class RandomReduceBaseProvider(AbstractReduceBaseProvider):
   def __init__(self, settings):
     super(UniformReduceBaseProvider, self).__init__(settings)
-    self.rb_min = self.settings['sat_rb_min']
-    self.rb_max = self.settings['sat_rb_max']
     self.reduce_base = self.settings['sat_reduce_base']
     ObserverDispatcher().register('new_batch',self)
 
   def sample_reduce_base(self):
-    self.reduce_base = random.randrange(self.rb_min,self.rb_max)
+    pass
 
   def notify(self, *args, **kwargs):
     self.sample_reduce_base()
 
   def get_reduce_base(self):
     return self.reduce_base
+    
+class UniformReduceBaseProvider(RandomReduceBaseProvider):
+  def __init__(self, settings):
+    super(UniformReduceBaseProvider, self).__init__(settings)
+    self.rb_min = self.settings['sat_rb_min']
+    self.rb_max = self.settings['sat_rb_max']
+
+  def sample_reduce_base(self):
+    self.reduce_base = random.randrange(self.rb_min,self.rb_max)
     

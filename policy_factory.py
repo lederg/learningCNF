@@ -14,13 +14,13 @@ class PolicyFactory(metaclass=Singleton):
       settings = CnfSettings()
     self.settings = settings
 
-  def create_policy(self, is_clone=False):
+  def create_policy(self, is_clone=False, **kwargs):
     base_model = self.settings['base_model']
     policy_class = eval(self.settings['policy'])
     if base_model and not is_clone:
       print('Loading parameters from {}'.format(base_model))
       if self.settings['base_mode'] == BaseMode.ALL:
-        policy = policy_class(settings=self.settings)
+        policy = policy_class(settings=self.settings, **kwargs)
         fname = base_model if os.path.exists(base_model) else '{}/{}'.format(self.settings['model_dir'],base_model)
         if self.settings['policy_initializer'] is None:
           policy.load_state_dict(torch.load(fname))
@@ -43,7 +43,7 @@ class PolicyFactory(metaclass=Singleton):
         encoder=model.encoder
         policy = policy_class(settings=self.settings,encoder=encoder)
     else:
-      policy = policy_class(settings=self.settings)
+      policy = policy_class(settings=self.settings, **kwargs)
     if self.settings['cuda']:
       policy = policy.cuda()
 

@@ -92,13 +92,13 @@ def pyro_main():
   except:
     main_node = True
 
-  if main_node:
-    logger.info('Main node starting up for cluster {}, experiment {}, ip {}'.format(settings['pyro_name'],settings['name'],my_ip))
-  else:
-    logger.info('client node starting up for cluster {}, experiment {}, ip {}'.format(settings['pyro_name'],settings['name'],my_ip))
+    # This lets certain models change their operation!
+  settings.hyperparameters['main_node'] = main_node
 
-  if main_node:
+  if main_node:    
+    logger.info('Main node starting up for cluster {}, experiment {}, ip {}'.format(settings['pyro_name'],settings['name'],my_ip))
     pyrodaemon = Pyro4.core.Daemon(host=hostname)
+    settings.pyrodaemon = pyrodaemon
     if ns is None:
       nameserverUri, nameserverDaemon, broadcastServer = Pyro4.naming.startNS(host=(hostname if settings['pyro_host'] else my_ip), port=settings['pyro_port'])
       assert broadcastServer is not None, "expect a broadcast server to be created"
@@ -106,6 +106,7 @@ def pyro_main():
       ns = nameserverDaemon.nameserver
       pyrodaemon.combine(nameserverDaemon)
       pyrodaemon.combine(broadcastServer)
+    settings.ns = ns
     reporter = PGEpisodeReporter("{}/{}".format(settings['rl_log_dir'], log_name(settings)), settings, tensorboard=settings['report_tensorboard'])
     node_sync = NodeSync(settings)
     reporter_uri = pyrodaemon.register(reporter)
@@ -116,8 +117,9 @@ def pyro_main():
     # nameserverDaemon.nameserver.register("{}.node_sync".format(settings['pyro_name']), node_sync_uri)
 
   else:
+    logger.info('client node starting up for cluster {}, experiment {}, ip {}'.format(settings['pyro_name'],settings['name'],my_ip))
     reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(settings['pyro_name']))
-    node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(settings['pyro_name']))
+    node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(settings['pyro_name']))  
 
   total_steps = 0
   wsync = manager.wsync()
@@ -152,6 +154,12 @@ def pyro_main():
 
   mp.set_sharing_strategy('file_system')
   workers = {}
+  if settings['parallelism']=='auto':
+    cpunum = psutil.cpu_count() - 2
+    mem = psutil.virtual_memory().total / (2**20) # (in MBs)
+    cap = settings['memory_cap']
+    settings['parallelism'] = min(cpunum, int(mem/cap))
+    self.logger.info('auto-parallelism set to {}'.format(settings['parallelism']))
   for _ in range(settings['parallelism']):
     wnum = node_sync.get_worker_num()
     workers[wnum] = WorkerEnv(settings, provider, ed, wnum, wsync, batch_sem, init_model=None)

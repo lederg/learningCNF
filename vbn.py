@@ -135,8 +135,8 @@ class NodeAverageAndStdVBN(AbstractVBN):
       data_mean = data_mean.mean(dim=0)
     assert(len(data_mean) == len(data_std))
     if (data_std!=data_std).any().numpy():
-      print('Error! nan in data_std:')
-      print(data_std)
+      print('Error! nan in data_std. Dropping everything and just returning the previous values')      
+      return self.effective_mean.data, self.effective_std.data      
     if self.main_node:  
       total = (self.total_length + weight).float()
       curr_weight = self.total_length.float() / total

@@ -125,8 +125,12 @@ def pyro_main():
   wsync = manager.wsync()
   batch_sem = mp.Semaphore(settings['batch_sem_value'])
   ed = None
-  ProviderClass = eval(settings['episode_provider'])
-  provider = ProviderClass(settings['rl_train_data'])
+  if settings['sat_balanced_override']:
+    logger.info('Overriding flag: Using BalancedEpisodeProvider')
+    provider = BalancedEpisodeProvider.from_sat_dirs(settings['rl_train_data'],settings['sat_balanced_sat'], settings['sat_balanced_unsat'])
+  else:
+    ProviderClass = eval(settings['episode_provider'])
+    provider = ProviderClass(settings['rl_train_data'])
   settings.formula_cache = FormulaCache()
   if settings['preload_formulas']:
     settings.formula_cache.load_files(provider.items)

@@ -173,21 +173,21 @@ class QbfCurriculumDataset(Dataset):
 
 class AbstractEpisodeProvider(AbstractProvider):
   def __init__(self,flist):
-    self.items = self.load_files(flist)
+    self.items = AbstractEpisodeProvider.load_files(flist)
     self.settings = CnfSettings()
     self.logger = logging.getLogger('episode_provider')
     self.logger.setLevel(eval(self.settings['loglevel']))
     ObserverDispatcher().register('new_batch',self)
 
-  def load_dir(self, directory):
-    return self.load_files([join(directory, f) for f in listdir(directory)])
+  def load_dir(directory):
+    return AbstractEpisodeProvider.load_files([join(directory, f) for f in listdir(directory)])
 
-  def load_files(self, files):
+  def load_files(files):
     if type(files) is not list:
       files = [files]
     only_files = [x for x in files if os.path.isfile(x)]
     only_dirs = [x for x in files if os.path.isdir(x)]
-    return only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([self.load_dir(x) for x in only_dirs]))
+    return only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([AbstractEpisodeProvider.load_dir(x) for x in only_dirs]))
 
   def reset(self, **kwargs):
     pass
@@ -215,7 +215,7 @@ class AbstractEpisodeProvider(AbstractProvider):
     return self.get_total()
 
 class UniformEpisodeProvider(AbstractEpisodeProvider):
-  def __init__(self,ds):
+  def __init__(self,ds, **kwargs):
     super(UniformEpisodeProvider, self).__init__(ds)    
     self.current = self.sample()
 
@@ -238,8 +238,58 @@ class UniformEpisodeProvider(AbstractEpisodeProvider):
   def __iter__(self):
     return self.get_next()
 
+# cat is a dict of categories {formula: Integer}
+
+class BalancedEpisodeProvider(AbstractEpisodeProvider):
+  def __init__(self,ds, cat=None, **kwargs):
+    super(BalancedEpisodeProvider, self).__init__(ds)
+    self.flist_cat = cat
+    self.recalc_weights()
+    self.current = self.sample()
+
+  def recalc_weights(self):
+    if self.flist_cat:
+      self.weights = normalize_weights(np.array([self.flist_cat[x] for x in self.items]),make_unit=True)
+    else:
+      self.weights = np.ones(len(self.items)) / len(self.items)
+
+  def sample(self):
+    return np.random.choice(self.items, p=self.weights)
+
+  def reset(self, **kwargs):
+    self.current = self.sample()
+
+  def delete_item(self, item):
+    self.logger.debug('Asked to delete {}'.format(item))
+    try:
+      self.items.remove(item)
+      self.recalc_weights()
+    except ValueError:
+      self.logger.warning('Tried to delete non-existing item: {}'.format(item))
+
+  def from_sat_dirs(combined, sat, unsat):
+    cat = {x: None for x in AbstractEpisodeProvider.load_files(combined)}
+    all_sat = [os.path.basename(x) for x in AbstractEpisodeProvider.load_files(sat)]
+    all_unsat = [os.path.basename(x) for x in AbstractEpisodeProvider.load_files(unsat)]
+    for k in cat.keys():
+      bname = os.path.basename(k)
+      if bname in all_sat:
+        cat[k] = 1
+      elif bname in all_unsat:
+        cat[k] = 0
+      else:
+        ipdb.set_trace()
+
+    return BalancedEpisodeProvider(combined,cat=cat)
+
+  def get_next(self):
+    return self.current
+
+  def __iter__(self):
+    return self.get_next()
+
 class OnePassProvider(AbstractEpisodeProvider):
-  def __init__(self,ds):
+  def __init__(self,ds, **kwargs):
     super(OnePassProvider, self).__init__(ds) 
     print('items: {}'.format(len(self.items)))
     self.current = 0
@@ -261,7 +311,7 @@ class OnePassProvider(AbstractEpisodeProvider):
     return self.get_next()
 
 class OrderedProvider(AbstractEpisodeProvider):
-  def __init__(self,ds):
+  def __init__(self,ds, **kwargs):
     super(OrderedProvider, self).__init__(ds) 
     print('items: {}'.format(len(self.items)))
     self.current = 0

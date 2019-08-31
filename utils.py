@@ -117,12 +117,16 @@ def discount(x, gamma):
     return scipy.signal.lfilter([1],[1,-gamma],x[::-1], axis=0)[::-1]
 
 
-def normalize_weights(x):
+def normalize_weights(x, make_unit=False):
+    rc = x.copy()
     for i in set(x):
         l = len(x[x==i])
-        x[x==i]=l
+        rc[x==i]=l
+    rc = 1/rc
+    if make_unit:
+        rc = rc/sum(rc)
 
-    return 1/x
+    return rc
 
 
 def cleanup_process(pid):

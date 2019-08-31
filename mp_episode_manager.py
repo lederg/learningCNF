@@ -433,8 +433,8 @@ class WorkerEnv(mp.Process):
       elif num_episodes < self.minimum_episodes:
         self.logger.info('too few episodes ({}), dropping batch'.format(num_episodes))
         self.dispatcher.notify('new_batch')
-        continue        
-      self.logger.info('Forward pass in {} ({}) got batch with length {} in {} seconds. Ratio: {}'.format(self.name,transition_data[0].formula,len(transition_data),total_inference_time,len(transition_data)/total_inference_time))
+        continue              
+      self.logger.info('Forward pass in {} ({}) got batch with length {} ({}) in {} seconds. Ratio: {}'.format(self.name,transition_data[0].formula,len(transition_data),num_episodes,total_inference_time,len(transition_data)/total_inference_time))
       # After the batch is finished, advance the iterator
       self.dispatcher.notify('new_batch')
       self.reset_env(fname=self.provider.get_next())

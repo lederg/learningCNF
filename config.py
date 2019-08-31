@@ -211,8 +211,8 @@ def cfg():
 	init_threshold = None
 	drop_abort_technical = False
 	sat_balanced_override = False
-	sat_balanced_sat = 'data/sc_syth_sat_combined'
-	sat_balanced_unsat = 'data/sc_syth_unsat_combined'
+	sat_balanced_sat = 'data/sc_synth_sat_combined'
+	sat_balanced_unsat = 'data/sc_synth_unsat_combined'
 # RL - DQN
 	learning_starts = 50000
 	replay_size = 400000

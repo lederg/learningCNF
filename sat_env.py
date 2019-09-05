@@ -31,14 +31,14 @@ class SatActiveEnv:
                               ['state', 'orig_clauses', 'orig_clause_labels', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'],
                               default=None)
 
-  def __init__(self, debug=False, server=None, settings=None, **kwargs):
+  def __init__(self, debug=False, server=None, settings=None, oracletype=None, **kwargs):
     self.settings = settings if settings else CnfSettings()    
     self.debug = debug
     self.tail = deque([],LOG_SIZE)
     self.solver = None
     self.server = server
     self.current_step = 0
-    # self.reduce_base = int(self.settings['sat_reduce_base'])
+    self.oracletype = oracletype
     self.gc_freq = self.settings['sat_gc_freq']
     self.disable_gnn = self.settings['disable_gnn']
     self.formulas_dict = {}
@@ -60,15 +60,15 @@ class SatActiveEnv:
     
     def thunk(cl_label_arr, rows_arr, cols_arr, data_arr):      
       return self.__callback(cl_label_arr, rows_arr, cols_arr, data_arr, DEF_STEP_REWARD)
-      
 
+    gc_oracle = {"callback": thunk, "policy": self.oracletype}
     if self.solver is None:
       # print('reduce_base is {}'.format(self.reduce_base))
       # self.solver = Minisat22(callback=thunk)
-      self.solver = Glucose3(callback=thunk, reduce_base=self.rb_provider.get_reduce_base(), gc_freq=self.gc_freq)
+      self.solver = Glucose3(reduce_base=self.rb_provider.get_reduce_base(), gc_freq=self.gc_freq, gc_oracle=gc_oracle)
     else:
       self.solver.delete()
-      self.solver.new(callback=thunk, reduce_base=self.rb_provider.get_reduce_base(), gc_freq=self.gc_freq)
+      self.solver.new(reduce_base=self.rb_provider.get_reduce_base(), gc_freq=self.gc_freq, gc_oracle=gc_oracle)
     self.current_step = 0
     if fname:
       try:

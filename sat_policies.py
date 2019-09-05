@@ -1064,11 +1064,9 @@ class SatThresholdSCPolicy(SCPolicyBase):
     threshold = outputs.view(-1)
     return gaussian_logprobs(threshold,self.sigma,actions)
 
-
-
 class SatThresholdStatePolicy(SCPolicyBase):
   def __init__(self, **kwargs):
-    super(SatThresholdStatePolicy, self).__init__(**kwargs)
+    super(SatThresholdStatePolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     self.threshold_scale = self.settings.FloatTensor(np.array(float(self.settings['threshold_scale'])))
 
@@ -1113,4 +1111,45 @@ class SatThresholdStatePolicy(SCPolicyBase):
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions]).view(-1)
     threshold = outputs.view(-1)
-    return gaussian_logprobs(threshold.view(-1,1),self.sigma,actions.view(-1,1)).view(-1)
+    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1)    
+
+class SatPercentagePolicy(SCPolicyBase):
+  def __init__(self, **kwargs):
+    super(SatPercentagePolicy, self).__init__(oracletype='percentage', **kwargs)
+    self.tsigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+    self.psigma = self.settings.FloatTensor(np.array(float(self.settings['percentage_sigma'])))
+
+  def input_dim(self):
+    return self.settings['state_dim']
+
+  def forward(self, obs, **kwargs):    
+    state, clabels = super(SatPercentagePolicy, self).forward(obs)
+    rc = self.policy_layers(state)
+    # Index 0 is for the percentage, Index 1 is for minimal drop
+    rc = torch.stack([torch.sigmoid(rc[:,0]),torch.relu(rc[:,1])],dim=1)
+    return rc, clabels
+
+  def translate_action(self, action, obs, **kwargs):
+    sampled_output, clabels = action
+
+    return sampled_output
+
+  def select_action(self, obs_batch, training=True, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    output, clabels = self.forward(obs_batch)
+    if not training:
+      return [(output, clabels)]
+    m = MultivariateNormal(output,torch.eye(2)*self.settings.FloatTensor([self.psigma*self.psigma, self.tsigma*self.tsigma]))
+    sampled_output = m.sample()
+    if self.settings['log_threshold']:      
+      if self.shelf_key not in self.shelf_file.keys():        
+        self.shelf_file[self.shelf_key] = []
+      tmp = self.shelf_file[self.shelf_key]
+      tmp.append((output.detach().numpy(),sampled_output.detach().numpy()))
+      self.shelf_file[self.shelf_key] = tmp
+    return [(sampled_output, clabels)]
+
+  def get_logprobs(self, outputs, collated_batch):    
+    actions = torch.cat([a[0] for a in collated_batch.action])
+    return gaussian_logprobs(outputs,self.settings.FloatTensor([self.psigma,self.tsigma]),actions)
+

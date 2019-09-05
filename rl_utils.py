@@ -367,8 +367,15 @@ def undensify_transition(t):
 def state_empty(s):
   return all([i is None for i in s])
 
-def gaussian_logprobs(ms, ss, samples):
+def old_gaussian_logprobs(ms, ss, samples):
   bias = samples.shape[1]*np.log(1/np.sqrt(2*np.pi*ss*ss))
+  a = (samples-ms)**2
+  b = 2*ss*ss
+  rc = (bias - a/b).sum(dim=1)
+  return rc
+
+def gaussian_logprobs(ms, ss, samples):
+  bias = np.log(1/np.sqrt(2*np.pi*ss*ss))
   a = (samples-ms)**2
   b = 2*ss*ss
   rc = (bias - a/b).sum(dim=1)

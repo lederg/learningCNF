@@ -207,6 +207,7 @@ def cfg():
 	threshold_sigma = 1.0
 	threshold_scale = 1.0
 	threshold_shift = 0.
+	percentage_sigma = 0.1
 	log_threshold = False
 	init_threshold = None
 	drop_abort_technical = False

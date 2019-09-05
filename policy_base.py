@@ -4,7 +4,7 @@ from settings import *
 import cadet_utils
 
 class PolicyBase(nn.Module):
-  def __init__(self, **kwargs):
+  def __init__(self, oracletype=None, **kwargs):
     super(PolicyBase, self).__init__()
     self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()        
     self.state_dim = self.settings['state_dim']
@@ -24,7 +24,8 @@ class PolicyBase(nn.Module):
     self.non_linearity = self.settings['policy_non_linearity']
     self.print_every = self.settings['print_every']
     self.logger = logging.getLogger('policy_base')
-    self.logger.setLevel(eval(self.settings['loglevel']))    
+    self.logger.setLevel(eval(self.settings['loglevel']))
+    self.oracletype = oracletype
 
     if self.non_linearity is not None:
       self.activation = eval(self.non_linearity)
@@ -32,6 +33,9 @@ class PolicyBase(nn.Module):
       self.activation = lambda x: x
 
   
+  def get_oracletype(self):
+    return self.oracletype
+
   def forward(self, obs, **kwargs):
     raise NotImplementedError
 

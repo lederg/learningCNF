@@ -214,6 +214,7 @@ def cfg():
 	sat_balanced_override = False
 	sat_balanced_sat = 'data/sc_synth_sat_combined'
 	sat_balanced_unsat = 'data/sc_synth_unsat_combined'
+	sat_init_percentage = False
 # RL - DQN
 	learning_starts = 50000
 	replay_size = 400000

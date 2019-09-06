@@ -566,7 +566,7 @@ class SatBernoulliPolicy(PolicyBase):
 
 class SatLBDPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
-    super(SatLBDPolicy, self).__init__(**kwargs)
+    super(SatLBDPolicy, self).__init__(oracletype='glucose', **kwargs)
     self.action_score = nn.Linear(2,1)
   
   def forward(self, obs, **kwargs):
@@ -752,7 +752,7 @@ class SCPolicyBase(PolicyBase):
         n += 1
         layer = nn.Linear(prev,x)
         prev = x
-        if self.settings['init_threshold']:
+        if self.settings['init_threshold'] is not None:          
           nn.init.constant_(layer.weight,0.)
           if n == len([x for x in self.settings['policy_layers'] if type(x) is int]):
             nn.init.constant_(layer.bias,self.settings['init_threshold'])
@@ -1117,7 +1117,10 @@ class SatPercentagePolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatPercentagePolicy, self).__init__(oracletype='percentage', **kwargs)
     self.tsigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
-    self.psigma = self.settings.FloatTensor(np.array(float(self.settings['percentage_sigma'])))
+    self.psigma = self.settings.FloatTensor(np.array(float(self.settings['percentage_sigma'])))    
+    if self.settings['sat_init_percentage']:
+      assert(self.settings['init_threshold'] == 0.)
+      nn.init.constant_(self.policy_layers.linear_2.bias[1],2.)
 
   def input_dim(self):
     return self.settings['state_dim']
@@ -1131,8 +1134,7 @@ class SatPercentagePolicy(SCPolicyBase):
 
   def translate_action(self, action, obs, **kwargs):
     sampled_output, clabels = action
-
-    return sampled_output
+    return sampled_output.detach().view(-1).tolist()
 
   def select_action(self, obs_batch, training=True, **kwargs):
     assert(obs_batch.clabels.shape[0]==1)

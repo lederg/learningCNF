@@ -396,6 +396,7 @@ class WorkerEnv(mp.Process):
     total_step = 0    
     local_env_steps = 0
     global_steps = 0
+    is_training = (not self.settings['do_not_learn'])
     # self.episodes_files = self.ds.get_files_list()
     while global_steps < self.training_steps:
       clock.tick()
@@ -411,7 +412,7 @@ class WorkerEnv(mp.Process):
           print('setting key to {}'.format(k))
           self.lmodel.shelf_key = k
           self.lmodel.shelf_file.sync()          
-        rc = self.step()
+        rc = self.step(training=is_training)
         if rc:
           total_episodes += 1
           if self.check_stale():

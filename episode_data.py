@@ -278,6 +278,7 @@ class BalancedEpisodeProvider(AbstractEpisodeProvider):
       elif bname in all_unsat:
         cat[k] = 0
       else:
+        print('For bname {}'.format(bname))
         ipdb.set_trace()
 
     return BalancedEpisodeProvider(combined,cat=cat)

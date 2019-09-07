@@ -741,6 +741,7 @@ class SCPolicyBase(PolicyBase):
     prev = self.input_dim()
     self.policy_layers = nn.Sequential()
     n = 0
+    num_layers = len([x for x in self.settings['policy_layers'] if type(x) is int])
     for (i,x) in enumerate(self.settings['policy_layers']):
       if x == 'r':
         self.policy_layers.add_module('activation_{}'.format(i), nn.ReLU())
@@ -753,11 +754,9 @@ class SCPolicyBase(PolicyBase):
         layer = nn.Linear(prev,x)
         prev = x
         if self.settings['init_threshold'] is not None:          
-          nn.init.constant_(layer.weight,0.)
-          if n == len([x for x in self.settings['policy_layers'] if type(x) is int]):
+          if n == num_layers:
+            nn.init.constant_(layer.weight,0.)
             nn.init.constant_(layer.bias,self.settings['init_threshold'])
-          else:
-            nn.init.constant_(layer.bias,0.)
         self.policy_layers.add_module('linear_{}'.format(i), layer)
 
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 

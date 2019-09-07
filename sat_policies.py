@@ -745,6 +745,8 @@ class SCPolicyBase(PolicyBase):
     for (i,x) in enumerate(self.settings['policy_layers']):
       if x == 'r':
         self.policy_layers.add_module('activation_{}'.format(i), nn.ReLU())
+      elif x == 'lr':
+        self.policy_layers.add_module('activation_{}'.format(i), nn.LeakyReLU())
       elif x == 'h':
         self.policy_layers.add_module('activation_{}'.format(i), nn.Tanh())        
       elif x == 's':
@@ -1116,10 +1118,10 @@ class SatPercentagePolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatPercentagePolicy, self).__init__(oracletype='percentage', **kwargs)
     self.tsigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
-    self.psigma = self.settings.FloatTensor(np.array(float(self.settings['percentage_sigma'])))    
+    self.psigma = self.settings.FloatTensor(np.array(float(self.settings['percentage_sigma'])))
+    self.threshold_shift = self.settings['threshold_shift']
     if self.settings['sat_init_percentage']:
-      assert(self.settings['init_threshold'] == 0.)
-      nn.init.constant_(self.policy_layers.linear_2.bias[1],2.)
+      nn.init.constant_(self.policy_layers.linear_2.bias[1],self.settings['init_threshold'])
 
   def input_dim(self):
     return self.settings['state_dim']
@@ -1128,7 +1130,7 @@ class SatPercentagePolicy(SCPolicyBase):
     state, clabels = super(SatPercentagePolicy, self).forward(obs)
     rc = self.policy_layers(state)
     # Index 0 is for the percentage, Index 1 is for minimal drop
-    rc = torch.stack([torch.sigmoid(rc[:,0]),torch.relu(rc[:,1])],dim=1)
+    rc = torch.stack([torch.sigmoid(rc[:,0]),self.threshold_shift+torch.relu(rc[:,1])],dim=1)
     return rc, clabels
 
   def translate_action(self, action, obs, **kwargs):
@@ -1153,4 +1155,3 @@ class SatPercentagePolicy(SCPolicyBase):
   def get_logprobs(self, outputs, collated_batch):    
     actions = torch.cat([a[0] for a in collated_batch.action])
     return gaussian_logprobs(outputs,self.settings.FloatTensor([self.psigma,self.tsigma]),actions)
-

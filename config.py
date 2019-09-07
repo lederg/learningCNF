@@ -221,6 +221,12 @@ def cfg():
 	learning_freq = 4
 	target_update_freq = 3000
 
+# ES
+	
+	es_population = 50
+	es_num_formulas = 5
+	es_naive_stepsize = 1.
+
 # Localization
 	max_edges = 20
 

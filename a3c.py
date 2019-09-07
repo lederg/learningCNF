@@ -1,4 +1,3 @@
-import sys
 import ipdb
 import cProfile
 import logging
@@ -39,6 +38,10 @@ def main():
 	from task_lbd import collect_lbd_main
 	from task_cadet import cadet_main
 	from task_pyro import pyro_main
+	from task_naive_es import naive_es_main
+
+	from functional_env_test import functional_env_test
+
 
 	func = eval(settings['main_loop'])
 	if settings['profiling']:

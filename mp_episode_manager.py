@@ -106,7 +106,7 @@ class WorkerEnv(mp.Process):
     #     self.ds.recalc_weights()
     #   (fname,) = self.ds.weighted_sample()
     # last_obs, env_id = self.envstr.env.new_episode(fname=fname, **kwargs)
-    env_obs, env_id = self.envstr.env.new_episode(fname=fname, **kwargs)
+    env_obs = self.envstr.env.new_episode(fname=fname, **kwargs)
     self.envstr.last_obs = self.envstr.env.process_observation(None,env_obs)
     self.envstr.env_id = fname
     self.envstr.curr_step = 0

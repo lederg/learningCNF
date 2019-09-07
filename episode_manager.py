@@ -130,7 +130,7 @@ class EpisodeManager(object):
     #   if not self.reset_counter % 20:
     #     self.ds.recalc_weights()
     #   (fname,) = self.ds.weighted_sample()
-    env_obs, env_id = envstr.env.new_episode(fname=fname, **kwargs)
+    env_obs = envstr.env.new_episode(fname=fname, **kwargs)
     envstr.last_obs = envstr.env.process_observation(None,env_obs)
     envstr.env_id = fname
     envstr.curr_step = 0

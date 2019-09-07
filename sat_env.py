@@ -156,13 +156,8 @@ class SatEnvProxy(EnvBase):
     assert ack==EnvCommands.ACK_EXIT, 'Expected ACK_EXIT'
 
 
-  def new_episode(self, fname, settings=None, **kwargs):
-    if not settings:
-      settings = CnfSettings()
-    env_id = os.path.split(fname)[1]
-    # Set up ground_embeddings and adjacency matrices
-    obs = self.reset(fname)    
-    return obs, env_id
+  def new_episode(self, fname, **kwargs):    
+    return self.reset(fname)        
 
   def process_observation(self, last_obs, env_obs, settings=None):
     if not settings:

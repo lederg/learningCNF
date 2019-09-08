@@ -24,7 +24,7 @@ from policy_factory import *
 # DEF_COST = -1.000e-04
 
 MPEnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs'])
+                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time'])
 
 
 class EnvInteractor:
@@ -37,41 +37,27 @@ class EnvInteractor:
     self.completed_episodes = []
     self.reporter = reporter
     self.max_step = self.settings['max_step']
+    self.max_seconds = self.settings['max_seconds']
+    self.sat_min_reward = self.settings['sat_min_reward']
+    self.drop_technical = self.settings['drop_abort_technical']    
     self.rnn_iters = self.settings['rnn_iters']
     self.restart_solver_every = self.settings['restart_solver_every']    
     self.check_allowed_actions = self.settings['check_allowed_actions']
-    self.envstr = MPEnvStruct(EnvFactory().create_env(), 
-        None, None, None, None, None, True, deque(maxlen=self.rnn_iters))
-    self.gmodel = model  
+    self.envstr = MPEnvStruct(EnvFactory().create_env(oracletype=self.lmodel.get_oracletype()), 
+        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time())        
     self.reset_counter = 0
     self.env_steps = 0
     self.real_steps = 0
     self.def_step_cost = self.settings['def_step_cost']
-    self.blacklisted_keys = []
-    self.whitelisted_keys = []
     self.process = psutil.Process(os.getpid())    
-    global_params = self.gmodel.state_dict()
-    for k in global_params.keys():
-      if any([x in k for x in self.settings['g2l_blacklist']]):
-        self.blacklisted_keys.append(k)    
-      if any([x in k for x in self.settings['l2g_whitelist']]):
-        self.whitelisted_keys.append(k)    
-    self.lmodel = PolicyFactory().create_policy(**kwargs)
-    if self.init_model is None:
-      self.lmodel.load_state_dict(self.gmodel.state_dict())
-    else:
-      self.logger.info('Loading model at runtime!')
-      self.lmodel.load_state_dict(self.init_model)
+    self.lmodel = model
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
-    self.logger = logging.getLogger('EnvInteractor-{}'.format(self.name))
-    self.logger.setLevel(eval(self.settings['loglevel']))
-    fh = logging.FileHandler('{}.log'.format(self.name))
-    fh.setLevel(logging.DEBUG)
-    self.logger.addHandler(fh)
-
+    self.logger = utils.get_logger(self.settings, 'EnvInteractor-{}'.format(self.name), 
+                                    'logs/{}_{}.log'.format(log_name(self.settings), self.name))    
+    self.lmodel.logger = self.logger
 
 # This discards everything from the old env
   def reset_env(self, fname, **kwargs):
@@ -90,6 +76,7 @@ class EnvInteractor:
     self.envstr.env_id = fname
     self.envstr.curr_step = 0
     self.envstr.fname = fname
+    self.envstr.start_time = time.time()    
     self.envstr.episode_memory = []
     # Set up the previous observations to be None followed by the last_obs   
     self.envstr.prev_obs.clear()    
@@ -133,23 +120,40 @@ class EnvInteractor:
         ipdb.set_trace()
 
     else:
-      if envstr.curr_step > self.max_step:
-        self.logger.info('Environment {} took too long, aborting it.'.format(envstr.fname))
+      break_env = False
+      break_crit = BREAK_CRIT_LOGICAL
+      if self.max_seconds:
+        if (time.time()-envstr.start_time) > self.max_seconds:
+          self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
+          break_env=True
+      else:
+        if self.sat_min_reward:
+          if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
+            break_env=True
+          elif envstr.curr_step > self.max_step:
+            break_env=True
+            break_crit = BREAK_CRIT_TECHNICAL
+      if break_env:
+        envstr.last_obs = None
         try:
-          if env.rewards is None:
-            env.rewards = [DEF_COST]*len(envstr.episode_memory)
-          # print('Finished env, rewards are: {}, sum is {}'.format(env.rewards, sum(env.rewards)))
+          # We set the entire reward to zero all along
+          self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
+          env.rewards = [0.]*len(envstr.episode_memory)            
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
         except:
           ipdb.set_trace()
+        if break_crit == BREAK_CRIT_TECHNICAL and self.drop_technical:
+          self.logger.info('Environment {} technically dropped.'.format(envstr.fname))          
+          return True
+        if self.reporter:
+          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)          
         if self.ed:
           if 'testing' not in kwargs or not kwargs['testing']:
             self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))
         if self.settings['learn_from_aborted']:
           self.completed_episodes.append(envstr.episode_memory)
-        envstr.last_obs = None
-        return True
+        return True        
 
       envstr.prev_obs.append(envstr.last_obs)
       envstr.last_obs = env.process_observation(envstr.last_obs,env_obs)

@@ -330,6 +330,27 @@ class OrderedProvider(AbstractEpisodeProvider):
   def __iter__(self):
     return self.get_next()
 
+class RandomOrderedProvider(AbstractEpisodeProvider):
+  def __init__(self,ds, **kwargs):
+    super(RandomOrderedProvider, self).__init__(ds) 
+    print('items: {}'.format(len(self.items)))
+    self.items = np.random.permutation(self.items)
+    self.current = 0
+
+  def sample(self):    
+    current = self.current % len(self.items)    
+    return self.items[current]
+
+  def reset(self, **kwargs):
+    self.current += 1
+
+  def get_next(self):
+    return self.sample()
+
+  def __iter__(self):
+    return self.get_next()
+
+
     
 class RandomEpisodeProvider(AbstractEpisodeProvider):
   def sample(self):

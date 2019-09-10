@@ -11,6 +11,8 @@ import logging
 import pickle
 import tracemalloc
 import torch.multiprocessing as mp
+import utils
+import pysolvers
 from settings import *
 from qbf_data import *
 from envbase import *
@@ -129,6 +131,7 @@ class SatEnvProxy(EnvBase):
     self.reward_scale = self.settings['sat_reward_scale']
     self.disable_gnn = self.settings['disable_gnn']
     self.server_pid = server_pid
+    self.logger = utils.get_logger(self.settings, 'SatEnvProxy')
 
   def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))    
@@ -225,6 +228,7 @@ class SatEnvServer(mp.Process):
       self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
     self.total_episodes = 0
     self.uncache_after_batch = self.settings['uncache_after_batch']
+    self.logger = utils.get_logger(self.settings, 'SatEnvServer')    
 
   def proxy(self):
     return SatEnvProxy(self.queue_out, self.queue_in, self.pid)
@@ -248,7 +252,7 @@ class SatEnvServer(mp.Process):
 
       if self.cmd == EnvCommands.CMD_RESET:
         # We get here only after a CMD_RESET aborted a running episode and requested a new file.
-        fname = self.current_fname
+        fname = self.current_fname        
       else:
         self.cmd, fname = self.queue_in.get()
         if self.cmd == EnvCommands.CMD_EXIT:
@@ -264,7 +268,10 @@ class SatEnvServer(mp.Process):
       # the __callback method
 
       if self.env.start_solver(fname):
-        self.env.solver.solve()
+        try:
+          self.env.solver.solve()
+        except pysolvers.termination as term:
+          pass
       else:
         print('Skipping {}'.format(fname))
 
@@ -326,13 +333,13 @@ class SatEnvServer(mp.Process):
       return rc
     elif self.cmd == EnvCommands.CMD_RESET:
       # We were asked to abort the current episode. Notify the solver and continue as usual
-      self.env.solver.terminate()
       if self.uncache_after_batch and rc != self.current_fname:
         self.settings.formula_cache.delete_key(self.current_fname)
       self.current_fname = rc
+      self.env.solver.terminate()
       return None
     elif self.cmd == EnvCommands.CMD_EXIT:
-      self.env.solver.terminate()
       print('Got CMD_EXIT')
+      self.env.solver.terminate()
       return None
 

@@ -268,10 +268,7 @@ class SatEnvServer(mp.Process):
       # the __callback method
 
       if self.env.start_solver(fname):
-        try:
-          self.env.solver.solve()
-        except pysolvers.termination as term:
-          pass
+        self.env.solver.solve()
       else:
         print('Skipping {}'.format(fname))
 

@@ -1121,6 +1121,7 @@ class SatPercentagePolicy(SCPolicyBase):
     self.psigma = self.settings.FloatTensor(np.array(float(self.settings['percentage_sigma'])))
     self.threshold_shift = self.settings['threshold_shift']
     if self.settings['sat_init_percentage']:
+      nn.init.constant_(self.policy_layers.linear_2.bias[0],0.)
       nn.init.constant_(self.policy_layers.linear_2.bias[1],self.settings['init_threshold'])
 
   def input_dim(self):

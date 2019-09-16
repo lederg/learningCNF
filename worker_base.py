@@ -23,29 +23,12 @@ from env_interactor import *
 
 
 class WorkerBase(mp.Process):
-  def __init__(self, settings, model, provider, ed, workers_queue, workers_sem, global_grad_steps, name, reporter=None):
+  def __init__(self, settings, provider, name, **kwargs):
     super(WorkerBase, self).__init__()
-    self.name = 'a3c_worker%i' % name
-    self.g_grad_steps = global_grad_steps
-    self.settings = settings
-    self.ed = ed
-    self.main_queue = workers_queue
-    self.main_sem = workers_sem
-    self.completed_episodes = []
-    self.reporter = reporter
-    self.max_step = self.settings['max_step']
-    self.rnn_iters = self.settings['rnn_iters']
-    self.training_steps = self.settings['training_steps']
-    self.restart_solver_every = self.settings['restart_solver_every']    
-    self.check_allowed_actions = self.settings['check_allowed_actions']
-    self.envstr = MPEnvStruct(EnvFactory().create_env(), 
-        None, None, None, None, None, True, deque(maxlen=self.rnn_iters))
-    self.lmodel = model      
-    self.reset_counter = 0
-    self.env_steps = 0
-    self.real_steps = 0
+    self.name = 'WorkerBase%i' % name
+    self.settings = settings    
     self.provider = provider
-    self.last_grad_step = 0
+
 
 # This discards everything from the old env
   def reset_env(self, fname, **kwargs):

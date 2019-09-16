@@ -28,11 +28,10 @@ MPEnvStruct = namedlist('EnvStruct',
 
 
 class EnvInteractor:
-  def __init__(self, settings, model, ed, name, init_model=None, reporter=None, **kwargs):
+  def __init__(self, settings, model, name, ed=None, reporter=None, **kwargs):
     super(EnvInteractor, self).__init__()
     self.name = 'interactor_{}'.format(name)
-    self.settings = settings
-    self.init_model = init_model
+    self.settings = settings    
     self.ed = ed
     self.completed_episodes = []
     self.reporter = reporter
@@ -178,10 +177,12 @@ class EnvInteractor:
       batch_size = self.settings['episodes_per_batch']
 
     total_length = 0
+    total_episodes = 0
     for i in range(batch_size):
-      total_length += self.run_episode(*args, **kwargs)
-      if total_length == 0:    # If thats a degenerate episode, just return, the entire batch is degenerate.
-        return 0, 0
+      episode_length = self.run_episode(*args, **kwargs)
+      total_length += episode_length
+      if episode_length != 0:
+        total_episodes += 1
     return total_length, batch_size
 
   def collect_batch(self, *args, **kwargs):

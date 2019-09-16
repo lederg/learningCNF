@@ -104,6 +104,9 @@ class PGEpisodeReporter(SPReporter):
     pass
 
   def report_stats(self, total_steps, total_envs, pval=None):
+    if not self.stats:
+      self.logger.info('report_stats: No episodes registered yet, skipping')
+      return    
     _, steps, rewards, ents = zip(*self.stats)    
     # self.report_window = total_envs*60
     self.logger.info('Total episodes so far: %d' % len(steps))

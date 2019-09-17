@@ -23,107 +23,26 @@ from env_interactor import *
 
 
 class WorkerBase(mp.Process):
-  def __init__(self, settings, provider, name, **kwargs):
-    super(WorkerBase, self).__init__()
+  def __init__(self, settings, name, **kwargs):
+    super(WorkerBase, self).__init__(**kwargs)
     self.name = 'WorkerBase%i' % name
-    self.settings = settings    
-    self.provider = provider
+    self.settings = settings
+    self.kwargs = kwargs
 
-
-# This discards everything from the old env
-  def reset_env(self, fname, **kwargs):
-    self.reset_counter += 1
-    if self.restart_solver_every > 0 and (self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0)):
-      self.envstr.env.restart_env(timeout=0)
-    env_obs, env_id = self.envstr.env.new_episode(fname=fname, **kwargs)
-    self.envstr.last_obs = self.envstr.env.process_observation(None,env_obs)
-    self.envstr.env_id = fname
-    self.envstr.curr_step = 0
-    self.envstr.fname = fname
-    self.envstr.episode_memory = []     
-    # Set up the previous observations to be None followed by the last_obs   
-    self.envstr.prev_obs.clear()    
-    for i in range(self.rnn_iters):
-      self.envstr.prev_obs.append(None)
-    return self.envstr.last_obs
-
-  def step(self, **kwargs):
-    envstr = self.envstr
-    env = envstr.env
-    if not envstr.last_obs:
-      rc = self.reset_env(fname=self.provider.get_next())
-      if rc is None:    # degenerate env
-        self.completed_episodes.append(envstr.episode_memory)
-        return True
-
-
-    last_obs = collate_observations([envstr.last_obs])
-    [action] = self.lmodel.select_action(last_obs, **kwargs)
-    # This will turn into a bug the second prev_obs actually contains anything. TBD.
-    envstr.episode_memory.append(Transition(densify_obs(envstr.last_obs),action,None, None, envstr.env_id, envstr.prev_obs))
-    allowed_actions = self.lmodel.get_allowed_actions(envstr.last_obs).squeeze() if self.check_allowed_actions else None
-
-    if not self.check_allowed_actions or allowed_actions[action]:
-      env_obs = envstr.env.step(self.lmodel.translate_action(action,last_obs))
-      done = env_obs.done
-    else:
-      print('Chose invalid action, thats not supposed to happen.')
-      assert(action_allowed(envstr.last_obs,action))
-
-    self.real_steps += 1
-    envstr.curr_step += 1
-
-    if done:
-      for j,r in enumerate(env.rewards):
-        envstr.episode_memory[j].reward = r
-      self.completed_episodes.append(envstr.episode_memory)
-      envstr.last_obs = None      # This will mark the env to reset with a new formula
-      if env.finished:
-        if self.reporter:
-          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
-        if self.ed:
-          # Once for every episode going into completed_episodes, add it to stats
-          self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
-      else:        
-        ipdb.set_trace()
-
-    else:
-      if envstr.curr_step > self.max_step:
-        print('Environment {} took too long, aborting it.'.format(envstr.fname))
-        try:
-          for record in envstr.episode_memory:
-            record.reward = DEF_COST
-          env.rewards = [DEF_COST]*len(envstr.episode_memory)            
-        except:
-          ipdb.set_trace()
-        if self.ed:
-          if 'testing' not in kwargs or not kwargs['testing']:
-            self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))
-        if self.settings['learn_from_aborted']:
-          self.completed_episodes.append(envstr.episode_memory)
-        envstr.last_obs = None
-        return True        
-
-      envstr.prev_obs.append(envstr.last_obs)
-      envstr.last_obs = env.process_observation(envstr.last_obs,env_obs)
-
-
-    return done
-
-  def init_proc(self):
+  def init_proc(self, **kwargs):
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
     torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
 
-
   def run(self):
-    self.init_proc()
+    self.init_proc(**self.kwargs)
+    if self.settings['memory_profiling']:
+      tracemalloc.start(25)
     if self.settings['profiling']:
       cProfile.runctx('self.run_loop()', globals(), locals(), 'prof_{}.prof'.format(self.name))
     else:
       self.run_loop()
-
 
   def run_loop(self):
     pass

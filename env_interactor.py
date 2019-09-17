@@ -183,7 +183,7 @@ class EnvInteractor:
       total_length += episode_length
       if episode_length != 0:
         total_episodes += 1
-    return total_length, batch_size
+    return total_length, total_episodes
 
   def collect_batch(self, *args, **kwargs):
     total_length, bs = self.run_batch(*args, **kwargs)

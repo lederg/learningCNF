@@ -145,7 +145,7 @@ class WorkerEnv(mp.Process):
     self.real_steps += 1
     envstr.curr_step += 1
 
-    if done:
+    if done:      
       for j,r in enumerate(env.rewards):
         envstr.episode_memory[j].reward = r
       self.completed_episodes.append(envstr.episode_memory)
@@ -166,19 +166,20 @@ class WorkerEnv(mp.Process):
         if (time.time()-envstr.start_time) > self.max_seconds:
           self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
           break_env=True
-      else:
-        if self.sat_min_reward:
-          if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
-            break_env=True
-          elif envstr.curr_step > self.max_step:
-            break_env=True
-            break_crit = BREAK_CRIT_TECHNICAL
+      elif self.sat_min_reward:        
+        if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
+          break_env=True
+      elif envstr.curr_step > self.max_step:
+        break_env=True
+        break_crit = BREAK_CRIT_TECHNICAL
       if break_env:
         envstr.last_obs = None
         try:
           # We set the entire reward to zero all along
+          if not env.rewards:
+            env.rewards = [0.]*len(envstr.episode_memory)
           self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
-          env.rewards = [0.]*len(envstr.episode_memory)            
+          env.rewards = [0.]*len(envstr.episode_memory)
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
         except:

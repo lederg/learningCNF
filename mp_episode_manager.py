@@ -145,7 +145,7 @@ class WorkerEnv(mp.Process):
     self.real_steps += 1
     envstr.curr_step += 1
 
-    if done:
+    if done:      
       for j,r in enumerate(env.rewards):
         envstr.episode_memory[j].reward = r
       self.completed_episodes.append(envstr.episode_memory)
@@ -176,8 +176,10 @@ class WorkerEnv(mp.Process):
         envstr.last_obs = None
         try:
           # We set the entire reward to zero all along
+          if not env.rewards:
+            env.rewards = [0.]*len(envstr.episode_memory)
           self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
-          env.rewards = [0.]*len(envstr.episode_memory)            
+          env.rewards = [0.]*len(envstr.episode_memory)
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
         except:

@@ -100,10 +100,6 @@ class EnvTrainer:
       return
     if self.settings['do_not_learn']:
       return
-    need_sem = False
-    if len(transition_data) >= self.settings['episodes_per_batch']*(self.settings['max_step']+1)*self.settings['batch_size_threshold']:
-      self.logger.info('Large batch encountered. Acquiring batch semaphore')
-      need_sem = True
     self.lmodel.train()
     mt = time.time()
     loss, logits = self.lmodel.compute_loss(transition_data, **kwargs)
@@ -123,15 +119,6 @@ class EnvTrainer:
     for k in self.whitelisted_keys:
       local_params[k] = z[k]
     self.node_sync.set_state_dict(local_params)
-
-  def run(self):
-    self.init_proc()
-    if self.settings['memory_profiling']:
-      tracemalloc.start(25)
-    if self.settings['profiling']:
-      cProfile.runctx('self.run_loop()', globals(), locals(), 'prof_{}.prof'.format(self.name))
-    else:
-      self.run_loop()
 
 # Returns the number of steps taken (total length of batch, in steps)
 

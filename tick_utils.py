@@ -7,5 +7,10 @@ def break_every_tick(n):
   if (t % n) == 0 and t > 0:
     ipdb.set_trace()
 
+def every_tick(n):
+  t = clock.get_tick()
+  return ((t % n) == 0 and t > 0)
+
+
 def get_tick():
 	return clock.get_tick()

@@ -32,18 +32,35 @@ class NodeWorkerBase(WorkerBase, IEnvTrainerHook):
     self.kwargs = kwargs
     self.is_training = (not self.settings['do_not_learn'])
     self.training_steps = self.settings['training_steps']    
-    self.node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(self.settings['pyro_name'])) 
-    self.iem = EnvTrainerLoop(self.settings,provider,name, self)
+    self.trainer = EnvTrainerLoop(self.settings,provider,name, self, **kwargs)
     self.dispatcher = ObserverDispatcher()
+    self.whitelisted_keys = []
 
   def global_to_local(self, **kwargs):
     global_params = self.node_sync.get_state_dict(**kwargs)
-    self.iem.lmodel.load_state_dict(global_params,strict=False)
+    self.trainer.lmodel.load_state_dict(global_params,strict=False)
     self.last_grad_steps = self.node_sync.g_grad_steps
+
+  def update_from_worker(self, grads, state_dict)
+    self.node_sync.update_grad_and_step(grads)
+    # self.logger.info('Grad steps taken before step are {}'.format(self.node_sync.g_grad_steps-self.last_grad_steps))
+    if self.whitelisted_keys:    
+      local_params = {}
+      z = state_dict
+      for k in self.whitelisted_keys:
+        local_params[k] = z[k]
+      self.node_sync.set_state_dict(local_params)
+
 
   def init_proc(self, **kwargs):
     super(NodeWorkerBase, self).init_proc(**kwargs)
-    self.iem.init_proc(**kwargs)
+    self.node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(self.settings['pyro_name'])) 
+    self.reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(self.settings['pyro_name']))
+    self.trainer.init_proc(reporter=self.reporter, **kwargs)
+    global_params = self.trainer.lmodel.state_dict()
+    for k in global_params.keys():
+      if any([x in k for x in self.settings['l2g_whitelist']]):
+        self.whitelisted_keys.append(k)    
     
   def run_loop(self):
     clock = GlobalTick()
@@ -55,7 +72,7 @@ class NodeWorkerBase(WorkerBase, IEnvTrainerHook):
     while global_steps < self.training_steps:
       clock.tick()
       self.dispatcher.notify('new_batch')
-      num_env_steps, num_episodes = self.iem.train_step(is_training=self.is_training)
+      num_env_steps, num_episodes = self.trainer.train_step(training=self.is_training, **self.kwargs)
       total_step += 1
       local_env_steps += len(num_env_steps)            
       if total_step % SYNC_STATS_EVERY == 0:      

@@ -113,11 +113,12 @@ class LinearSchedule(object):
         fraction  = min(float(t) / self.schedule_timesteps, 1.0)
         return self.initial_p + fraction * (self.final_p - self.initial_p)
 
-def discount_episode(ep, gamma, settings=None):
+def discount_episode(ep, settings=None):
   if not settings:
     settings = CnfSettings()
-    
-  _, _, _,rewards, _ = zip(*ep)
+  
+  gamma = settings['gamma']
+  _, _, _,rewards, *_ = zip(*ep)
   r = discount(rewards, gamma)
   return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
 

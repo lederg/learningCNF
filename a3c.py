@@ -40,6 +40,7 @@ def main():
 	from task_cadet import cadet_main
 	from task_pyro import pyro_main
 	from task_naive_es import naive_es_main
+	from task_sp import sp_main
 
 	from functional_env_test import functional_env_test
 

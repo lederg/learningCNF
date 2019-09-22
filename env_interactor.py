@@ -22,6 +22,8 @@ from env_factory import *
 from policy_factory import *
 
 # DEF_COST = -1.000e-04
+BREAK_CRIT_LOGICAL = 1
+BREAK_CRIT_TECHNICAL = 2
 
 MPEnvStruct = namedlist('EnvStruct',
                     ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time'])
@@ -33,6 +35,7 @@ class EnvInteractor:
     self.name = 'interactor_{}'.format(name)
     self.settings = settings    
     self.ed = ed
+    self.lmodel = model
     self.completed_episodes = []
     self.reporter = reporter
     self.max_step = self.settings['max_step']
@@ -49,7 +52,6 @@ class EnvInteractor:
     self.real_steps = 0
     self.def_step_cost = self.settings['def_step_cost']
     self.process = psutil.Process(os.getpid())    
-    self.lmodel = model
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
@@ -110,9 +112,9 @@ class EnvInteractor:
       self.completed_episodes.append(envstr.episode_memory)
       envstr.last_obs = None      # This will mark the env to reset with a new formula
       if env.finished:
-        if self.reporter:
+        if self.reporter is not None:
           self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
-        if self.ed:
+        if self.ed is not None:
           # Once for every episode going into completed_episodes, add it to stats
           self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
       else:        
@@ -135,6 +137,8 @@ class EnvInteractor:
         envstr.last_obs = None
         try:
           # We set the entire reward to zero all along
+          if not env.rewards:
+            env.rewards = [0.]*len(envstr.episode_memory)          
           self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
           env.rewards = [0.]*len(envstr.episode_memory)            
           for j,r in enumerate(env.rewards):
@@ -194,4 +198,7 @@ class EnvInteractor:
       rc.append(self.completed_episodes.pop(0))
 
     return rc, total_length
+
+  def save(self, name):
+    torch.save(self.lmodel.state_dict(), name)
 

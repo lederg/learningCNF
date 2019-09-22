@@ -40,47 +40,34 @@ MPEnvStruct = namedlist('EnvStruct',
 
 
 class IEnvTrainerHook:
-  def post_train(self):
+  def global_to_local(self, **kwargs):
     pass
-  def global_to_local(self,**kwargs):
+  def update_from_worker(self, grads, state_dict):
     pass
 
 class EnvTrainer:
   def __init__(self, settings, provider, name, hook_obj, ed=None, init_model=None):
     super(EnvTrainer, self).__init__()
-    self.index = name
-    self.name = 'a3c_worker%i' % name
+    self.name = name
     self.settings = settings
     self.init_model = init_model
     self.ed = ed
     self.hook_obj = hook_obj
-    self.memory_cap = self.settings['memory_cap']
     self.minimum_episodes = self.settings['minimum_episodes']
-    self.gamma = self.settings['gamma']
     self.provider = provider    
     self.last_grad_steps = 0
 
   def init_proc(self, **kwargs):
     set_proc_name(str.encode(self.name))
     np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
-    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)    
-    self.reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(self.settings['pyro_name']))
-    self.node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(self.settings['pyro_name']))    
-    self.logger = utils.get_logger(self.settings, 'WorkerEnv-{}'.format(self.name), 
+    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)        
+    self.logger = utils.get_logger(self.settings, 'EnvTrainer-{}'.format(self.name), 
                                     'logs/{}_{}.log'.format(log_name(self.settings), self.name))
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy(**kwargs)
     self.lmodel.logger = self.logger    # override logger object with process-specific one
     self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.lmodel.parameters()))
-    self.interactor = EnvInteractor(self.settings, self.lmodel, name, reporter=self.reporter, **kwargs):    
-    self.blacklisted_keys = []
-    self.whitelisted_keys = []
-    global_params = self.lmodel.state_dict()
-    for k in global_params.keys():
-      if any([x in k for x in self.settings['g2l_blacklist']]):
-        self.blacklisted_keys.append(k)    
-      if any([x in k for x in self.settings['l2g_whitelist']]):
-        self.whitelisted_keys.append(k)    
+    self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, **kwargs)
     if self.init_model is None:
       self.hook_obj.global_to_local(include_all=True)
     else:
@@ -110,15 +97,8 @@ class EnvTrainer:
     mt2 = time.time()
     self.logger.info('Backward took {} seconds'.format(mt2-mt1))
     grads = [x.grad for x in self.lmodel.parameters()]
-    self.node_sync.update_grad_and_step(grads)
-    # self.logger.info('Grad steps taken before step are {}'.format(self.node_sync.g_grad_steps-self.last_grad_steps))
     z = self.lmodel.state_dict()
-    # We may want to sync that
-
-    local_params = {}
-    for k in self.whitelisted_keys:
-      local_params[k] = z[k]
-    self.node_sync.set_state_dict(local_params)
+    self.hook_obj.update_from_worker(grads, z)
 
 # Returns the number of steps taken (total length of batch, in steps)
 
@@ -126,12 +106,12 @@ class EnvTrainer:
     self.lmodel.eval()
     self.hook_obj.global_to_local()      
     begin_time = time.time()
-    curr_formula = 
+    curr_formula = self.provider.get_next()
     total_episodes = 0
-    eps, ns = self.interactor.collect_batch(curr_formula, **kwargs)
+    eps, ns = self.interactor.collect_batch(curr_formula, **kwargs)   # training is in kwargs
     total_inference_time = time.time() - begin_time
     num_episodes = len(eps)
-    transition_data = flatten([discount_episode(x,self.gamma,self.settings) for x in eps])
+    transition_data = flatten([discount_episode(x,self.settings) for x in eps])
     lenvec = flatten([[i]*len(eps[i]) for i in range(num_episodes)])
     if ns == 0:
       self.logger.info('Degenerate batch, ignoring')

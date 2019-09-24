@@ -52,8 +52,9 @@ class EnvTester:
       self.lmodel = model
     self.lmodel.logger = self.logger    # override logger object with process-specific one
     self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, **kwargs)
-    if self.init_model is None and self.hook_obj is not None:
-      self.hook_obj.global_to_local(include_all=True)
+    if self.init_model is None:
+      if self.hook_obj is not None:
+        self.hook_obj.global_to_local(include_all=True)
     else:
       self.logger.info('Loading model at runtime!')
       statedict = self.lmodel.state_dict()
@@ -69,14 +70,12 @@ class EnvTester:
       self.lmodel = model
       self.interactor.lmodel = model
     print('Testing {} envs..\n'.format(provider.get_total()))
-    all_episode_files = self.provider.items
+    all_episode_files = provider.items
     totals = 0.
     total_srate = 0.
     total_scored = 0
     rc = {}
     kwargs['testing']=True
-    self.restart_all()
-    available_envs = list(range(self.parallelism))    
     tasks = []
     for fname in all_episode_files:
       tasks.extend([fname]*iters)
@@ -88,7 +87,7 @@ class EnvTester:
       if episode_length == 0:
         rc[fname].append((0,0,0, True))
         continue
-      ep = self.completed_episodes.pop(0)
+      ep = self.interactor.completed_episodes.pop(0)
       total_reward = sum([x.reward for x in ep])                  
       total_time = self.interactor.envstr.end_time - self.interactor.envstr.start_time
       res = TestResultStruct(total_time,episode_length,total_reward,finished)
@@ -99,7 +98,7 @@ class EnvTester:
         mean_steps = np.mean([x.steps for x in rc[fname]])
         mean_reward = np.mean([x.reward for x in rc[fname]])
         mean_time = np.mean([x.time for x in rc[fname]])
-        self.logger.info('Finished {}, results are: {}, Averages (time,steps,reward) are {},{},'.format(fname,rc[fname],
+        self.logger.info('Finished {}, Averages (time,steps,reward) are {},{},{}'.format(fname,rc[fname],
           mean_time,mean_steps,mean_reward))      
 
     return rc

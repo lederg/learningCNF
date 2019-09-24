@@ -12,6 +12,7 @@ from task_cadet import *
 from qbf_model import *
 from dispatch_utils import *
 from policy_factory import *
+from env_tester import *
 from get_run import get_experiment_config
 
 HOSTNAME = 'russell.eecs.berkeley.edu:27017'
@@ -99,16 +100,17 @@ def main():
     settings.formula_cache = FormulaCache()
     settings.formula_cache.load_files(provider.items)  
 
-  em = EpisodeManager(provider, parallelism=args.parallelism,reporter=reporter)
+  # em = EpisodeManager(provider, parallelism=args.parallelism,reporter=reporter)
+  tester = EnvTester(settings,"tester",model=policy)
   start_time = time.time()
   kwargs = {'cadet_test': args.vsids, 'random_test': args.random}
-  if args.parallelism > 1:
-    rc = em.mp_test_envs(fnames=testdir,model=policy, iters=args.iterations, **kwargs)
-  else:
-    rc = em.test_envs(fnames=testdir,model=policy, iters=args.iterations, max_seconds=args.seconds, **kwargs)
+  rc = tester.test_envs(provider,model=policy, iters=args.iterations, max_seconds=args.seconds, **kwargs)
   end_time = time.time()
-  print('Entire test took {} seconds'.format(end_time-start_time))  
-  z = np.array([x for (x) in rc.values()]).squeeze()
+  print('Entire test took {} seconds'.format(end_time-start_time))
+  if args.seconds is None:
+    z = np.array([x.steps for x in rc.values()]).squeeze()
+  else:
+    z = np.array([x.time for x in rc.values()]).squeeze()
   vals = sorted(z.astype(float).tolist())
   if args.output:
     with open(args.output,'w') as f:

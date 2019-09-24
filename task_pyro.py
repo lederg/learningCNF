@@ -20,23 +20,18 @@ from multiprocessing.managers import BaseManager
 import torch.multiprocessing as mp
 from shared_adam import SharedAdam
 from settings import *
-from cadet_env import *
 from rl_model import *
 from new_policies import *
 from qbf_data import *
-from qbf_model import QbfClassifier
 from utils import *
 from rl_utils import *
-from cadet_utils import *
 from episode_reporter import *
 from mp_episode_manager import *
-# from episode_manager import test_envs
-from episode_manager import EpisodeManager
 from episode_data import *
 from formula_utils import *
 from policy_factory import *
 from node_sync import *
-
+from node_worker import *
 
 Pyro4.config.SERVERTYPE = "multiplex"
 Pyro4.config.SERIALIZER = "pickle"
@@ -166,7 +161,8 @@ def pyro_main():
     self.logger.info('auto-parallelism set to {}'.format(settings['parallelism']))
   for _ in range(settings['parallelism']):
     wnum = node_sync.get_worker_num()
-    workers[wnum] = WorkerEnv(settings, provider, ed, wnum, wsync, batch_sem, init_model=None)
+    # workers[wnum] = WorkerEnv(settings, provider, ed, wnum, wsync, batch_sem, init_model=None)
+    workers[wnum] = NodeWorker(settings, provider, wnum)
   print('Running with {} workers...'.format(len(workers)))
   for _,w in workers.items():
     w.start()  
@@ -183,7 +179,8 @@ def pyro_main():
       w = wsync.pop()
       j = w[0]
       logger.info('restarting worker {}'.format(j))
-      workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem, init_model=w[1])
+      # workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem, init_model=w[1])
+      workers[j] = NodeWorker(settings,provider,j)
       workers[j].start()
 
     # Restart worker processes uncooperatively
@@ -200,12 +197,15 @@ def pyro_main():
       else:
         worker_running = False
       if not worker_running:
-        env_pid = w.envstr.env.server_pid
         logger.info('restarting worker (probably killed by oom) {}'.format(j))
-        if psutil.pid_exists(env_pid):
-          logger.info('defunct SatEnv on pid {}, killing it'.format(env_pid))
-          os.kill(env_pid, signal.SIGTERM)
-        workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem)
+        # env_pid = w.envstr.env.server_pid
+        if settings['is_sat']:
+          env_pid = w.trainer.interactor.envstr.env.server_pid
+          if psutil.pid_exists(env_pid):
+            logger.info('defunct SatEnv on pid {}, killing it'.format(env_pid))
+            os.kill(env_pid, signal.SIGTERM)
+        # workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem)
+        workers[j] = NodeWorker(settings, provider, j)
         workers[j].start()
     logger.info('Total number of running workers: {}'.format(total_workers_num))
     try:

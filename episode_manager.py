@@ -222,13 +222,11 @@ class EpisodeManager(object):
           if (time.time()-envstr.start_time) > self.max_seconds:
             self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
             break_env=True
-        else:
-          if self.sat_min_reward:
-            if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
-              # self.logger.info('Env {} at reward {}, breaking!'.format(envstr.fname, sum(env.rewards)))
-              break_env=True
-            if envstr.curr_step > self.max_step:
-              break_env=True
+        elif self.sat_min_reward:        
+          if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
+            break_env=True
+        elif envstr.curr_step > self.max_step:
+          break_env=True
 
         # break_env = False
         # if max_seconds:

@@ -88,6 +88,8 @@ class WorkerEnv(mp.Process):
     self.provider = provider
     self.dispatcher = ObserverDispatcher()
     self.last_grad_steps = 0
+    self.envstr = MPEnvStruct(EnvFactory().create_env(oracletype=self.lmodel.get_oracletype()), 
+        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time())        
 
 # This discards everything from the old env
   def reset_env(self, fname, **kwargs):
@@ -287,8 +289,6 @@ class WorkerEnv(mp.Process):
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
     self.lmodel = PolicyFactory().create_policy()
     self.lmodel.logger = self.logger    # override logger object with process-specific one
-    self.envstr = MPEnvStruct(EnvFactory().create_env(oracletype=self.lmodel.get_oracletype()), 
-        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time())        
     self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.lmodel.parameters()))
     self.blacklisted_keys = []
     self.whitelisted_keys = []

@@ -26,7 +26,7 @@ BREAK_CRIT_LOGICAL = 1
 BREAK_CRIT_TECHNICAL = 2
 
 MPEnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time'])
+                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time', 'end_time'])
 
 
 class EnvInteractor:
@@ -46,7 +46,7 @@ class EnvInteractor:
     self.restart_solver_every = self.settings['restart_solver_every']    
     self.check_allowed_actions = self.settings['check_allowed_actions']
     self.envstr = MPEnvStruct(EnvFactory().create_env(oracletype=self.lmodel.get_oracletype()), 
-        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time())        
+        None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time(), 0)
     self.reset_counter = 0
     self.env_steps = 0
     self.real_steps = 0
@@ -78,6 +78,7 @@ class EnvInteractor:
     self.envstr.curr_step = 0
     self.envstr.fname = fname
     self.envstr.start_time = time.time()    
+    self.envstr.end_time = 0
     self.envstr.episode_memory = []
     # Set up the previous observations to be None followed by the last_obs   
     self.envstr.prev_obs.clear()    
@@ -111,6 +112,7 @@ class EnvInteractor:
         envstr.episode_memory[j].reward = r
       self.completed_episodes.append(envstr.episode_memory)
       envstr.last_obs = None      # This will mark the env to reset with a new formula
+      envstr.end_time = time.time()
       if env.finished:
         if self.reporter is not None:
           self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
@@ -135,6 +137,7 @@ class EnvInteractor:
         break_crit = BREAK_CRIT_TECHNICAL
       if break_env:
         envstr.last_obs = None
+        envstr.end_time = time.time()
         try:
           # We set the entire reward to zero all along
           if not env.rewards:
@@ -173,7 +176,7 @@ class EnvInteractor:
       rc = self.step(**kwargs)
       i += 1
     
-    return i      
+    return i, self.envstr.env.finished
 
   def run_batch(self, *args, batch_size=0, **kwargs):
     if batch_size == 0:
@@ -182,7 +185,7 @@ class EnvInteractor:
     total_length = 0
     total_episodes = 0
     for i in range(batch_size):
-      episode_length = self.run_episode(*args, **kwargs)
+      episode_length, _ = self.run_episode(*args, **kwargs)
       total_length += episode_length
       if episode_length != 0:
         total_episodes += 1

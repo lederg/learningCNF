@@ -23,8 +23,8 @@ class PolicyBase(nn.Module):
     self.lambda_aux = self.settings['lambda_aux']
     self.non_linearity = self.settings['policy_non_linearity']
     self.print_every = self.settings['print_every']
-    self.logger = logging.getLogger('policy_base')
-    self.logger.setLevel(eval(self.settings['loglevel']))
+    self.logger = utils.get_logger(self.settings, 'PolicyBase')
+                                    
     self.oracletype = oracletype
 
     if self.non_linearity is not None:

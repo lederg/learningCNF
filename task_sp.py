@@ -54,8 +54,7 @@ class SingleProcessTrainer(IEnvTrainerHook):
     self.settings.formula_cache = FormulaCache()
     if self.settings['preload_formulas']:
       self.settings.formula_cache.load_files(self.provider.items)  
-    self.trainer = EnvTrainer(self.settings,self.provider,'SingleProcessTrainer', self)
-    self.trainer.init_proc(reporter=self.reporter)
+    self.trainer = EnvTrainer(self.settings,self.provider,'SingleProcessTrainer', self, reporter=self.reporter)
     if self.settings['profiling']:
       pr = cProfile.Profile() 
     if self.settings['memory_profiling']:

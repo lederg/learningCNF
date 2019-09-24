@@ -31,14 +31,6 @@ from env_interactor import *
 from policy_factory import *
 
 
-# DEF_COST = -1.000e-04
-BREAK_CRIT_LOGICAL = 1
-BREAK_CRIT_TECHNICAL = 2
-
-MPEnvStruct = namedlist('EnvStruct',
-                    ['env', 'last_obs', 'episode_memory', 'env_id', 'fname', 'curr_step', 'active', 'prev_obs', 'start_time'])
-
-
 class IEnvTrainerHook:
   def global_to_local(self, **kwargs):
     pass
@@ -46,7 +38,7 @@ class IEnvTrainerHook:
     pass
 
 class EnvTrainer:
-  def __init__(self, settings, provider, name, hook_obj, ed=None, init_model=None):
+  def __init__(self, settings, provider, name, hook_obj, ed=None, model=None, init_model=None, **kwargs):
     super(EnvTrainer, self).__init__()
     self.name = name
     self.settings = settings
@@ -55,27 +47,20 @@ class EnvTrainer:
     self.hook_obj = hook_obj
     self.minimum_episodes = self.settings['minimum_episodes']
     self.provider = provider    
-    self.last_grad_steps = 0
-
-  def init_proc(self, **kwargs):
-    set_proc_name(str.encode(self.name))
-    np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
-    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)        
     self.logger = utils.get_logger(self.settings, 'EnvTrainer-{}'.format(self.name), 
                                     'logs/{}_{}.log'.format(log_name(self.settings), self.name))
-    self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
-    self.lmodel = PolicyFactory().create_policy(**kwargs)
+    if model is None:
+      self.lmodel = PolicyFactory().create_policy(**kwargs)
+    else:
+      self.lmodel = model
     self.lmodel.logger = self.logger    # override logger object with process-specific one
     self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.lmodel.parameters()))
     self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, **kwargs)
-    if self.init_model is None:
-      self.hook_obj.global_to_local(include_all=True)
-    else:
+    if self.init_model is not None:
       self.logger.info('Loading model at runtime!')
       statedict = self.lmodel.state_dict()
       numpy_into_statedict(statedict,self.init_model)
-      self.lmodel.load_state_dict(statedict)
-    self.process = psutil.Process(os.getpid())
+      self.lmodel.load_state_dict(statedict)    
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 

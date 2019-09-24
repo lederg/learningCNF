@@ -1,6 +1,7 @@
 import argparse
 import ipdb
 import time
+import json
 
 from config import *                                                             
 from qbf_data import *
@@ -17,6 +18,19 @@ HOSTNAME = 'russell.eecs.berkeley.edu:27017'
 DBNAME = 'rl_exp'
 MONGO_MACHINE = 'russell'
 
+
+def load_config_from_file(fname):
+  rc = {}
+  trivial = ['base_mode', 'seed', 'exp_time']
+  with open(fname,'r') as f:
+    fcfg = json.load(f)
+    for k in fcfg.keys():
+      if k not in trivial and (k not in settings.hyperparameters.keys() or settings[k] != fcfg[k]):
+        rc[k] = fcfg[k]
+  return rc
+
+
+
 def main():
 
   parser = argparse.ArgumentParser(description='Process some params.')
@@ -24,6 +38,7 @@ def main():
   parser.add_argument('--host', type=str, help='Host address') 
   parser.add_argument('-d', '--db', type=str, default='rl_exp', help='Database name')    
   parser.add_argument('-e', '--experiment', type=str, default='', help='Get settings automatically from experiment')    
+  parser.add_argument('-f', '--file', type=str, default='', help='Load settings from config file') 
   parser.add_argument('-o', '--output', type=str, default='', help='Output file name')    
   parser.add_argument('-r', '--random', action='store_true', default=False, help='Random test') 
   parser.add_argument('-v', '--vsids', action='store_true', default=False, help='VSIDS test') 
@@ -42,6 +57,7 @@ def main():
   else :
       hostname = get_mongo_addr(MONGO_MACHINE)+':27017'
   
+  conf = None
   if args.experiment:
     rc = get_experiment_config(args.experiment,hostname,args.db)
     if len(rc.keys()) > 1:
@@ -56,6 +72,9 @@ def main():
     else:
       print('{} not found!')
       return
+  elif args.file:
+    conf = load_config_from_file(args.file)      
+  if conf:
     print('Updating settings with:')
     pprint(conf)
     for (k,v) in conf.items():

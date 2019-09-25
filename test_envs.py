@@ -46,7 +46,7 @@ def main():
   parser.add_argument('-p', '--parallelism', type=int, default=1, help='Use # processes') 
   parser.add_argument('-i', '--iterations', type=int, default=10, help='Average # iterations per formula') 
   parser.add_argument('-t', '--seconds', type=int, default=0, help='Number of seconds per formula') 
-  parser.add_argument('-s', '--steps', type=int, default=500, help='Maximum # of steps before quitting') 
+  parser.add_argument('-s', '--steps', type=int, default=0, help='Maximum # of steps before quitting') 
   args = parser.parse_args()
 
   assert(len(args.params)>1)
@@ -85,7 +85,15 @@ def main():
   # settings.hyperparameters['restart_solver_every'] = 50
   settings.hyperparameters['base_model']=model_name
   settings.hyperparameters['parallelism']=args.parallelism
-  settings.hyperparameters['max_step']=args.steps
+  if args.steps:
+    settings.hyperparameters['max_step']=args.steps
+  else:
+    settings.hyperparameters['max_step']=0
+  if args.seconds:
+    settings.hyperparameters['max_seconds']=args.seconds
+  else:
+    settings.hyperparameters['max_seconds']=0
+
   settings.hyperparameters['sat_gc_freq']='glucose'
   # settings.hyperparameters['preload_formulas']=False
   # settings.hyperparameters['debug']=True
@@ -107,10 +115,11 @@ def main():
   rc = tester.test_envs(provider,model=policy, iters=args.iterations, max_seconds=args.seconds, **kwargs)
   end_time = time.time()
   print('Entire test took {} seconds'.format(end_time-start_time))
-  if args.seconds is None:
-    z = np.array([x.steps for x in rc.values()]).squeeze()
+  # ipdb.set_trace()
+  if args.seconds:
+    z = np.array([x.time for [x] in rc.values()]).squeeze()
   else:
-    z = np.array([x.time for x in rc.values()]).squeeze()
+    z = np.array([x.steps for [x] in rc.values()]).squeeze()
   vals = sorted(z.astype(float).tolist())
   if args.output:
     with open(args.output,'w') as f:

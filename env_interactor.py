@@ -132,9 +132,10 @@ class EnvInteractor:
       elif self.sat_min_reward:        
         if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
           break_env=True
-      elif envstr.curr_step > self.max_step:
-        break_env=True
-        break_crit = BREAK_CRIT_TECHNICAL
+      if self.max_step:
+        if envstr.curr_step > self.max_step:
+          break_env=True
+          break_crit = BREAK_CRIT_TECHNICAL
       if break_env:
         envstr.last_obs = None
         envstr.end_time = time.time()

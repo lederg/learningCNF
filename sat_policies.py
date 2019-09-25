@@ -1156,3 +1156,45 @@ class SatPercentagePolicy(SCPolicyBase):
   def get_logprobs(self, outputs, collated_batch):    
     actions = torch.cat([a[0] for a in collated_batch.action])
     return gaussian_logprobs(outputs,self.settings.FloatTensor([self.psigma,self.tsigma]),actions)
+
+class SatDiscreteThresholdPolicy(SCPolicyBase):
+  def __init__(self, **kwargs):
+    super(SatDiscreteThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
+
+
+  def input_dim(self):
+    return self.settings['state_dim']
+
+  def forward(self, obs, **kwargs):
+    state, clabels = super(SatDiscreteThresholdPolicy, self).forward(obs, **kwargs)
+    logits = self.policy_layers(state)
+
+    return logits, clabels
+
+  def translate_action(self, action, obs, **kwargs):
+    threshold, clabels = action
+    # print('Threshold is {}'.format(threshold))
+    rc = clabels[:,CLABEL_LBD] < threshold
+    a = rc.detach()
+    num_learned = obs.ext_data
+    locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(a.long(),locked).view(-1)
+    # break_every_tick(5)
+
+    return final_action
+
+  def select_action(self, obs_batch, training=True, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    logits, clabels = self.forward(obs_batch, **kwargs)
+    probs = F.softmax(logits.view(-1))
+    dist = probs.data.cpu().numpy()
+    choices = np.arange(len(dist))+2
+
+
+    return [(sampled_threshold, clabels)]
+
+  def get_logprobs(self, outputs, collated_batch):    
+    actions = collated_batch.action
+    actions = torch.cat([a[0] for a in actions]).view(-1)
+    threshold = outputs.view(-1)
+    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1)    

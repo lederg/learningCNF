@@ -30,7 +30,7 @@ def main():
 		ex.observers.append(MongoObserver.create(url=settings['mongo_host'],
                                          db_name=settings['mongo_dbname']))
 	if settings['save_config']:
-		with open('config_{}.json'.format(settings['name']), 'w') as fp:
+		with open('experiments_config/config_{}.json'.format(settings['name']), 'w') as fp:
 			json.dump(settings.hyperparameters, fp, indent=4)
 	from task_a3c import a3c_main
 	from task_parallel import parallel_main

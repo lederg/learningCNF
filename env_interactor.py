@@ -170,7 +170,7 @@ class EnvInteractor:
     self.lmodel.eval()
     obs = self.reset_env(fname)
     if not obs:   # degenerate episode, return 0 actions taken. TODO - delete degenerate episodes
-      return 0
+      return 0, False
     rc = False
     i = 0
     while not rc:

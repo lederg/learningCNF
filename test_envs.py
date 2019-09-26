@@ -100,12 +100,13 @@ def main():
 
 
   # ipdb.set_trace()
-  policy = PolicyFactory().create_policy()  
+  policy = PolicyFactory().create_policy(init_pyro=False)  
   policy.eval()
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(testdir)  
+  
+  settings.formula_cache = FormulaCache()
   if settings['preload_formulas']:
-    settings.formula_cache = FormulaCache()
     settings.formula_cache.load_files(provider.items)  
 
   # em = EpisodeManager(provider, parallelism=args.parallelism,reporter=reporter)

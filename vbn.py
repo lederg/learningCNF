@@ -108,9 +108,11 @@ class MovingAverageAndStdVBN(AbstractVBN):
     self.effective_std.data = self.moving_std[:self.total_length].mean(dim=0)
 
 class NodeAverageAndStdVBN(AbstractVBN):
-  def __init__(self, size, name, is_global_model=False, **kwargs):
+  def __init__(self, size, name, is_global_model=False, init_pyro=True, **kwargs):
     super(NodeAverageAndStdVBN,self).__init__(size)
-    self.main_node = self.settings['main_node'] and is_global_model
+    print(kwargs)
+    if init_pyro:    
+      self.main_node = self.settings['main_node'] and is_global_model
     self.name = name
     self.is_global_model = is_global_model
     self.size = size
@@ -119,11 +121,12 @@ class NodeAverageAndStdVBN(AbstractVBN):
     # nn.init.constant_(self.shift,0.)
     # nn_init.constant_(self.scale,1.)
     self.settings['g2l_blacklist'].extend(['total_length'])
-    if self.main_node:
-      main_vbn_uri = self.settings.pyrodaemon.register(self)
-      self.settings.ns.register("{}.{}".format(self.settings['pyro_name'], self.name), main_vbn_uri)
-    else:
-      self.main_vbn = Pyro4.core.Proxy("PYRONAME:{}.{}".format(self.settings['pyro_name'], self.name))    
+    if init_pyro:
+      if self.main_node:
+        main_vbn_uri = self.settings.pyrodaemon.register(self)
+        self.settings.ns.register("{}.{}".format(self.settings['pyro_name'], self.name), main_vbn_uri)
+      else:
+        self.main_vbn = Pyro4.core.Proxy("PYRONAME:{}.{}".format(self.settings['pyro_name'], self.name))    
 
   @Pyro4.expose
   def recompute_moments(self, data_mean, data_std=None, weight=None):

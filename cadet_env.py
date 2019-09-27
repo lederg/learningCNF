@@ -365,10 +365,13 @@ class CadetEnv:
 # This returns already a State (higher-level) observation, not EnvObs.
 
   def new_episode(self, fname, settings=None, **kwargs):
-    obs = self.reset(fname)
-    # state, vars_add, vars_remove, activities, _, _ , _, vars_set, _ = self.reset(fname)
-    if obs.state is not None:   # Env solved in 0 steps
-      return obs
+    try:
+      obs = self.reset(fname)
+      # state, vars_add, vars_remove, activities, _, _ , _, vars_set, _ = self.reset(fname)
+      if obs.state is not None:   # Env solved in 0 steps
+        return obs
+    except:
+      print('Error reseting with file {}'.format(fname))
 
   def step(self, action):
     assert(not self.done)

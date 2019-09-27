@@ -660,13 +660,16 @@ class SatFixedThresholdPolicy(PolicyBase):
 
 class SatFreeThresholdPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
-    super(SatFreeThresholdPolicy, self).__init__(**kwargs)
-    self.t = self.settings['init_threshold']
-    self.threshold = nn.Parameter(torch.tensor(self.t), requires_grad=True)
+    super(SatFreeThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
+    self.t = float(self.settings['init_threshold'])
+    self.threshold = nn.Parameter(torch.FloatTensor([self.t]), requires_grad=True)
     self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
+    self.logger.info('self.threshold is:')
+    self.logger.info(self.threshold)
 
   def forward(self, obs, **kwargs):
-    return self.threshold
+    clabels = obs.clabels.view(-1,self.clabel_dim)
+    return self.threshold, clabels
 
 
   def get_allowed_actions(self, obs, **kwargs):
@@ -688,34 +691,32 @@ class SatFreeThresholdPolicy(PolicyBase):
 
   def select_action(self, obs_batch, training=True, **kwargs):
     assert(obs_batch.clabels.shape[0]==1)
-    threshold = self.forward(obs_batch)
-    clabels = obs_batch.clabels.view(-1,self.clabel_dim)
+    threshold, clabels = self.forward(obs_batch, **kwargs)
     if not training:
       return [(threshold, clabels)]
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()
     if self.settings['log_threshold']:      
       if self.shelf_key not in self.shelf_file.keys():        
-        self.shelf_file[self.shelf_key] = []        
+        self.shelf_file[self.shelf_key] = []
       tmp = self.shelf_file[self.shelf_key]
       tmp.append((threshold.detach().numpy(),sampled_threshold.detach().numpy()))
       self.shelf_file[self.shelf_key] = tmp
 
     return [(sampled_threshold, clabels)]
 
-  def compute_loss(self, transition_data):    
-    t = get_tick()
-    if t > 0 and (t % 5 == 0):
-      print('SatFreeThresholdPolicy: threshold is {}'.format(self.threshold))
+  def get_logprobs(self, outputs, collated_batch):    
+    actions = collated_batch.action
+    actions = torch.cat([a[0] for a in actions]).view(-1)
+    threshold = outputs.view(-1)
+    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1)    
+
+  def compute_loss(self, transition_data, **kwargs):    
     collated_batch = collate_transitions(transition_data,self.settings)
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
-    threshold = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
-    # ipdb.set_trace()
-    actions = collated_batch.action
-    actions = torch.cat([a[0].view(-1) for a in actions]).view(-1)
-    threshold = threshold.view(-1)
-    logprobs = gaussian_logprobs(threshold,self.sigma,actions)
+    outputs, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)    
+    logprobs = self.get_logprobs(outputs, collated_batch)
     adv_t = returns
     value_loss = 0.
     adv_t = (adv_t - adv_t.mean())
@@ -725,7 +726,8 @@ class SatFreeThresholdPolicy(PolicyBase):
       pg_loss = (-adv_t*logprobs).mean()
 
     loss = pg_loss
-    return loss, threshold
+    return loss, outputs
+
 
 class SCPolicyBase(PolicyBase):
   def __init__(self, **kwargs):
@@ -1077,6 +1079,8 @@ class SatThresholdStatePolicy(SCPolicyBase):
   def forward(self, obs, **kwargs):
     state, clabels = super(SatThresholdStatePolicy, self).forward(obs, **kwargs)
     threshold = self.policy_layers(state) * self.threshold_scale
+    if every_tick(20):
+      self.logger.debug('Threshold before sampling: {}'.format(threshold))
 
     return threshold, clabels
 
@@ -1156,3 +1160,45 @@ class SatPercentagePolicy(SCPolicyBase):
   def get_logprobs(self, outputs, collated_batch):    
     actions = torch.cat([a[0] for a in collated_batch.action])
     return gaussian_logprobs(outputs,self.settings.FloatTensor([self.psigma,self.tsigma]),actions)
+
+class SatDiscreteThresholdPolicy(SCPolicyBase):
+  def __init__(self, **kwargs):
+    super(SatDiscreteThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
+
+
+  def input_dim(self):
+    return self.settings['state_dim']
+
+  def forward(self, obs, **kwargs):
+    state, clabels = super(SatDiscreteThresholdPolicy, self).forward(obs, **kwargs)
+    logits = self.policy_layers(state)
+
+    return logits, clabels
+
+  def translate_action(self, action, obs, **kwargs):
+    threshold, clabels = action
+    # print('Threshold is {}'.format(threshold))
+    rc = clabels[:,CLABEL_LBD] < threshold
+    a = rc.detach()
+    num_learned = obs.ext_data
+    locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(a.long(),locked).view(-1)
+    # break_every_tick(5)
+
+    return final_action
+
+  def select_action(self, obs_batch, training=True, **kwargs):
+    assert(obs_batch.clabels.shape[0]==1)
+    logits, clabels = self.forward(obs_batch, **kwargs)
+    probs = F.softmax(logits.view(-1))
+    dist = probs.data.cpu().numpy()
+    choices = np.arange(len(dist))+2
+
+
+    return [(sampled_threshold, clabels)]
+
+  def get_logprobs(self, outputs, collated_batch):    
+    actions = collated_batch.action
+    actions = torch.cat([a[0] for a in actions]).view(-1)
+    threshold = outputs.view(-1)
+    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1)    

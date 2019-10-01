@@ -206,3 +206,6 @@ class EnvInteractor:
   def save(self, name):
     torch.save(self.lmodel.state_dict(), name)
 
+  def terminate(self):
+    self.envstr.env.exit()
+

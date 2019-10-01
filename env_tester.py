@@ -51,7 +51,6 @@ class EnvTester:
     else:
       self.lmodel = model
     self.lmodel.logger = self.logger    # override logger object with process-specific one
-    self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, **kwargs)
     if self.init_model is None:
       if self.hook_obj is not None:
         self.hook_obj.global_to_local(include_all=True)
@@ -65,6 +64,7 @@ class EnvTester:
 
   def test_envs(self, provider, model=None, ed=None, iters=10, **kwargs):
     max_seconds = int(kwargs['max_seconds'])      
+    self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, **kwargs)
     if model is not None:
       self.logger.info('Setting model at test time')
       self.lmodel = model
@@ -87,7 +87,7 @@ class EnvTester:
       episode_length, finished = self.interactor.run_episode(fname, **kwargs)
       print('Finished {}'.format(fname))
       if episode_length == 0:
-        rc[fname].append((0,0,0, True))
+        rc[fname].append(TestResultStruct(0.,0,0.,True))
         continue
       ep = self.interactor.completed_episodes.pop(0)
       total_reward = sum([x.reward for x in ep])                  
@@ -101,4 +101,5 @@ class EnvTester:
         self.logger.info('Finished {}, Averages (time,steps,reward) are {},{},{}'.format(fname,rc[fname],
           mean_time,mean_steps,mean_reward))      
 
+    self.interactor.terminate()
     return rc

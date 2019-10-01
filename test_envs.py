@@ -57,7 +57,7 @@ def main():
       hostname = args.host
   else :
       hostname = get_mongo_addr(MONGO_MACHINE)+':27017'
-  
+
   conf = None
   if args.experiment:
     rc = get_experiment_config(args.experiment,hostname,args.db)
@@ -113,20 +113,29 @@ def main():
   tester = EnvTester(settings,"tester",model=policy)
   start_time = time.time()
   kwargs = {'cadet_test': args.vsids, 'random_test': args.random}
-  rc = tester.test_envs(provider,model=policy, iters=args.iterations, max_seconds=args.seconds, **kwargs)
+  rc = tester.test_envs(provider,model=policy, iters=args.iterations, max_seconds=args.seconds, training=False, **kwargs)
   end_time = time.time()
   print('Entire test took {} seconds'.format(end_time-start_time))
-  # ipdb.set_trace()
-  if args.seconds:
-    z = np.array([x.time for [x] in rc.values()]).squeeze()
-  else:
-    z = np.array([x.steps for [x] in rc.values()]).squeeze()
-  vals = sorted(z.astype(float).tolist())
   if args.output:
-    with open(args.output,'w') as f:
+    time_val = sorted(np.array([x.time for [x] in rc.values()]).squeeze().tolist())
+    steps_val = sorted(np.array([x.steps for [x] in rc.values()]).squeeze().tolist())
+    reward_val = reversed(sorted(np.array([x.reward for [x] in rc.values()]).squeeze().tolist()))
+    with open('{}_all.out'.format(args.output),'w') as f:
+      json.dump({k: tuple(v) for k,[v] in rc.items()},f, indent=4)
+    with open('{}_steps.out'.format(args.output),'w') as f:
       f.write('number_of_formulas      decisions\n')
-      for i,val in enumerate(vals):
+      for i,val in enumerate(steps_val):
+        f.write('{}\t{}\n'.format(i,val))
+    with open('{}_time.out'.format(args.output),'w') as f:
+      f.write('number_of_formulas      seconds\n')
+      for i,val in enumerate(time_val):
+        f.write('{}\t{}\n'.format(i,val))
+    with open('{}_reward.out'.format(args.output),'w') as f:
+      f.write('number_of_formulas      rewards\n')
+      for i,val in enumerate(reward_val):
         f.write('{}\t{}\n'.format(i,val))
 
 if __name__=='__main__':
     main()
+    print('Done')
+    exit()

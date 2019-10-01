@@ -277,12 +277,7 @@ class WorkerEnv(mp.Process):
 
   def init_proc(self):    
     set_proc_name(str.encode(self.name))
-    if self.settings['seed'] is None:
-      np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
-      torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
-    else:
-      np.random.seed(self.settings['seed'])
-      torch.manual_seed(self.settings['seed'])      
+    utils.seed_all(self.settings,self.name)
     self.reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(self.settings['pyro_name']))
     self.node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(self.settings['pyro_name']))
     self.dispatcher.notify('new_batch')

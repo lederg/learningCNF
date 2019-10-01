@@ -5,6 +5,7 @@ import torch
 import ipdb
 import pdb
 import random
+import utils
 import time
 import tracemalloc
 import signal
@@ -73,6 +74,7 @@ class MyManager(BaseManager):
 MyManager.register('wsync',WorkersSynchronizer)
 
 def pyro_main():
+  utils.seed_all(settings,'myname')
   # mp.set_start_method('forkserver')
   signal.signal(signal.SIGCHLD, handleSIGCHLD)
   if settings['do_not_run']:

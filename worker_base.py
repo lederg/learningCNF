@@ -31,8 +31,7 @@ class WorkerBase(mp.Process):
 
   def init_proc(self, **kwargs):
     set_proc_name(str.encode(self.name))
-    np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
-    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
+    utils.seed_all(self.settings, self.name)
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
 
   def run(self):

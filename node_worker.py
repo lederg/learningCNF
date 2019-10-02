@@ -34,6 +34,8 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
     self.dispatcher = ObserverDispatcher()
     self.provider = provider
     self.whitelisted_keys = []
+    self.logger = utils.get_logger(self.settings, 'NodeWorker-{}'.format(self.name), 
+                                    'logs/{}_{}.log'.format(log_name(self.settings), self.name))    
 
   def global_to_local(self, **kwargs):
     global_params = self.node_sync.get_state_dict(**kwargs)
@@ -56,6 +58,7 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
     self.reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(self.settings['pyro_name']))
     self.trainer = EnvTrainer(self.settings, self.provider, self.index, self, reporter=self.reporter, **kwargs)
     global_params = self.trainer.lmodel.state_dict()
+    self.logger.debug('Got randint {}'.format(np.random.randint(100)))
     for k in global_params.keys():
       if any([x in k for x in self.settings['l2g_whitelist']]):
         self.whitelisted_keys.append(k)    

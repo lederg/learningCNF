@@ -48,14 +48,11 @@ class EnvInteractor:
     self.envstr = MPEnvStruct(EnvFactory().create_env(oracletype=self.lmodel.get_oracletype()), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time(), 0)
     self.reset_counter = 0
-    self.env_steps = 0
-    self.real_steps = 0
+    self.total_steps = 0
     self.def_step_cost = self.settings['def_step_cost']
     self.process = psutil.Process(os.getpid())    
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
-    np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
-    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
     self.logger = utils.get_logger(self.settings, 'EnvInteractor-{}'.format(self.name), 
                                     'logs/{}_{}.log'.format(log_name(self.settings), self.name))    
     self.lmodel.logger = self.logger
@@ -95,18 +92,10 @@ class EnvInteractor:
     last_obs = collate_observations([envstr.last_obs])
     [action] = self.lmodel.select_action(last_obs, **kwargs)
     envstr.episode_memory.append(Transition(envstr.last_obs,action,None, None, envstr.env_id, envstr.prev_obs))
-    allowed_actions = self.lmodel.get_allowed_actions(envstr.last_obs).squeeze() if self.check_allowed_actions else None
-
-    if not self.check_allowed_actions or allowed_actions[action]:
-      env_obs = envstr.env.step(self.lmodel.translate_action(action, envstr.last_obs))
-      done = env_obs.done
-    else:
-      print('Chose invalid action, thats not supposed to happen.')
-      assert(action_allowed(envstr.last_obs,action))
-
-    self.real_steps += 1
+    env_obs = envstr.env.step(self.lmodel.translate_action(action, envstr.last_obs))
+    done = env_obs.done
+    self.total_steps += 1
     envstr.curr_step += 1
-
     if done:
       for j,r in enumerate(env.rewards):
         envstr.episode_memory[j].reward = r
@@ -115,7 +104,7 @@ class EnvInteractor:
       envstr.end_time = time.time()
       if env.finished:
         if self.reporter is not None:
-          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)
+          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.total_steps)
         if self.ed is not None:
           # Once for every episode going into completed_episodes, add it to stats
           self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
@@ -153,7 +142,7 @@ class EnvInteractor:
           self.logger.info('Environment {} technically dropped.'.format(envstr.fname))          
           return True
         if self.reporter:
-          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)          
+          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.total_steps)          
         if self.ed:
           if 'testing' not in kwargs or not kwargs['testing']:
             self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))

@@ -133,24 +133,16 @@ class Actor1Policy(PolicyBase):
     return self.settings.LongTensor(actions)
 
   def select_action(self, obs_batch, **kwargs):
-    logits, *_ = self.forward(obs_batch)
-    allowed_actions = self.get_allowed_actions(obs_batch)
-    actions = []
-    for i, ith_logits in enumerate(logits):
-      ith_allowed = allowed_actions[i]
-      allowed_idx = torch.from_numpy(np.where(ith_allowed.numpy())[0])
-      if self.settings['cuda']:
-        allowed_idx = allowed_idx.cuda()
-      l = ith_logits[allowed_idx]
-      probs = F.softmax(l.contiguous().view(1,-1),dim=1)
-      dist = probs.data.cpu().numpy()[0]
-      choices = range(len(dist))
-      aux_action = np.random.choice(choices, p=dist)
-      action = allowed_idx[aux_action]
-      actions.append(action)
-
-    return actions
-
+    [logits], *_ = self.forward(collate_observations([obs_batch]))
+    allowed_actions = self.get_allowed_actions(obs_batch)[0]
+    allowed_idx = self.settings.cudaize_var(torch.from_numpy(np.where(allowed_actions.numpy())[0]))
+    l = logits[allowed_idx]
+    probs = F.softmax(l.contiguous().view(1,-1),dim=1)
+    dist = probs.data.cpu().numpy()[0]
+    choices = range(len(dist))
+    aux_action = np.random.choice(choices, p=dist)
+    action = allowed_idx[aux_action]
+    return action
 
   def compute_loss(self, transition_data, **kwargs):
     _, _, _, rewards, *_ = zip(*transition_data)

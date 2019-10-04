@@ -31,6 +31,7 @@ from dispatcher import *
 class SingleProcessTrainer(IEnvTrainerHook):
   def __init__(self):
     self.settings = CnfSettings()
+    seed_all(self.settings, 'single_process')
     self.settings.hyperparameters['mp']=False
     self.clock = GlobalTick()
     self.SAVE_EVERY = 500
@@ -42,24 +43,23 @@ class SingleProcessTrainer(IEnvTrainerHook):
     self.dispatcher = ObserverDispatcher()
     self.logger = utils.get_logger(self.settings, 'workers_sync', 'logs/{}_workers_sync.log'.format(log_name(self.settings)))    
 
-  def main(self):    
-    if self.settings['do_not_run']:
-      print('Not running. Printing settings instead:')
-      print(self.settings.hyperparameters)
-      return
-
     self.reporter.log_env(self.settings['rl_log_envs'])  
     ProviderClass = eval(self.settings['episode_provider'])
     self.provider = ProviderClass(self.settings['rl_train_data'])
     self.settings.formula_cache = FormulaCache()
     if self.settings['preload_formulas']:
       self.settings.formula_cache.load_files(self.provider.items)  
-    self.trainer = EnvTrainer(self.settings,self.provider,'SingleProcessTrainer', self, reporter=self.reporter)
+    self.trainer = EnvTrainer(self.settings,self.provider,'SingleProcessTrainer', self, reporter=self.reporter, init_pyro=False)
     if self.settings['profiling']:
       pr = cProfile.Profile() 
     if self.settings['memory_profiling']:
       tracemalloc.start(25)
 
+  def main(self):    
+    if self.settings['do_not_run']:
+      print('Not running. Printing settings instead:')
+      print(self.settings.hyperparameters)
+      return
 
     print('Running for {} iterations..'.format(self.training_steps))
     for i in range(self.training_steps):

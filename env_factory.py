@@ -5,6 +5,7 @@ import logging
 from settings import *
 from cadet_env import CadetEnv
 from sat_env import *
+from function_env import *
 
 class EnvFactory:
   def __init__(self, settings=None, **kwargs):
@@ -24,6 +25,8 @@ class EnvFactory:
       log.info('Starting minisat server')
       satserv.start()
       return satserv.proxy()
+    elif envtype == 'function':
+      return FunctionEnv(**kwargs)
 
     else:
       log.error('Unknown env type: {}'.format(envtype))

@@ -89,8 +89,7 @@ class EnvInteractor:
     envstr = self.envstr
     env = envstr.env
 
-    last_obs = collate_observations([envstr.last_obs])
-    [action] = self.lmodel.select_action(last_obs, **kwargs)
+    action = self.lmodel.select_action(envstr.last_obs, **kwargs)
     envstr.episode_memory.append(Transition(envstr.last_obs,action,None, None, envstr.env_id, envstr.prev_obs))
     env_obs = envstr.env.step(self.lmodel.translate_action(action, envstr.last_obs))
     done = env_obs.done
@@ -110,6 +109,8 @@ class EnvInteractor:
           self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
       else:        
         ipdb.set_trace()
+
+# TODO: Move all of this into the environment, and just return Done.
 
     else:
       break_env = False
@@ -184,7 +185,7 @@ class EnvInteractor:
   def collect_batch(self, *args, **kwargs):
     total_length, bs = self.run_batch(*args, **kwargs)
     if total_length == 0:
-      return None, 0
+      return [], 0
 
     rc = []
     for i in range(bs):

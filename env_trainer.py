@@ -74,11 +74,11 @@ class EnvTrainer:
       return
     self.lmodel.train()
     mt = time.time()
-    loss, logits = self.lmodel.compute_loss(transition_data, **kwargs)
+    loss, logits = self.lmodel.compute_loss(transition_data, **kwargs)    # TODO: Remove logits from this interface
     mt1 = time.time()
     self.logger.info('Loss computation took {} seconds on {} with length {}'.format(mt1-mt,self.provider.get_next(),len(transition_data)))
     self.optimizer.zero_grad()      # Local model grads are being zeros here!
-    loss.backward()
+    loss.backward()                 
     mt2 = time.time()
     self.logger.info('Backward took {} seconds'.format(mt2-mt1))
     grads = [x.grad for x in self.lmodel.parameters()]

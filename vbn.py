@@ -110,7 +110,7 @@ class MovingAverageAndStdVBN(AbstractVBN):
 class NodeAverageAndStdVBN(AbstractVBN):
   def __init__(self, size, name, is_global_model=False, init_pyro=True, **kwargs):
     super(NodeAverageAndStdVBN,self).__init__(size)
-    print(kwargs)
+    self.init_pyro = init_pyro
     if init_pyro:    
       self.main_node = self.settings['main_node'] and is_global_model
     self.name = name
@@ -140,7 +140,7 @@ class NodeAverageAndStdVBN(AbstractVBN):
     if (data_std!=data_std).any().numpy():
       print('Error! nan in data_std. Dropping everything and just returning the previous values')      
       return self.effective_mean.data, self.effective_std.data      
-    if self.main_node:  
+    if not self.init_pyro or self.main_node:  
       total = (self.total_length + weight).float()
       curr_weight = self.total_length.float() / total
       new_weight = float(weight) / total      

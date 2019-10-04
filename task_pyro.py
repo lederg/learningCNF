@@ -110,8 +110,6 @@ def pyro_main():
     node_sync_uri = pyrodaemon.register(node_sync)
     ns.register("{}.reporter".format(settings['pyro_name']), reporter_uri)
     ns.register("{}.node_sync".format(settings['pyro_name']), node_sync_uri)
-    # nameserverDaemon.nameserver.register("{}.reporter".format(settings['pyro_name']), reporter_uri)
-    # nameserverDaemon.nameserver.register("{}.node_sync".format(settings['pyro_name']), node_sync_uri)
 
   else:
     logger.info('client node starting up for cluster {}, experiment {}, ip {}'.format(settings['pyro_name'],settings['name'],my_ip))

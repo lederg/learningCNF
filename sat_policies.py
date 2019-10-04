@@ -1097,6 +1097,7 @@ class SatThresholdStatePolicy(SCPolicyBase):
     return final_action
 
   def select_action(self, obs_batch, training=True, **kwargs):
+    obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     threshold, clabels = self.forward(obs_batch, **kwargs)
     if not training:
@@ -1110,7 +1111,7 @@ class SatThresholdStatePolicy(SCPolicyBase):
       tmp.append((threshold.detach().numpy(),sampled_threshold.detach().numpy()))
       self.shelf_file[self.shelf_key] = tmp
 
-    return [(sampled_threshold, clabels)]
+    return (sampled_threshold, clabels)
 
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action

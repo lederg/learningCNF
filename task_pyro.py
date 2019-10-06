@@ -245,12 +245,17 @@ def pyro_main():
         torch.save(policy.state_dict(),'%s/%s_step%d.model' % (settings['model_dir'],utils.log_name(settings), gsteps))
         if ed is not None:
           ed.save_file()
+
+# We have a process pool for the tests, since those can take a long time. 
       if round_num % TEST_EVERY == 0 and round_num>0:      
         task_queue.put((WorkerCommands.CMD_TASK,(gsteps, policy.state_dict() ,settings['rl_test_data']),gsteps))
+
+# At some point a test returns its result on ack_queue, and if that happens we report it here        
       try:
-        ack, rc, i = ack_queue.get_nowait()
-        logger.info('Test finished, got cookie {} and rc:'.format(i))
-        logger.info(rc)
+        ack,(steps, rc), i = ack_queue.get_nowait()
+        logger.info('Test finished, got cookie {}'.format(i))
+        val = EnvTester.Rewards(rc).mean()
+        reporter.add_whatever(i,'Test {}'.format(settings['rl_test_data']),val)
       except Exception as e:
         print(e)
         pass

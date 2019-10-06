@@ -38,6 +38,10 @@ TestResultStruct = namedlist('TestResultStruct',
 
 
 class EnvTester:
+
+  def Rewards(rc):
+    return np.array([x.reward for [x] in rc.values()]).squeeze()  
+
   def __init__(self, settings, name, hook_obj=None, ed=None, model=None, init_model=None, **kwargs):
     super(EnvTester, self).__init__()
     self.name = name

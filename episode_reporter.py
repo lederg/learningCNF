@@ -89,6 +89,10 @@ class PGProxyReporter(AbstractReporter):
 
 @Pyro4.expose
 class PGEpisodeReporter(SPReporter):  
+  def __init__(self, *args, **kwargs):  
+    super(PGEpisodeReporter, self).__init__(*args, **kwargs)
+    self.whatever = {}
+
   def add_stat(self, env_id, steps, reward, entropy, total_steps):
     self.stats = self.stats+[[env_id,steps,reward, entropy]]
     if not env_id in self.stats_dict.keys():
@@ -96,6 +100,20 @@ class PGEpisodeReporter(SPReporter):
 
     # Add entropy as well     
     self.stats_dict[env_id] = self.stats_dict[env_id] + [(steps, reward, entropy)]
+
+  def add_whatever(self, steps, name, val):
+    if name not in self.whatever.keys():
+      self.whatever[name] = []
+    self.whatever[name].append((steps,val))
+    self.configure_tensorboard(self.fname)
+    log_value(name, val, steps)    
+
+  def configure_tensorboard(self, fname):
+    if not self.tb_configured:
+      print('Configuring tensorboard for the first time with pid {}'.format(os.getpid()))
+      configure(self.fname, flush_secs=5)
+      self.tb_configured = True
+
 
   def __len__(self):
     return len(self.stats)
@@ -148,11 +166,7 @@ class PGEpisodeReporter(SPReporter):
         db['stats_dict'] = self.stats_dict
 
     if self.tensorboard:
-      if not self.tb_configured:
-        print('Configuring tensorboard for the first time with pid {}'.format(os.getpid()))
-        configure(self.fname, flush_secs=5)
-        self.tb_configured = True
-
+      self.configure_tensorboard(self.fname)
       if self.settings['report_uniform']:
         log_value('Mean steps for last {} episodes'.format(self.short_window), np.mean(mean_steps), total_steps)
         log_value('Mean reward for last {} episodes'.format(self.short_window), np.mean(mean_rewards), total_steps)

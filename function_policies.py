@@ -8,7 +8,7 @@ import torch.optim as optim
 import utils
 import numpy as np
 from collections import namedtuple
-import ipdb
+from IPython.core.debugger import Tracer
 from settings import *
 from policy_base import *
 from rl_utils import *
@@ -74,7 +74,7 @@ class FunctionPolicy(PolicyBase):
     collated_state = self.settings.cudaize_var(torch.cat([x.state.state for x in transition_data])).reshape(-1,1)
     collated_actions = self.settings.cudaize_var(torch.cat([x.action for x in transition_data]))
     returns = self.settings.FloatTensor([x.reward for x in transition_data])
-    # ipdb.set_trace()
+    # Tracer()()
     outputs = self.forward(collated_state)    
     logprobs = gaussian_logprobs(outputs.view(-1,1),self.sigma,collated_actions.view(-1,1)).view(-1)    
     adv_t = returns

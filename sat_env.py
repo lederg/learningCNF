@@ -5,7 +5,7 @@ from collections import deque
 from namedlist import namedlist
 from scipy.sparse import csr_matrix
 import select
-import ipdb
+from IPython.core.debugger import Tracer
 import time
 import logging
 import pickle
@@ -111,7 +111,7 @@ class SatActiveEnv:
     if not self.server:
       log.info('Running a test version of SatEnv')
       utility = cl_label_arr[:,3] # just return the lbd
-      ipdb.set_trace()
+      Tracer()()
       return utility
     else:
       try:

@@ -2,7 +2,7 @@ import os
 import os.path
 import torch
 # from torch.distributions import Categorical
-import ipdb
+from IPython.core.debugger import Tracer
 import pdb
 import random
 import time
@@ -58,7 +58,7 @@ def parallel_main():
     torch.nn.utils.clip_grad_norm_(policy.parameters(), settings['grad_norm_clipping'])
     if any([(x.grad!=x.grad).data.any() for x in policy.parameters() if x.grad is not None]): # nan in grads
       print('NaN in grads!')
-      ipdb.set_trace()
+      Tracer()()
     # tutils.clip_grad_norm(policy.parameters(), 40)
     optimizer.step()    
     print('Times are: Loss: {}, Grad: {}, Ratio: {}'.format(mt2-mt1, mt3-mt2, ((mt3-mt2)/(mt2-mt1))))

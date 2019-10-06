@@ -6,7 +6,7 @@ from tensorboard_logger import configure, log_value
 import utils
 from utils import *
 from settings import *
-import ipdb
+from IPython.core.debugger import Tracer
 import shelve
 import logging
 import Pyro4
@@ -112,7 +112,7 @@ class PGEpisodeReporter(SPReporter):
     self.logger.info('Total episodes so far: %d' % len(steps))
     self.logger.info('Total steps learned from so far: %d' % sum(steps))
     self.logger.info('Total rewards so far: %f' % sum(rewards))
-    # ipdb.set_trace()
+    # Tracer()()
     totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
     if self.settings['report_uniform']:
       all_stats = [x[1] for x in self.stats_dict.items()]

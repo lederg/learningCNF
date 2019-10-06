@@ -10,7 +10,7 @@ import re
 import collections
 import os
 import random
-import ipdb
+from IPython.core.debugger import Tracer
 
 _use_shared_memory = False
 
@@ -158,7 +158,7 @@ class QbfBase(object):
                 v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
                 indices.append(np.array([i,v]))
                 values.append(val)        
-        # ipdb.set_trace()
+        # Tracer()()
         return np.concatenate([self.sp_indices,np.asarray(indices)]), np.concatenate([self.sp_vals, np.asarray(values)])
         
     def get_dense_adj_matrices(self):

@@ -11,7 +11,7 @@ import collections
 import os
 import random
 import pdb
-import ipdb
+from IPython.core.debugger import Tracer
 
 _use_shared_memory = False
 
@@ -233,7 +233,7 @@ class CnfDataset(Dataset):
                     
             else:
                 print('What the heck?')
-                import ipdb; ipdb.set_trace()
+                import ipdb; Tracer()()
 
         
         all_clauses = [list(map(convert_var,x)) for x in sample['clauses']]
@@ -270,7 +270,7 @@ class CnfDataset(Dataset):
                 else:                
                     new_all_clauses.append(new_clause)
             if len(new_all_clauses) != self.max_clauses:
-                import ipdb; ipdb.set_trace()
+                import ipdb; Tracer()()
 
             sp_indices = np.zeros(1)
             sp_vals = np.zeros(1)

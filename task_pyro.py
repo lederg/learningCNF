@@ -2,7 +2,7 @@ import os
 import os.path
 import torch
 # from torch.distributions import Categorical
-import ipdb
+from IPython.core.debugger import Tracer
 import pdb
 import random
 import utils
@@ -21,18 +21,16 @@ from multiprocessing.managers import BaseManager
 import torch.multiprocessing as mp
 from shared_adam import SharedAdam
 from settings import *
-from rl_model import *
-from new_policies import *
-from qbf_data import *
 from utils import *
 from rl_utils import *
-from episode_reporter import *
 from mp_episode_manager import *
+from episode_reporter import *
 from episode_data import *
 from formula_utils import *
 from policy_factory import *
 from node_sync import *
 from node_worker import *
+from test_worker import *
 
 Pyro4.config.SERVERTYPE = "multiplex"
 Pyro4.config.SERIALIZER = "pickle"
@@ -162,7 +160,16 @@ def pyro_main():
   for _ in range(settings['parallelism']):
     wnum = node_sync.get_worker_num()
     # workers[wnum] = WorkerEnv(settings, provider, ed, wnum, wsync, batch_sem, init_model=None)
-    workers[wnum] = NodeWorker(settings, provider, wnum)
+    workers[wnum] = NodeWorker(settings, provider, wnum)  
+  if main_node:
+    test_workers = []
+    ack_queue = mp.Queue()
+    task_queue = mp.Queue()
+    for i in range(settings['test_parallelism']):
+      worker = TestWorker(settings, i, task_queue, ack_queue)
+      test_workers.append(worker)
+      worker.start()
+
   print('Running with {} workers...'.format(len(workers)))
   for _,w in workers.items():
     w.start()  
@@ -239,7 +246,14 @@ def pyro_main():
         if ed is not None:
           ed.save_file()
       if round_num % TEST_EVERY == 0 and round_num>0:      
-        em.test_envs(settings['rl_test_data'], policy, iters=1, training=False)
+        task_queue.put((WorkerCommands.CMD_TASK,(gsteps, policy.state_dict() ,settings['rl_test_data']),gsteps))
+      try:
+        ack, rc, i = ack_queue.get_nowait()
+        logger.info('Test finished, got cookie {} and rc:'.format(i))
+        logger.info(rc)
+      except Exception as e:
+        print(e)
+        pass
       if settings['rl_decay']:
         new_lr = lr_schedule.value(gsteps)
         if new_lr != curr_lr:

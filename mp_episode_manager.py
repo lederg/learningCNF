@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import time
-import ipdb
+from IPython.core.debugger import Tracer
 import gc
 import os
 import sys
@@ -159,7 +159,7 @@ class WorkerEnv(mp.Process):
           # Once for every episode going into completed_episodes, add it to stats
           self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
       else:        
-        ipdb.set_trace()
+        Tracer()()
 
     else:
       break_env = False
@@ -185,7 +185,7 @@ class WorkerEnv(mp.Process):
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
         except:
-          ipdb.set_trace()
+          Tracer()()
         if break_crit == BREAK_CRIT_TECHNICAL and self.drop_technical:
           self.logger.info('Environment {} technically dropped.'.format(envstr.fname))          
           return True

@@ -1,6 +1,6 @@
 import os
 import re
-import ipdb
+from IPython.core.debugger import Tracer
 import numpy as np
 import tempfile
 from subprocess import Popen, PIPE, STDOUT

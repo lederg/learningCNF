@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import utils
 import numpy as np
-import ipdb
+from IPython.core.debugger import Tracer
 import pdb
 from settings import *
 
@@ -43,7 +43,7 @@ class ResidualCombine(nn.Module):
 			out = utils.normalize(F.sigmoid(self.layer1(input)) + self.layer2(input))
 		except Exception as e:
 			print(e)
-			ipdb.set_trace()
+			Tracer()()
 		return out
 
 class SimpleCombinator(nn.Module):
@@ -143,7 +143,7 @@ class InnerIteration(nn.Module):
 			try:
 				perm = torch.cat(rc,1)
 			except RuntimeError:
-				ipdb.set_trace()
+				Tracer()()
 			if not self.split:
 				return perm
 			else:

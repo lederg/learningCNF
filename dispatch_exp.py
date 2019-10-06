@@ -1,6 +1,6 @@
 import argparse
 import functools
-import ipdb
+from IPython.core.debugger import Tracer
 import subprocess
 import json
 import asyncio
@@ -84,7 +84,7 @@ def main():
 	else: 
 		mongo_addr += 'unknown'
 
-	# ipdb.set_trace()
+	# Tracer()()
 
 	all_executions = []
 	all_experiments = list(itertools.product(range(args.num),range(len(configs))))

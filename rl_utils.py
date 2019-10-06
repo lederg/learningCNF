@@ -1,4 +1,4 @@
-import ipdb
+from IPython.core.debugger import Tracer
 import copy
 import torch
 from torch.autograd import Variable
@@ -129,7 +129,7 @@ def collate_observations(batch, settings=None, replace_none=False, c_size=None, 
     settings = CnfSettings()
   bs = len(batch)
   # if bs>1:
-  #   ipdb.set_trace()
+  #   Tracer()()
   if not c_size:
     c_size = max([x.clabels.squeeze().size(0) for x in batch if x])   # Sometimes we need to squeeze
   if not v_size:
@@ -224,7 +224,7 @@ def collate_transitions(batch, settings=None, packed=False, cudaize_state=False)
   formulas = [x.formula for x in batch]
   prev_obs = [collate_observations(x,replace_none=True, c_size=obs1.cmask.shape[1], v_size=obs1.vmask.shape[1]) for x in zip(*[x.prev_obs for x in batch])]
   if prev_obs and prev_obs[0].vmask.shape != obs1.vmask.shape:
-    ipdb.set_trace()
+    Tracer()()
   return Transition(obs1,actions,obs2,rews, formulas, prev_obs)
 
 def create_policy(settings=None, is_clone=False):
@@ -281,7 +281,7 @@ def unpack_logits(logits, vp_ind, settings=None):
   return torch.stack(rc)
 
 def masked_softmax2d(A, mask):
-  # ipdb.set_trace()
+  # Tracer()()
   antimask = (1-mask)*(-1e20)
   A_max = torch.max(A*mask+antimask,dim=1,keepdim=True)[0]
   B = A*mask - A_max  
@@ -381,5 +381,3 @@ def gaussian_logprobs(ms, ss, samples):
   b = 2*ss*ss
   rc = (bias - a/b).sum(dim=1)
   return rc
-
-

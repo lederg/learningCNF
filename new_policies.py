@@ -7,7 +7,7 @@ import torch.optim as optim
 import utils
 import numpy as np
 from collections import namedtuple
-import ipdb
+from IPython.core.debugger import Tracer
 import cadet_utils
 from vbn import *
 from qbf_data import *
@@ -80,7 +80,7 @@ class Actor1Policy(PolicyBase):
       vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
       vs = torch.cat([vs_pos,vs_neg])
       if 'do_debug' in kwargs:
-        ipdb.set_trace()
+        Tracer()()
     
 
     if self.use_global_state:
@@ -96,7 +96,7 @@ class Actor1Policy(PolicyBase):
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    # ipdb.set_trace()
+    # Tracer()()
     outputs = outputs.view(2,self.batch_size,-1)
     outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
     outputs = outputs.contiguous().view(self.batch_size,-1)
@@ -184,10 +184,10 @@ class Actor1Policy(PolicyBase):
     try:
       logprobs = all_logprobs.gather(1,Variable(actions).view(-1,1)).squeeze()
     except:
-      ipdb.set_trace()
+      Tracer()()
     entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
-    # ipdb.set_trace()
+    # Tracer()()
     if self.settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
       adv_t = adv_t*self.settings.FloatTensor(episodes_weights)    
@@ -256,14 +256,14 @@ class SimplePolicy(PolicyBase):
       vembs = self.encoder(vlabels, clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
       vs = torch.cat([vlabels,vembs],dim=1).view(self.batch_size,-1,self.final_embedding_dim)
       if 'do_debug' in kwargs:
-        ipdb.set_trace()
+        Tracer()()
     
     if self.state_bn:
       state = self.state_bn(state)
 
     if self.settings['use_global_state']:
       # if self.batch_size > 1:
-      #   ipdb.set_trace()
+      #   Tracer()()
       a = state.view(self.batch_size,1,self.state_dim)
       reshaped_state = a.expand(self.batch_size,size[1],self.state_dim) # add the maxvars dimention
       inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
@@ -274,7 +274,7 @@ class SimplePolicy(PolicyBase):
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    # ipdb.set_trace()
+    # Tracer()()
     outputs = outputs.view(self.batch_size,-1,2) # batch x numvars x pos-neg ?
     outputs = outputs.contiguous().view(self.batch_size,-1)
     if self.settings['ac_baseline'] and self.batch_size > 1:
@@ -383,14 +383,14 @@ class Actor2Policy(PolicyBase):
     vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
     vs = torch.cat([vs_pos,vs_neg]).view(-1,self.final_embedding_dim)
     if 'do_debug' in kwargs:
-      ipdb.set_trace()
+      Tracer()()
   
     if self.state_bn:
       state = self.state_bn(state)
 
     if self.settings['use_global_state']:
       # if self.batch_size > 1:
-      #   ipdb.set_trace()
+      #   Tracer()()
       a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
       reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim).contiguous().view(-1,self.state_dim) # add the maxvars dimention
       rc = torch.cat([reshaped_state, vs],dim=1)
@@ -414,14 +414,14 @@ class Actor2Policy(PolicyBase):
       if pobs.state is not None:
         inputs, vs = self.do_timestep(pobs,**kwargs)
         if hidden is not None and hidden.shape != inputs.shape:
-          ipdb.set_trace()
+          Tracer()()
         hidden = self.gru(inputs,hidden) if hidden is not None else inputs
     inputs = hidden
     if self.policy_dim2:      
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    # ipdb.set_trace()
+    # Tracer()()
     outputs = outputs.view(2,self.batch_size,-1)
     outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
     outputs = outputs.contiguous().view(self.batch_size,-1)
@@ -530,7 +530,7 @@ class Actor3Policy(PolicyBase):
       vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
       vs = torch.cat([vs_pos,vs_neg])
       if 'do_debug' in kwargs:
-        ipdb.set_trace()
+        Tracer()()
     
 
     if self.use_global_state:
@@ -546,7 +546,7 @@ class Actor3Policy(PolicyBase):
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    # ipdb.set_trace()
+    # Tracer()()
     outputs = outputs.view(2,self.batch_size,-1)
     outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
     outputs = outputs.contiguous().view(self.batch_size,-1)
@@ -642,10 +642,10 @@ class Actor3Policy(PolicyBase):
     try:
       logprobs = all_logprobs.gather(1,Variable(actions).view(-1,1)).squeeze()
     except:
-      ipdb.set_trace()
+      Tracer()()
     entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
-    # ipdb.set_trace()
+    # Tracer()()
     if self.settings['normalize_episodes']:
       episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
       adv_t = adv_t*self.settings.FloatTensor(episodes_weights)    
@@ -709,7 +709,7 @@ class RestartPolicy(PolicyBase):
       vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
       vs = torch.cat([vs_pos,vs_neg])
       if 'do_debug' in kwargs:
-        ipdb.set_trace()
+        Tracer()()
     
     if self.state_bn:
       state = self.state_bn(state)
@@ -813,7 +813,7 @@ class ExtendedStatePolicy(PolicyBase):
       vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
       vs = torch.cat([vs_pos,vs_neg])
       if 'do_debug' in kwargs:
-        ipdb.set_trace()
+        Tracer()()
     
     if self.state_bn:
       state = self.state_bn(state)
@@ -827,7 +827,7 @@ class ExtendedStatePolicy(PolicyBase):
 
     if self.settings['use_global_state']:
       # if self.batch_size > 1:
-      #   ipdb.set_trace()
+      #   Tracer()()
       a = extended_state.unsqueeze(0).expand(2,*extended_state.size()).contiguous().view(2*self.batch_size,1,self.ext_state_dim)
       reshaped_state = a.expand(2*self.batch_size,size[1],self.ext_state_dim) # add the maxvars dimention
       inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.ext_state_dim+self.final_embedding_dim)
@@ -838,7 +838,7 @@ class ExtendedStatePolicy(PolicyBase):
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    # ipdb.set_trace()
+    # Tracer()()
     outputs = outputs.view(2,self.batch_size,-1)
     outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
     outputs = outputs.contiguous().view(self.batch_size,-1)

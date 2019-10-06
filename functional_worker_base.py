@@ -1,12 +1,12 @@
 import time
-import ipdb
+from IPython.core.debugger import Tracer
 import cProfile
 from enum import Enum
 import logging
 
 from settings import *
 from functional_env import *
-
+from worker_base import *
 
 class WorkerCommands(Enum):
   CMD_EXIT = 1
@@ -14,35 +14,17 @@ class WorkerCommands(Enum):
   ACK_EXIT = 3
   ACK_TASK = 4
 
-class FunctionalWorkerBase(mp.Process):
-  def __init__(self, settings, task_queue_in, task_queue_out, index):    
-    super(FunctionalWorkerBase, self).__init__()
+class FunctionalWorkerBase(WorkerBase):
+  def __init__(self, settings, index, task_queue_in, task_queue_out):
+    super(FunctionalWorkerBase, self).__init__(settings,index)
     self.index = index
     self.name = 'func_worker_{}'.format(index)
     self.settings = settings
     self.task_queue_in = task_queue_in
     self.task_queue_out = task_queue_out
 
-    self.logger = logging.getLogger('func_worker_{}'.format(index))
-    self.logger.setLevel(eval(self.settings['loglevel']))    
-    fh = logging.FileHandler('func_worker_{}.log'.format(index), mode='w')
-    fh.setLevel(logging.DEBUG)
-    self.logger.addHandler(fh)    
-
-  def init_proc(self):
-    set_proc_name(str.encode(self.name))
-    np.random.seed(int(time.time())+abs(hash(self.name)) % 1000)
-    torch.manual_seed(int(time.time())+abs(hash(self.name)) % 1000)
-    self.settings.hyperparameters['cuda']=False         # No CUDA in the worker processes
-
-
-  def run(self):
-    self.init_proc()
-    if self.settings['profiling']:
-      cProfile.runctx('self.run_loop()', globals(), locals(), 'prof_{}.prof'.format(self.name))
-    else:
-      self.run_loop()
-
+    self.logger = utils.get_logger(self.settings, 'func_worker_{}'.format(self.index), 
+                                    'logs/{}_{}.log'.format(log_name(self.settings), self.name))    
 
   def run_loop(self):
     while True:

@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import init as nn_init
 import torch.nn.functional as F
 import numpy as np
-import ipdb
+from IPython.core.debugger import Tracer
 
 
 import utils

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import time
-import ipdb
+from IPython.core.debugger import Tracer
 import gc
 import os
 import sys
@@ -63,7 +63,6 @@ class EnvTester:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 
   def test_envs(self, provider, model=None, ed=None, iters=10, **kwargs):
-    max_seconds = int(kwargs['max_seconds'])      
     self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, **kwargs)
     if model is not None:
       self.logger.info('Setting model at test time')

@@ -2,7 +2,7 @@
 
 import os
 import re
-import ipdb
+from IPython.core.debugger import Tracer
 import numpy as np
 from subprocess import Popen, PIPE, STDOUT
 
@@ -62,7 +62,7 @@ def extract_num_decisions(s):
 def eval_formula(maxvar,clauses,universals=set(), repetitions=1):
     # print(str(maxvar))
     # print(str(clauses))
-    # ipdb.set_trace()
+    # Tracer()()
 
     returncodes = []
     conflicts = []

@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import init as nn_init
 import torch.nn.functional as F
 import numpy as np
-import ipdb
+from IPython.core.debugger import Tracer
 
 import utils
 from qbf_data import *
@@ -70,7 +70,7 @@ class FactoredInnerIteration(nn.Module):
 		size = v.size(1)	# batch x num_vars
 		use_neg = self.settings['negate_type'] != 'minus'
 		if use_neg:
-			# ipdb.set_trace()
+			# Tracer()()
 			pos_vars, neg_vars = torch.bmm(c_block,v.expand(2,self.embedding_dim,size)).transpose(1,2)			
 			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
 				pos_cmat = kwargs['cmat_pos']
@@ -150,7 +150,7 @@ class WeightedNegInnerIteration(nn.Module):
 		c_mat = cmat_pos - cmat_neg
 		v_mat = c_mat.t()
 		vars_all = torch.mm(self.forward_backwards_block[0],v).t()
-		# ipdb.set_trace()
+		# Tracer()()
 		c = torch.mm(c_mat.float(),vars_all)	
 
 		c = self.non_linearity(c + self.cb.squeeze())		
@@ -159,7 +159,7 @@ class WeightedNegInnerIteration(nn.Module):
 		try:
 			nv = torch.mm(v_mat.float(),vars_all)	
 		except:
-			ipdb.set_trace()
+			Tracer()()
 			
 		v_emb = self.non_linearity(nv + self.vb.squeeze())		
 		v_emb = self.ground_combiner(ground_vars.view(-1,self.ground_dim),v_emb.view(-1,self.embedding_dim))		
@@ -219,7 +219,7 @@ class QbfEncoder(nn.Module):
 		nn_init.normal_(self.backwards_pos_neg)		
 					
 	# def expand_ground_to_state(self,v):
-	# 	# ipdb.set_trace()
+	# 	# Tracer()()
 	# 	dconst = self.expand_dim_const.expand(len(v),self.embedding_dim - self.ground_dim)
 	# 	return torch.cat([v,dconst],dim=1)
 	
@@ -237,7 +237,7 @@ class QbfEncoder(nn.Module):
 			assert(self.batch_size==size[0])		
 		f_vars = None
 		f_clauses = None
-		# ipdb.set_trace()
+		# Tracer()()
 		# v = self.expand_ground_to_state(ground_embeddings.view(-1,self.ground_dim)).view(1,-1).transpose(0,1)
 		v = expand_ground_to_state(ground_embeddings.view(-1,self.ground_dim)).view(1,-1).transpose(0,1)
 		variables = v.view(-1,self.embedding_dim*size[1],1)
@@ -335,7 +335,7 @@ class QbfNewEncoder(nn.Module):
 		size = vlabels.size()
 		bs = size[0]
 		maxvars = size[1]
-		# ipdb.set_trace()
+		# Tracer()()
 		pos_vars = vlabels
 		neg_vars = vlabels
 		vmat_pos = cmat_pos.t()
@@ -354,7 +354,7 @@ class QbfNewEncoder(nn.Module):
 				pv_t_pre = self.vnorm_layers[t](pv_t_pre.contiguous())
 				nv_t_pre = self.vnorm_layers[t](nv_t_pre.contiguous())			
 			# if bs>1:
-			# 	ipdb.set_trace()			
+			# 	Tracer()()			
 			pos_vars = torch.cat([pos_vars,pv_t_pre,nv_t_pre],dim=1)
 			neg_vars = torch.cat([neg_vars,nv_t_pre,pv_t_pre],dim=1)
 
@@ -451,7 +451,7 @@ class QbfFixedEncoder(nn.Module):
 				pv_t_pre = self.vnorm_layers(pv_t_pre.contiguous())
 				nv_t_pre = self.vnorm_layers(nv_t_pre.contiguous())			
 			# if bs>1:
-			# 	ipdb.set_trace()			
+			# 	Tracer()()			
 			pos_vars = torch.cat([pv_t_pre,nv_t_pre],dim=1)
 			neg_vars = torch.cat([nv_t_pre,pv_t_pre],dim=1)
 

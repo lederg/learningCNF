@@ -3,12 +3,12 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import time
-import ipdb
 import pickle
 import itertools
 import logging
 from collections import namedtuple
 from namedlist import namedlist
+from IPython.core.debugger import Tracer
 
 
 from cadet_env import *
@@ -279,7 +279,7 @@ class BalancedEpisodeProvider(AbstractEpisodeProvider):
         cat[k] = 0
       else:
         print('For bname {}'.format(bname))
-        ipdb.set_trace()
+        Tracer()()
 
     return BalancedEpisodeProvider(combined,cat=cat)
 

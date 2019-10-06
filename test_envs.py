@@ -1,5 +1,5 @@
 import argparse
-import ipdb
+from IPython.core.debugger import Tracer
 import time
 import json
 
@@ -99,7 +99,7 @@ def main():
   # settings.hyperparameters['debug']=True
 
 
-  # ipdb.set_trace()
+  # Tracer()()
   policy = PolicyFactory().create_policy(init_pyro=False)  
   policy.eval()
   ProviderClass = eval(settings['episode_provider'])
@@ -113,7 +113,7 @@ def main():
   tester = EnvTester(settings,"tester",model=policy)
   start_time = time.time()
   kwargs = {'cadet_test': args.vsids, 'random_test': args.random}
-  rc = tester.test_envs(provider,model=policy, iters=args.iterations, max_seconds=args.seconds, training=False, **kwargs)
+  rc = tester.test_envs(provider,model=policy, iters=args.iterations, training=False, **kwargs)
   end_time = time.time()
   print('Entire test took {} seconds'.format(end_time-start_time))
   if args.output:

@@ -8,7 +8,7 @@ import torch.optim as optim
 import utils
 import numpy as np
 from collections import namedtuple
-import ipdb
+from IPython.core.debugger import Tracer
 from settings import *
 from vbn import *
 from sat_env import *
@@ -87,7 +87,7 @@ class SatPolicy(PolicyBase):
     for i, (nl1, nl2) in enumerate(num_learned):
       cembs_processed.append(cembs[i,nl1:nl2,:])
     if 'do_debug' in kwargs:
-      ipdb.set_trace()
+      Tracer()()
     
     
     inputs = []
@@ -103,7 +103,7 @@ class SatPolicy(PolicyBase):
       inputs = torch.cat(cembs_processed,dim=0)
 
     # if self.batch_size > 1:
-    #   ipdb.set_trace()  
+    #   Tracer()()  
     if self.policy_dim2:      
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
@@ -118,7 +118,7 @@ class SatPolicy(PolicyBase):
       outputs = outputs[s:]
     assert(outputs.shape[0]==0)
     if any((x!=x).any() for x in outputs_processed):    # Check nans
-      ipdb.set_trace()
+      Tracer()()
     if size[0] > 1:
       mt4 = time.time()
     value = None
@@ -181,7 +181,7 @@ class SatPolicy(PolicyBase):
       logprobs.append(((1-locked)*pre_logprobs).sum())
     adv_t = returns
     value_loss = 0.
-    # ipdb.set_trace()
+    # Tracer()()
     logprobs = torch.stack(logprobs)
     # entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean())
@@ -231,7 +231,7 @@ class SatLinearPolicy(PolicyBase):
       clabels = clabels.cuda()
 
     num_learned = obs.ext_data
-    # ipdb.set_trace()
+    # Tracer()()
     inputs = clabels.view(-1,self.clabel_dim)
 
     # if size[0] > 1:
@@ -250,7 +250,7 @@ class SatLinearPolicy(PolicyBase):
 
     assert(outputs.shape[0]==0)    
     if any((x!=x).any() for x in outputs_processed):    # Check nans
-      ipdb.set_trace()
+      Tracer()()
     value = None
     return outputs_processed, value, clabels, aux_losses
 
@@ -293,7 +293,7 @@ class SatLinearPolicy(PolicyBase):
       pre_logprobs = probs.gather(1,action.view(-1,1)).log().view(-1)
       action_probs = ((1-locked)*pre_logprobs).sum()
       if (action_probs!=action_probs).any():
-        ipdb.set_trace()
+        Tracer()()
       logprobs.append(action_probs)
     adv_t = returns
     value_loss = 0.
@@ -367,10 +367,10 @@ class SatMiniLinearPolicy(PolicyBase):
       outputs_processed.append(outputs[nl1:nl2])
       outputs = outputs[size[1]:]
 
-    # ipdb.set_trace()
+    # Tracer()()
     assert(outputs.shape[0]==0)    
     if any((x!=x).any() for x in outputs_processed):    # Check nans
-      ipdb.set_trace()
+      Tracer()()
     value = None
     return outputs_processed, value, clabels, aux_losses
 
@@ -415,14 +415,14 @@ class SatMiniLinearPolicy(PolicyBase):
       pre_logprobs = all_action_probs.log().view(-1)
       action_probs = ((1-locked)*pre_logprobs).sum()
       if (action_probs!=action_probs).any():
-        ipdb.set_trace()
+        Tracer()()
       logprobs.append(action_probs)
     adv_t = returns
     value_loss = 0.
     logprobs = torch.stack(logprobs)
     # entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean())
-    # ipdb.set_trace()
+    # Tracer()()
     if self.settings['use_sum']:
       pg_loss = (-Variable(adv_t)*logprobs).sum()
     else:
@@ -459,7 +459,7 @@ class SatRandomPolicy(PolicyBase):
     locked = obs_batch.clabels[0,num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
     final_action = torch.max(action,locked)
 
-    # ipdb.set_trace()
+    # Tracer()()
     return final_action
 
   def compute_loss(self, transition_data):
@@ -497,10 +497,10 @@ class SatBernoulliPolicy(PolicyBase):
       outputs_processed.append(outputs[nl1:nl2])
       outputs = outputs[size[1]:]
 
-    # ipdb.set_trace()
+    # Tracer()()
     assert(outputs.shape[0]==0)    
     if any((x!=x).any() for x in outputs_processed):    # Check nans
-      ipdb.set_trace()
+      Tracer()()
     value = None
     return outputs_processed, value, clabels, aux_losses
 
@@ -527,7 +527,7 @@ class SatBernoulliPolicy(PolicyBase):
     locked = obs_batch.clabels[0,num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
     final_action = torch.max(action,locked)
 
-    # ipdb.set_trace()
+    # Tracer()()
     return final_action
 
   def compute_loss(self, transition_data):    
@@ -547,14 +547,14 @@ class SatBernoulliPolicy(PolicyBase):
       pre_logprobs = all_action_probs.log().view(-1)
       action_probs = ((1-locked)*pre_logprobs).sum()
       if (action_probs!=action_probs).any():
-        ipdb.set_trace()
+        Tracer()()
       logprobs.append(action_probs)
     adv_t = returns
     value_loss = 0.
     logprobs = torch.stack(logprobs)
     # entropies = (-probs*all_logprobs).sum(1)    
     adv_t = (adv_t - adv_t.mean())
-    # ipdb.set_trace()
+    # Tracer()()
     if self.settings['use_sum']:
       pg_loss = (-Variable(adv_t)*logprobs).sum()
     else:
@@ -636,7 +636,7 @@ class SatFixedThresholdPolicy(PolicyBase):
     pass
 
   def translate_action(self, action, obs, **kwargs):
-    # ipdb.set_trace()
+    # Tracer()()
     return action
 
   def combine_actions(self, actions, **kwargs):    
@@ -1101,7 +1101,7 @@ class SatThresholdStatePolicy(SCPolicyBase):
     assert(obs_batch.clabels.shape[0]==1)
     threshold, clabels = self.forward(obs_batch, **kwargs)
     if not training:
-      return [(threshold, clabels)]
+      return (threshold, clabels)
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()
     if self.settings['log_threshold']:      

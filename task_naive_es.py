@@ -1,4 +1,4 @@
-import ipdb
+from IPython.core.debugger import Tracer
 import time
 import torch
 
@@ -46,7 +46,7 @@ class NaiveEvolutionaryStrategy(ESPolicyBase):
 
 		return rc
 	def evolve(self, results):
-		ipdb.set_trace()
+		Tracer()()
 
 def naive_es_main():
 	system = NaiveEvolutionaryStrategy(settings)

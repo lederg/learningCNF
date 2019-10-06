@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import time
-import ipdb
+from IPython.core.debugger import Tracer
 import pickle
 import itertools
 import Pyro4

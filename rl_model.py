@@ -7,10 +7,9 @@ import torch.optim as optim
 import utils
 import numpy as np
 from collections import namedtuple
-import ipdb
-# import pdb
+from IPython.core.debugger import Tracer
 from qbf_data import *
-from batch_model import FactoredInnerIteration, GraphEmbedder
+# from batch_model import FactoredInnerIteration, GraphEmbedder
 from qbf_model import QbfEncoder, QbfNewEncoder, QbfAttention
 from settings import *
 
@@ -162,7 +161,7 @@ class DoublePolicy(nn.Module):
 			inputs = torch.cat([vs,ground_embeddings],dim=2).view(-1,self.embedding_dim+self.ground_dim)			
 
 		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs))))).view(self.batch_size,-1,2)
-		ipdb.set_trace()
+		Tracer()()
 		
 		
 		if self.settings['pre_bias']:
@@ -244,11 +243,11 @@ class NewDoublePolicy(nn.Module):
 			vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
 			vs = torch.cat([vs_pos,vs_neg])
 			if 'do_debug' in kwargs:
-				ipdb.set_trace()
+				Tracer()()
 
 		if self.settings['use_global_state']:
 			# if self.batch_size > 1:
-			# 	ipdb.set_trace()
+			# 	Tracer()()
 			a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
 			reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
 			inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
@@ -258,7 +257,7 @@ class NewDoublePolicy(nn.Module):
 		outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
 		outputs = outputs.view(2,self.batch_size,-1)
 		outputs = outputs.transpose(2,0).transpose(1,0)			# batch x numvars x pos-neg
-		# ipdb.set_trace()
+		# Tracer()()
 
 		if self.settings['pre_bias']:
 			missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])
@@ -294,7 +293,7 @@ class NewDoublePolicy(nn.Module):
 			vs_pos, vs_neg = self.encoder(ground_embeddings, clabels, cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
 			vs = torch.cat([vs_pos,vs_neg])
 			if 'do_debug' in kwargs:
-				ipdb.set_trace()
+				Tracer()()
 				
 
 		if self.settings['use_global_state']:
@@ -389,14 +388,14 @@ class AttnPolicy(nn.Module):
 			vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
 			vs = torch.cat([vs_pos,vs_neg])
 			if 'do_debug' in kwargs:
-				ipdb.set_trace()
+				Tracer()()
 		
 		if self.state_bn:
 			state = self.state_bn(state)
 
 		if self.settings['use_global_state']:
 			# if self.batch_size > 1:
-			# 	ipdb.set_trace()
+			# 	Tracer()()
 			a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
 			reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
 			inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
@@ -409,7 +408,7 @@ class AttnPolicy(nn.Module):
 			outputs = self.action_score(self.activation(self.linear1(inputs)))
 		outputs = outputs.view(2,self.batch_size,-1)
 		outputs = outputs.transpose(2,0).transpose(1,0)			# batch x numvars x pos-neg
-		# ipdb.set_trace()
+		# Tracer()()
 
 		if self.settings['pre_bias']:
 			missing = (1-ground_embeddings[:,:,IDX_VAR_UNIVERSAL])*(1-ground_embeddings[:,:,IDX_VAR_EXISTENTIAL])

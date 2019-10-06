@@ -2,7 +2,7 @@ from subprocess import Popen, PIPE, STDOUT
 from collections import deque
 from collections import namedtuple
 import select
-import ipdb
+from IPython.core.debugger import Tracer
 import time
 from settings import *
 from qbf_data import *
@@ -127,7 +127,7 @@ class CadetEnv:
     if self.debug:
       print('Starting Env {}'.format(fname))
     # if fname == 'data/huge_gen1/small-bug1-fixpoint-3.qdimacs':
-    #   ipdb.set_trace()
+    #   Tracer()()
     self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
     self.total_vars_deterministic = np.zeros(self.qbf.num_vars)    
@@ -156,7 +156,7 @@ class CadetEnv:
     #   if p:
     #     c = self.cadet_proc.stdout.read(1)
     #     if c == '\n':
-    #       # ipdb.set_trace()
+    #       # Tracer()()
     #       return line
     #     line += c
     #   else:
@@ -210,19 +210,19 @@ class CadetEnv:
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():
-            ipdb.set_trace()
+            Tracer()()
           else:
             self.rewards[-1]=BINARY_SUCCESS
         self.done = True
         state = None
         break
       elif False and a == 'SAT\n':
-        ipdb.set_trace()
+        Tracer()()
         a = self.read_line_with_timeout()     # rewards
         self.rewards = np.asarray(list(map(float,a.split()[1:])))                
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():
-            ipdb.set_trace()
+            Tracer()()
           else:
             self.rewards[-1]=BINARY_SUCCESS
         self.done = True
@@ -231,10 +231,10 @@ class CadetEnv:
       elif a.startswith('rewards') or a.startswith('SATrewards') or a.startswith('UNSATrewards'):
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
         if self.debug:
-          ipdb.set_trace()
+          Tracer()()
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():
-            ipdb.set_trace()
+            Tracer()()
           else:
             self.rewards[-1]=BINARY_SUCCESS
         self.done = True
@@ -289,7 +289,7 @@ class CadetEnv:
           # print(a)
         else:
           print('This version is too old')
-          ipdb.set_trace()
+          Tracer()()
           b = [int(x) for x in a[2:].split()]        
           
         # clause = (np.array([abs(x)-1 for x in b if x > 0]), np.array([abs(x)-1 for x in b if x < 0]))
@@ -309,7 +309,7 @@ class CadetEnv:
     # if self.timestep > 200:
     #   self.debug = True
     if sum(self.running_reward) < -1:
-      ipdb.set_trace()
+      Tracer()()
     if self.done:
       self.rewards = self.rewards + self.greedy_alpha*np.asarray(self.running_reward)
 
@@ -326,7 +326,7 @@ class CadetEnv:
     if not env_obs:
       return None
     if env_obs.clause or not last_obs:
-      # ipdb.set_trace()
+      # Tracer()()
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
     else:

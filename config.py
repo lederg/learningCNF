@@ -1,5 +1,4 @@
 import time
-import ipdb
 from utils import BaseMode
 from sacred import Experiment
 
@@ -134,6 +133,7 @@ def cfg():
 	use_curriculum = False
 	normalize_episodes = False
 	parallelism = 1
+	test_parallelism = 1
 	full_pipeline = False
 	packed = False
 	masked_softmax = True 					# This chooses actions only from allowed actions
@@ -142,7 +142,7 @@ def cfg():
 	use_state_in_vn = False	
 	rnn_iters = 0
 	learn_from_aborted = True
-	check_allowed_actions = True
+	check_allowed_actions = False
 	grad_norm_clipping = 2
 	pre_bias = False  # deprecate
 	disallowed_aux = False
@@ -154,12 +154,12 @@ def cfg():
 	report_tensorboard = True
 	report_window=5000
 	report_uniform=True
-	short_window=500
+	short_window=50
 	report_every = 100
 	mp=False
 	main_loop = 'pyro_main'
 	gpu_cap = 100
-	policy_layers = [1,'r']
+	policy_layers = [30,'r',1,'r']
 	policy_initializer = None
 	print_every = 0
 	vbn_init_fixed = False
@@ -174,7 +174,7 @@ def cfg():
 	report_last_envs = 10
 	uncache_after_batch = False
 	loglevel = 'logging.WARNING'
-	autodelete_degenerate = False
+	autodelete_degenerate = True
 	memory_cap=3000
 	vbn_window=5000
 	batch_size_threshold = 1.
@@ -201,7 +201,7 @@ def cfg():
 	sat_reduce_base = 2000
 	sat_rb_min = 1000
 	sat_rb_max = 4000	
-	minimum_episodes = 3
+	minimum_episodes = 2
 	do_lbd = False
 	sat_random_p = 0.5
 	disable_gnn = True 				# Note, disabled by default!!

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import time
-import ipdb
+from IPython.core.debugger import Tracer
 import os
 import sys
 import signal
@@ -174,7 +174,7 @@ class EpisodeManager(object):
       obs_batch = collate_observations(step_obs)
       prev_obs_batch = [collate_observations(x,replace_none=True, c_size=obs_batch.cmask.shape[1], v_size=obs_batch.vmask.shape[1]) for x in zip(*prev_obs)]
       if prev_obs_batch and prev_obs_batch[0].vmask is not None and prev_obs_batch[0].vmask.shape != obs_batch.vmask.shape:
-        ipdb.set_trace()
+        Tracer()()
     allowed_actions = model.get_allowed_actions(obs_batch,packed=self.packed) if self.check_allowed_actions else None
     actions = self.packed_select_action(obs_batch, model=model, **kwargs) if self.packed else self.select_action(obs_batch, model=model, prev_obs=prev_obs_batch, **kwargs)    
     for i, envnum in enumerate(active_envs):
@@ -215,7 +215,7 @@ class EpisodeManager(object):
             # Once for every episode going into completed_episodes, add it to stats
             self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
         else:        
-          ipdb.set_trace()
+          Tracer()()
       else:        
         break_env = False
         if self.max_seconds:
@@ -245,7 +245,7 @@ class EpisodeManager(object):
             for j,r in enumerate(env.rewards):
               envstr.episode_memory[j].reward = r
           except:
-            ipdb.set_trace()
+            Tracer()()
           print('Environment {} took too long, aborting it. reward is: {}'.format(envstr.fname, sum(env.rewards)))
           if self.reporter:
             self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.real_steps)          
@@ -302,7 +302,7 @@ class EpisodeManager(object):
       while i < len(pack_indices):
         choices = np.where(allowed[pack_indices[i]:pack_indices[i+1]].numpy())[0]
     
-      ipdb.set_trace()      
+      Tracer()()      
       for allowed in allowed_actions:
         choices = np.where(allowed.numpy())[0]
         actions.append(np.random.choice(choices))
@@ -369,7 +369,7 @@ class EpisodeManager(object):
               res = self.envs[i].end_time - self.envs[i].start_time
             else:
               res = sum([1 for x in ep])
-            # ipdb.set_trace()
+            # Tracer()()
           else:
             print('Env {} took too long on Solver #{}!'.format(fname,i))
             if max_seconds:

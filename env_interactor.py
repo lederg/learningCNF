@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import time
-import ipdb
+from IPython.core.debugger import Tracer
 import gc
 import os
 import sys
@@ -44,7 +44,6 @@ class EnvInteractor:
     self.drop_technical = self.settings['drop_abort_technical']    
     self.rnn_iters = self.settings['rnn_iters']
     self.restart_solver_every = self.settings['restart_solver_every']    
-    self.check_allowed_actions = self.settings['check_allowed_actions']
     self.envstr = MPEnvStruct(EnvFactory().create_env(oracletype=self.lmodel.get_oracletype()), 
         None, None, None, None, None, True, deque(maxlen=self.rnn_iters), time.time(), 0)
     self.reset_counter = 0
@@ -108,7 +107,7 @@ class EnvInteractor:
           # Once for every episode going into completed_episodes, add it to stats
           self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
       else:        
-        ipdb.set_trace()
+        Tracer()()
 
 # TODO: Move all of this into the environment, and just return Done.
 
@@ -138,7 +137,7 @@ class EnvInteractor:
           for j,r in enumerate(env.rewards):
             envstr.episode_memory[j].reward = r
         except:
-          ipdb.set_trace()
+          Tracer()()
         if break_crit == BREAK_CRIT_TECHNICAL and self.drop_technical:
           self.logger.info('Environment {} technically dropped.'.format(envstr.fname))          
           return True

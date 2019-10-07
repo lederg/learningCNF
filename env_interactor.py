@@ -30,7 +30,7 @@ MPEnvStruct = namedlist('EnvStruct',
 
 
 class EnvInteractor:
-  def __init__(self, settings, model, name, ed=None, reporter=None, **kwargs):
+  def __init__(self, settings, model, name, ed=None, reporter=None, logger=None, **kwargs):
     super(EnvInteractor, self).__init__()
     self.name = 'interactor_{}'.format(name)
     self.settings = settings    
@@ -52,8 +52,11 @@ class EnvInteractor:
     self.process = psutil.Process(os.getpid())    
     if self.settings['log_threshold']:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
-    self.logger = utils.get_logger(self.settings, 'EnvInteractor-{}'.format(self.name), 
+    if logger is None:
+      self.logger = utils.get_logger(self.settings, 'EnvInteractor-{}'.format(self.name), 
                                     'logs/{}_{}.log'.format(log_name(self.settings), self.name))    
+    else: 
+      self.logger = logger
     self.lmodel.logger = self.logger
 
 # This discards everything from the old env

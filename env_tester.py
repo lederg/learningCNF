@@ -67,12 +67,12 @@ class EnvTester:
       self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
 
   def test_envs(self, provider, model=None, ed=None, iters=10, **kwargs):
-    self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, **kwargs)
+    self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, logger=self.logger, **kwargs)
     if model is not None:
       self.logger.info('Setting model at test time')
       self.lmodel = model
       self.interactor.lmodel = model
-    print('Testing {} envs..\n'.format(provider.get_total()))
+    self.logger.info('Testing {} envs..\n'.format(provider.get_total()))
     all_episode_files = provider.items
     totals = 0.
     total_srate = 0.
@@ -88,7 +88,7 @@ class EnvTester:
         rc[fname] = []
       self.logger.debug('Starting {}'.format(fname))
       episode_length, finished = self.interactor.run_episode(fname, **kwargs)
-      print('Finished {}'.format(fname))
+      self.logger.info('Finished {}'.format(fname))
       if episode_length == 0:
         rc[fname].append(TestResultStruct(0.,0,0.,True))
         continue

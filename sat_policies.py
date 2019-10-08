@@ -1187,6 +1187,8 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     logits, clabels = self.forward(obs_batch, **kwargs)
+    if not training:
+      return (int(torch.argmax(logits.view(-1))), clabels)
     probs = F.softmax(logits.view(-1),dim=0)
     dist = probs.data.cpu().numpy()
     choices = np.arange(len(dist))

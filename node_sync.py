@@ -18,7 +18,7 @@ class NodeSync(object):
       self.settings = CnfSettings()    
     # self.settings.ns = Pyro4.locateNS(host=self.settings['pyro_host'], port=self.settings['pyro_port'])    
     self.curr_lr = self.settings['init_lr']
-    self.gmodel = PolicyFactory().create_policy(is_global_model=True)
+    self.gmodel = PolicyFactory().create_policy(is_global_model=True, init_pyro=True)
     self.gmodel.share_memory()
     self.optimizer = SharedAdam(filter(lambda p: p.requires_grad, self.gmodel.parameters()), lr=self.curr_lr)    
     self._g_steps = 0

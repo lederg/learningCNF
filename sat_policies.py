@@ -1071,10 +1071,10 @@ class SatThresholdStatePolicy(SCPolicyBase):
   def input_dim(self):
     return self.settings['state_dim']
 
-  def forward(self, obs, **kwargs):
+  def forward(self, obs, log_threshold=False, **kwargs):
     state, clabels = super(SatThresholdStatePolicy, self).forward(obs, **kwargs)
     threshold = self.policy_layers(state) * self.threshold_scale
-    if every_tick(20):
+    if every_tick(20) or log_threshold:
       self.logger.debug('Threshold before sampling: {}'.format(threshold))
 
     return threshold, clabels
@@ -1161,7 +1161,6 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatDiscreteThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
 
-
   def input_dim(self):
     return self.settings['state_dim']
 
@@ -1173,6 +1172,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
 
   def translate_action(self, action, obs, **kwargs):
     threshold, clabels = action
+    threshold += 2    # [2,3,...]
     # print('Threshold is {}'.format(threshold))
     rc = clabels[:,CLABEL_LBD] < threshold
     a = rc.detach()
@@ -1184,17 +1184,20 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     return final_action
 
   def select_action(self, obs_batch, training=True, **kwargs):
+    obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     logits, clabels = self.forward(obs_batch, **kwargs)
-    probs = F.softmax(logits.view(-1))
+    probs = F.softmax(logits.view(-1),dim=0)
     dist = probs.data.cpu().numpy()
-    choices = np.arange(len(dist))+2
-
-
-    return [(sampled_threshold, clabels)]
+    choices = np.arange(len(dist))
+    action = np.random.choice(choices, p=dist)    
+    return (action, clabels)
 
   def get_logprobs(self, outputs, collated_batch):    
-    actions = collated_batch.action
-    actions = torch.cat([a[0] for a in actions]).view(-1)
-    threshold = outputs.view(-1)
-    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1)    
+    actions = self.settings.LongTensor(np.array([a[0] for a in collated_batch.action]))
+    logits = outputs
+    probs = F.softmax(logits, dim=1)
+    all_logprobs = safe_logprobs(probs)
+    logprobs = all_logprobs.gather(1,actions.view(-1,1)).squeeze()
+    return logprobs
+

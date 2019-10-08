@@ -257,7 +257,6 @@ def pyro_main():
         val = EnvTester.Rewards(rc).mean()
         reporter.add_whatever(i,'Test {}'.format(settings['rl_test_data']),val)
       except Exception as e:
-        print(e)
         pass
       if settings['rl_decay']:
         new_lr = lr_schedule.value(gsteps)

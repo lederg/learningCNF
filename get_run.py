@@ -2,7 +2,7 @@ from pymongo import MongoClient
 import argparse
 import re
 import sys
-import ipdb
+from IPython.core.debugger import Tracer
 from pprint import pprint
 from config import *
 from settings import *

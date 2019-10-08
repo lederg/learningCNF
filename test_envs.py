@@ -42,6 +42,7 @@ def main():
   parser.add_argument('-f', '--file', type=str, default='', help='Load settings from config file') 
   parser.add_argument('-o', '--output', type=str, default='', help='Output file name')    
   parser.add_argument('-r', '--random', action='store_true', default=False, help='Random test') 
+  parser.add_argument('--deterministic', action='store_true', default=False, help='Run deterministically') 
   parser.add_argument('-v', '--vsids', action='store_true', default=False, help='VSIDS test') 
   parser.add_argument('-p', '--parallelism', type=int, default=1, help='Use # processes') 
   parser.add_argument('-i', '--iterations', type=int, default=10, help='Average # iterations per formula') 
@@ -105,7 +106,6 @@ def main():
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(testdir)  
   
-  settings.formula_cache = FormulaCache()
   if settings['preload_formulas']:
     settings.formula_cache.load_files(provider.items)  
 

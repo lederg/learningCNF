@@ -108,7 +108,7 @@ class MovingAverageAndStdVBN(AbstractVBN):
     self.effective_std.data = self.moving_std[:self.total_length].mean(dim=0)
 
 class NodeAverageAndStdVBN(AbstractVBN):
-  def __init__(self, size, name, is_global_model=False, init_pyro=True, **kwargs):
+  def __init__(self, size, name, is_global_model=False, init_pyro=False, **kwargs):
     super(NodeAverageAndStdVBN,self).__init__(size)
     self.init_pyro = init_pyro
     if init_pyro:    

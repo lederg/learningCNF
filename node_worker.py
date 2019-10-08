@@ -56,7 +56,7 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
     super(NodeWorker, self).init_proc(**kwargs)
     self.node_sync = Pyro4.core.Proxy("PYRONAME:{}.node_sync".format(self.settings['pyro_name'])) 
     self.reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(self.settings['pyro_name']))
-    self.trainer = EnvTrainer(self.settings, self.provider, self.index, self, reporter=self.reporter, **kwargs)
+    self.trainer = EnvTrainer(self.settings, self.provider, self.index, self, reporter=self.reporter, init_pyro=True, **kwargs)
     global_params = self.trainer.lmodel.state_dict()
     self.logger.debug('Got randint {}'.format(np.random.randint(100)))
     for k in global_params.keys():

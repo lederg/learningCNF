@@ -1183,7 +1183,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
 
     return final_action
 
-  def select_action(self, obs_batch, training=True, **kwargs):
+  def select_action(self, obs_batch, training=True, log_threshold=False, **kwargs):
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     logits, clabels = self.forward(obs_batch, **kwargs)
@@ -1191,6 +1191,10 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     dist = probs.data.cpu().numpy()
     choices = np.arange(len(dist))
     action = np.random.choice(choices, p=dist)    
+    if every_tick(20) or log_threshold:
+      self.logger.info('Logits are: {}'.format(logits))
+      self.logger.info('Threshold is {}'.format(action+2))
+
     return (action, clabels)
 
   def get_logprobs(self, outputs, collated_batch):    

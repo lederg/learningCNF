@@ -794,10 +794,12 @@ class SCPolicyBase(PolicyBase):
     adv_t = returns
     value_loss = 0.
     adv_t = (adv_t - adv_t.mean())
+    pg_loss = (-adv_t*logprobs)
+    loss = pg_loss - self.entropy_alpha*entropy
     if self.settings['use_sum']:
-      pg_loss = (-adv_t*logprobs).sum()
+      total_loss = loss.sum()
     else:
-      pg_loss = (-adv_t*logprobs).mean()
+      total_loss = loss.mean()
 
     # Recompute moving averages
 
@@ -807,8 +809,8 @@ class SCPolicyBase(PolicyBase):
       z = collated_batch.state.clabels.detach().view(-1,6)
       self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))
 
-    loss = pg_loss - self.entropy_alpha*entropy
-    return loss, outputs
+    
+    return total_loss, outputs
 
 
 class SatMiniHyperPlanePolicy(SCPolicyBase):
@@ -1204,7 +1206,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     logits = outputs
     probs = F.softmax(logits, dim=1)
     all_logprobs = safe_logprobs(probs)
-    entropy = -(probs*all_logprobs).sum(dim=1).mean()
+    entropy = -(probs*all_logprobs).sum(dim=1)
     logprobs = all_logprobs.gather(1,actions.view(-1,1)).squeeze()
     return logprobs, entropy
 

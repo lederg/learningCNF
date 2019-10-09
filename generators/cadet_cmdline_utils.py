@@ -26,58 +26,101 @@ def extract_num_decisions(s):
         return 0
 
 
-def eval_formula(formula, repetitions=1, decision_limit=0):
-    assert isinstance(formula, str)
-    assert isinstance(decision_limit, int)
+def _ignore_output(p):
+    # p.wait()
+    # print(p.poll())
+    # print('Poll end')
+    for line in p.stdout:
+        # print(line[:-1])
+        newfile = line == 'Enter new filename:\n'
+        if line.startswith('s ') or newfile:
+            return newfile
 
-    returncodes = []
-    conflicts = []
-    decisions = []
+    # while True:
+    #     out = p.stdout.readline()
+    #     print(out)
+    #     if not out:
+    #         break
 
-    f = tempfile.NamedTemporaryFile()
-    f.write(formula.encode())
-    f.seek(0)
+def _rl_interaction(cmd, filename):
+    p = Popen(cmd, stdout=PIPE, stdin=PIPE, universal_newlines=True, bufsize=1)
 
-    for _ in range(repetitions):
-        tool = ['./cadet','-v','1',
-        # tool = ['./../../cadet/dev/cadet','-v','1',
-                '--debugging',
-                '--cegar_soft_conflict_limit',
-                '-l', f'{decision_limit}',
-                '--sat_by_qbf',
-                '--random_decisions',
-                '--fresh_seed',
-                f.name]
-        p = Popen(tool, stdout=PIPE, stdin=PIPE)
-        stdout, stderr = p.communicate()
+    _ignore_output(p)
+    # print('writing ' + f'{filename}')
+    p.stdin.write(f'{filename}\n')
+    # print('Written!')
+    i = 0
+    while not _ignore_output(p):
+        i += 1
+        p.stdin.write('?\n')
+    p.terminate()
+    print(f'Terminated after {i} steps')
+    return 30, None, i
 
-        if p.returncode not in [10, 20, 30]:
-            print(stdout)
-            print(stderr)
-            quit()
-        # print('  ' + str(p.returncode))
-        # print('  ' + str(stdout))
-        # print('  ' + str(stderr))
-        
-        # print('  Maxvar: ' + str(maxvar))
-        # print('  Conflicts: ' + str(extract_num_conflicts(stdout)))
-        if p.returncode == 30:
-            f.close()
-            return 30, 0.0, 0.0
-        returncodes.append(p.returncode)
-        conflicts.append(extract_num_conflicts(stdout))
+
+def eval_formula(filename,
+                 decision_limit=None, 
+                 soft_decision_limit=False,
+                 VSIDS=False,
+                 fresh_seed=False, 
+                 CEGAR=False,
+                 RL=False,
+                 debugging=True,
+                 projection=False,
+                 cadet_path=None
+                 ):
+    assert isinstance(filename, str)
+
+    if cadet_path is None:
+        # cadet_path = './../../cadet/dev/cadet'
+        cadet_path = './../cadet'
+
+    cmd = [cadet_path, '-v', '1', '--sat_by_qbf']
+    if debugging:
+        cmd += ['--debugging']
+    if decision_limit != None:
+        cmd += ['-l', f'{decision_limit}']
+    if soft_decision_limit:
+        cmd += ['--cegar_soft_conflict_limit']
+    if CEGAR:
+        cmd += ['--cegar']
+    if not VSIDS:
+        cmd += ['--random_decisions']
+    if fresh_seed:
+        cmd += ['--fresh_seed']
+    if projection:
+        cmd += ['-e', 'elim.aag']
+
+    if RL:
+        cmd += ['--rl']
+    else:
+        cmd += [filename]
+
+    if RL:
+        return _rl_interaction(cmd, filename)
+
+    p = Popen(cmd, stdout=PIPE, stdin=PIPE)
+    stdout, stderr = p.communicate()
+
+    if p.returncode not in [10, 20, 30]:
+        print(f'Command: {cmd}')
+        print(stdout)
+        print(stderr)
+        return None, None, None
+
+    if p.returncode is 30:
+        conflicts = None
+        num_decisions = decision_limit
+    else:
+        conflicts = extract_num_conflicts(stdout)
         num_decisions = extract_num_decisions(stdout)
-        decisions.append(num_decisions)
 
-        if decision_limit != 0 and num_decisions > decision_limit:
-            print('Error: decision limit was violated')
-            print(formula)
-            print(' '.join(tool))
-            print(stdout)
-            quit()
+    if decision_limit != None and num_decisions > decision_limit:
+        print('Error: decision limit was violated')
+        print(formula)
+        print(' '.join(cmd))
+        print(stdout)
+        quit()
 
-    f.close()
-
-    assert all(x == returncodes[0] for x in returncodes)
-    return returncodes[0], np.mean(conflicts), np.mean(decisions)
+    return p.returncode, conflicts, num_decisions
 

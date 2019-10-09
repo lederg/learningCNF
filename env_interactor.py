@@ -101,6 +101,7 @@ class EnvInteractor:
       for j,r in enumerate(env.rewards):
         envstr.episode_memory[j].reward = r
       self.completed_episodes.append(envstr.episode_memory)
+      # Tracer()()
       envstr.last_obs = None      # This will mark the env to reset with a new formula
       envstr.end_time = time.time()
       if env.finished:

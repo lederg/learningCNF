@@ -16,6 +16,7 @@ from sat_encoders import *
 from policy_base import *
 from rl_utils import *
 from tick_utils import *
+from torch.distributions import Categorical
 from torch.distributions.normal import Normal
 from torch.distributions.multivariate_normal import MultivariateNormal
 
@@ -704,7 +705,7 @@ class SatFreeThresholdPolicy(PolicyBase):
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions]).view(-1)
     threshold = outputs.view(-1)
-    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1)    
+    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1), 0
 
   def compute_loss(self, transition_data, **kwargs):    
     collated_batch = collate_transitions(transition_data,self.settings)
@@ -728,6 +729,7 @@ class SCPolicyBase(PolicyBase):
   def __init__(self, **kwargs):
     super(SCPolicyBase, self).__init__(**kwargs)
     self.snorm_window = self.settings['vbn_window']
+    self.entropy_alpha = self.settings['entropy_alpha']
     # self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
       # self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
@@ -788,7 +790,7 @@ class SCPolicyBase(PolicyBase):
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
     outputs, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)    
-    logprobs = self.get_logprobs(outputs, collated_batch)
+    logprobs, entropy = self.get_logprobs(outputs, collated_batch)
     adv_t = returns
     value_loss = 0.
     adv_t = (adv_t - adv_t.mean())
@@ -805,7 +807,7 @@ class SCPolicyBase(PolicyBase):
       z = collated_batch.state.clabels.detach().view(-1,6)
       self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))
 
-    loss = pg_loss
+    loss = pg_loss - self.entropy_alpha*entropy
     return loss, outputs
 
 
@@ -857,7 +859,7 @@ class SatMiniHyperPlanePolicy(SCPolicyBase):
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions])    
-    return gaussian_logprobs(outputs,self.sigma,actions)
+    return gaussian_logprobs(outputs,self.sigma,actions), 0
 
 class SatMini2HyperPlanePolicy(SCPolicyBase):
   def __init__(self, **kwargs):
@@ -909,7 +911,7 @@ class SatMini2HyperPlanePolicy(SCPolicyBase):
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions])    
-    return gaussian_logprobs(outputs,self.sigma,actions)
+    return gaussian_logprobs(outputs,self.sigma,actions), 0
 
 
 class SatMini3HyperPlanePolicy(SCPolicyBase):
@@ -959,7 +961,7 @@ class SatMini3HyperPlanePolicy(SCPolicyBase):
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions])    
-    return gaussian_logprobs(outputs,self.sigma,actions)
+    return gaussian_logprobs(outputs,self.sigma,actions), 0
 
 
 
@@ -1112,7 +1114,7 @@ class SatThresholdStatePolicy(SCPolicyBase):
     actions = collated_batch.action
     actions = torch.cat([a[0] for a in actions]).view(-1)
     threshold = outputs.view(-1)
-    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1)    
+    return gaussian_logprobs(threshold.view(-1,1),self.sigma.view(1),actions.view(-1,1)).view(-1), 0
 
 class SatPercentagePolicy(SCPolicyBase):
   def __init__(self, **kwargs):
@@ -1174,7 +1176,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     threshold, clabels = action
     threshold += 2    # [2,3,...]
     # print('Threshold is {}'.format(threshold))
-    rc = clabels[:,CLABEL_LBD] < threshold
+    rc = clabels[:,CLABEL_LBD] < float(threshold)
     a = rc.detach()
     num_learned = obs.ext_data
     locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
@@ -1189,10 +1191,8 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     logits, clabels = self.forward(obs_batch, **kwargs)
     if not training:
       return (int(torch.argmax(logits.view(-1))), clabels)
-    probs = F.softmax(logits.view(-1),dim=0)
-    dist = probs.data.cpu().numpy()
-    choices = np.arange(len(dist))
-    action = np.random.choice(choices, p=dist)    
+    self.m = Categorical(logits=logits.view(-1))
+    action=int(self.m.sample().detach())    
     if every_tick(20) or log_threshold:
       self.logger.info('Logits are: {}'.format(logits))
       self.logger.info('Threshold is {}'.format(action+2))
@@ -1204,6 +1204,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     logits = outputs
     probs = F.softmax(logits, dim=1)
     all_logprobs = safe_logprobs(probs)
+    entropy = -(probs*all_logprobs).sum(dim=1).mean()
     logprobs = all_logprobs.gather(1,actions.view(-1,1)).squeeze()
-    return logprobs
+    return logprobs, entropy
 

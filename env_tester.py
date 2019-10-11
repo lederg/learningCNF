@@ -87,7 +87,7 @@ class EnvTester:
       if fname not in rc.keys():
         rc[fname] = []
       self.logger.debug('Starting {}'.format(fname))
-      episode_length, finished, stats = self.interactor.run_episode(fname, **kwargs)
+      episode_length, finished = self.interactor.run_episode(fname, **kwargs)
       self.logger.info('Finished {}'.format(fname))
       if episode_length == 0:
         rc[fname].append(TestResultStruct(0.,0,0.,True))

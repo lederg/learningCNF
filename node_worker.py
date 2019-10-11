@@ -62,8 +62,6 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
     for k in global_params.keys():
       if any([x in k for x in self.settings['l2g_whitelist']]):
         self.whitelisted_keys.append(k)    
-
-
     
   def run_loop(self):
     clock = GlobalTick()

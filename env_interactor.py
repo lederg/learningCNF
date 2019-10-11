@@ -85,91 +85,80 @@ class EnvInteractor:
       self.envstr.prev_obs.append(None)
     return self.envstr.last_obs
 
-# Assumes last observation in self.envstr.last_obs
 
-  def step(self, **kwargs):
+# This internal implementation method computes all the episode breaking logic. This should move, at least partially, 
+# to the env.
+
+  def check_break(self):
+    break_env = False
+    break_crit = BREAK_CRIT_LOGICAL
     envstr = self.envstr
     env = envstr.env
+    if self.max_seconds:
+      if (time.time()-envstr.start_time) > self.max_seconds:
+        self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
+        break_env=True
+    elif self.sat_min_reward:        
+      if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
+        break_env=True
+    if self.max_step:
+      if envstr.curr_step > self.max_step:
+        break_env=True
+        break_crit = BREAK_CRIT_TECHNICAL
 
-    action = self.lmodel.select_action(envstr.last_obs, **kwargs)
-    envstr.episode_memory.append(Transition(envstr.last_obs,action,None, None, envstr.env_id, envstr.prev_obs))
-    env_obs = envstr.env.step(self.lmodel.translate_action(action, envstr.last_obs))
-    done = env_obs.done
+    return break_env, break_crit
+
+# Assumes last observation in self.envstr.last_obs
+
+  def step(self, obs, **kwargs):
+    envstr = self.envstr
+    env = envstr.env
+    break_env = False
+    break_crit = BREAK_CRIT_LOGICAL
+
+    action = self.lmodel.select_action(obs, **kwargs)
+    envstr.episode_memory.append(Transition(obs,action,None, None, envstr.env_id, envstr.prev_obs))
+    next_obs = envstr.env.step(self.lmodel.translate_action(action, obs))
+    done = next_obs.done
     self.total_steps += 1
     envstr.curr_step += 1
-    if done:
-      for j,r in enumerate(env.rewards):
-        envstr.episode_memory[j].reward = r
-      self.completed_episodes.append(envstr.episode_memory)
-      # Tracer()()
-      envstr.last_obs = None      # This will mark the env to reset with a new formula
-      envstr.end_time = time.time()
-      if env.finished:
-        if self.reporter is not None:
-          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.total_steps)
-        if self.ed is not None:
-          # Once for every episode going into completed_episodes, add it to stats
-          self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards))) 
-      else:        
-        Tracer()()
+    envstr.prev_obs.append(next_obs)
+    if not done:
+      envstr.last_obs = env.process_observation(envstr.last_obs,next_obs)
 
-# TODO: Move all of this into the environment, and just return Done.
-
-    else:
-      break_env = False
-      break_crit = BREAK_CRIT_LOGICAL
-      if self.max_seconds:
-        if (time.time()-envstr.start_time) > self.max_seconds:
-          self.logger.info('Env {} took {} seconds, breaking!'.format(envstr.fname, time.time()-envstr.start_time))
-          break_env=True
-      elif self.sat_min_reward:        
-        if env.rewards is not None and sum(env.rewards) < self.sat_min_reward:
-          break_env=True
-      if self.max_step:
-        if envstr.curr_step > self.max_step:
-          break_env=True
-          break_crit = BREAK_CRIT_TECHNICAL
-      if break_env:
-        envstr.last_obs = None
-        envstr.end_time = time.time()
-        try:
-          # We set the entire reward to zero all along
-          if not env.rewards:
-            env.rewards = [0.]*len(envstr.episode_memory)          
-          self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
-          env.rewards = [0.]*len(envstr.episode_memory)            
-          for j,r in enumerate(env.rewards):
-            envstr.episode_memory[j].reward = r
-        except:
-          Tracer()()
-        if break_crit == BREAK_CRIT_TECHNICAL and self.drop_technical:
-          self.logger.info('Environment {} technically dropped.'.format(envstr.fname))          
-          return True
-        if self.reporter:
-          self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.total_steps)          
-        if self.ed:
-          if 'testing' not in kwargs or not kwargs['testing']:
-            self.ed.ed_add_stat(envstr.fname, (len(envstr.episode_memory), sum(env.rewards)))
-        if self.settings['learn_from_aborted']:
-          self.completed_episodes.append(envstr.episode_memory)
-        return True        
-
-      envstr.prev_obs.append(envstr.last_obs)
-      envstr.last_obs = env.process_observation(envstr.last_obs,env_obs)
-
-    return done
+    return self.envstr.last_obs, None, done
 
   def run_episode(self, fname, **kwargs):
+    envstr = self.envstr
+    env = envstr.env
     self.lmodel.eval()
     obs = self.reset_env(fname)
     if not obs:   # degenerate episode, return 0 actions taken. TODO - delete degenerate episodes
       return 0, False
-    rc = False
+    done = False
     i = 0
-    while not rc:
-      rc = self.step(**kwargs)
+    while not done:
+      obs, _, done = self.step(obs, **kwargs)
       i += 1
-    
+      break_env, break_crit = self.check_break()
+      if break_env:
+        break
+    envstr.end_time = time.time()
+    if not envstr.env.finished:     # This is an episode where the environment did not finish on its own behalf.
+      if env.rewards:
+        self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
+      else:
+        self.logger.info('Environment {} took too long, aborting it.'.format(envstr.fname))            
+      env.rewards = [0.]*len(envstr.episode_memory)
+      if break_crit == BREAK_CRIT_TECHNICAL and self.drop_technical:
+        self.logger.info('Environment {} technically dropped.'.format(envstr.fname))
+        return 0,False
+    for j,r in enumerate(env.rewards):
+      envstr.episode_memory[j].reward = r      
+    if envstr.env.finished or self.settings['learn_from_aborted']:
+      self.completed_episodes.append(envstr.episode_memory)
+    if self.reporter is not None:
+      self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.total_steps)
     return i, self.envstr.env.finished
 
   def run_batch(self, *args, batch_size=0, **kwargs):

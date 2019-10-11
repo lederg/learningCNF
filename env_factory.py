@@ -6,6 +6,7 @@ from settings import *
 from cadet_env import CadetEnv
 from sat_env import *
 from function_env import *
+from empty_env import *
 
 class EnvFactory:
   def __init__(self, settings=None, **kwargs):
@@ -27,6 +28,8 @@ class EnvFactory:
       return satserv.proxy()
     elif envtype == 'function':
       return FunctionEnv(**kwargs)
+    elif envtype == 'empty':
+      return EmptyEnv(**kwargs)
 
     else:
       log.error('Unknown env type: {}'.format(envtype))

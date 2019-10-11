@@ -152,13 +152,11 @@ class EnvInteractor:
       env.rewards = [0.]*len(envstr.episode_memory)
       if break_crit == BREAK_CRIT_TECHNICAL and self.drop_technical:
         self.logger.info('Environment {} technically dropped.'.format(envstr.fname))
-        return 0,False
+        return 0, False, None
     for j,r in enumerate(env.rewards):
       envstr.episode_memory[j].reward = r      
     if envstr.env.finished or self.settings['learn_from_aborted']:
-      self.completed_episodes.append(envstr.episode_memory)
-    if self.reporter is not None:
-      self.reporter.add_stat(envstr.env_id,len(envstr.episode_memory),sum(env.rewards), 0, self.total_steps)
+      self.completed_episodes.append(envstr.episode_memory)      
     return i, self.envstr.env.finished
 
   def run_batch(self, *args, batch_size=0, **kwargs):
@@ -167,11 +165,18 @@ class EnvInteractor:
 
     total_length = 0
     total_episodes = 0
+    batch_stats = []
     for i in range(batch_size):
       episode_length, _ = self.run_episode(*args, **kwargs)
       total_length += episode_length
       if episode_length != 0:
         total_episodes += 1
+        stats = (self.envstr.env_id,len(self.envstr.episode_memory),sum(self.envstr.env.rewards), 0, self.total_steps)
+        batch_stats.append(stats)
+
+    if self.reporter is not None:
+      self.reporter.add_stats(batch_stats)
+
     return total_length, total_episodes
 
   def collect_batch(self, *args, **kwargs):

@@ -101,6 +101,10 @@ class PGEpisodeReporter(SPReporter):
     # Add entropy as well     
     self.stats_dict[env_id] = self.stats_dict[env_id] + [(steps, reward, entropy)]
 
+  def add_stats(self, all_stats):
+    for stat in all_stats:
+      self.add_stat(*stat)
+
   def add_whatever(self, steps, name, val):
     if name not in self.whatever.keys():
       self.whatever[name] = []

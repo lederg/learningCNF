@@ -253,8 +253,8 @@ def pyro_main():
 # At some point a test returns its result on ack_queue, and if that happens we report it here        
       try:
         ack,(steps, rc), i = ack_queue.get_nowait()
-        logger.info('Test finished, got cookie {}'.format(i))
         val = EnvTester.Rewards(rc).mean()
+        logger.info('Test finished, got cookie {}, total reward {}'.format(i,val))
         reporter.add_whatever(i,'Test {}'.format(settings['rl_test_data']),val)
       except Exception as e:
         pass

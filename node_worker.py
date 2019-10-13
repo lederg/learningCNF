@@ -29,7 +29,6 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
     super(NodeWorker, self).__init__(settings, name, **kwargs)
     self.index = name
     self.name = 'NodeWorker%i' % name
-    self.is_training = (not self.settings['do_not_learn'])
     self.training_steps = self.settings['training_steps']    
     self.dispatcher = ObserverDispatcher()
     self.provider = provider
@@ -72,7 +71,7 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
     while global_steps < self.training_steps:
       clock.tick()
       self.dispatcher.notify('new_batch')
-      num_env_steps, num_episodes = self.trainer.train_step(training=self.is_training, **self.kwargs)
+      num_env_steps, num_episodes = self.trainer.train_step(**self.kwargs)
       total_step += 1
       if total_step % SYNC_STATS_EVERY == 0:      
         self.node_sync.mod_g_grad_steps(SYNC_STATS_EVERY)

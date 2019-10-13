@@ -7,7 +7,7 @@ import inspect
 import tempfile
 import git
 from IPython.core.debugger import Tracer
-
+import ipdb
 from random import randint, seed
 from aigerbv.aigbv import AIGBV
 from aigerbv.expr import SignedBVExpr, atom
@@ -190,6 +190,7 @@ def main():
 
         try:
             e = random_circuit(args.expr_size)
+            ipdb.set_trace()
         except Exception as e:
             print('Got an exception when creating!')
             print(e)
@@ -257,6 +258,7 @@ def main():
             print('    Found a good formula! Decisions'
                   f' {decisions}; {result_string}')
 
+            ipdb.set_trace()
             filedir = f'{args.directory}/{args.file_prefix}{num_generated}.{file_extension}'
 
             textfile = open(filedir, "w")

@@ -37,7 +37,6 @@ class SingleProcessTrainer(IEnvTrainerHook):
     self.SAVE_EVERY = 500
     self.TEST_EVERY = self.settings['test_every']
     self.REPORT_EVERY = self.settings['report_every']
-    self.is_training=not self.settings['do_not_learn']
     self.reporter = PGEpisodeReporter("{}/{}".format(self.settings['rl_log_dir'], log_name(self.settings)), self.settings, tensorboard=self.settings['report_tensorboard'])    
     self.training_steps = self.settings['training_steps']        
     self.dispatcher = ObserverDispatcher()
@@ -65,7 +64,7 @@ class SingleProcessTrainer(IEnvTrainerHook):
     for i in range(self.training_steps):
       clock.tick()
       self.dispatcher.notify('new_batch')
-      num_env_steps, num_episodes = self.trainer.train_step(training=self.is_training)
+      num_env_steps, num_episodes = self.trainer.train_step()
 
 
       if not (i % self.REPORT_EVERY) and i>0:

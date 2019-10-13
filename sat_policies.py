@@ -1187,11 +1187,11 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
 
     return final_action
 
-  def select_action(self, obs_batch, training=True, log_threshold=False, **kwargs):
+  def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     logits, clabels = self.forward(obs_batch, **kwargs)
-    if not training:
+    if deterministic:
       return (int(torch.argmax(logits.view(-1))), clabels)
     self.m = Categorical(logits=logits.view(-1))
     action=int(self.m.sample().detach())    

@@ -113,7 +113,7 @@ def main():
   tester = EnvTester(settings,"tester",model=policy)
   start_time = time.time()
   kwargs = {'cadet_test': args.vsids, 'random_test': args.random}
-  rc = tester.test_envs(provider,model=policy, iters=args.iterations, training=False, **kwargs)
+  rc = tester.test_envs(provider,model=policy, iters=args.iterations, deterministic=args.deterministic, **kwargs)
   end_time = time.time()
   print('Entire test took {} seconds'.format(end_time-start_time))
   if args.output:

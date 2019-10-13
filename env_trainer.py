@@ -93,7 +93,7 @@ class EnvTrainer:
     begin_time = time.time()
     curr_formula = self.provider.get_next()
     total_episodes = 0
-    eps, ns = self.interactor.collect_batch(curr_formula, **kwargs)   # training is in kwargs
+    eps, ns = self.interactor.collect_batch(curr_formula, deterministic=False, **kwargs)   # training is in kwargs
     total_inference_time = time.time() - begin_time
     num_episodes = len(eps)
     transition_data = flatten([discount_episode(x,self.settings) for x in eps])

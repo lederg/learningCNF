@@ -105,6 +105,12 @@ class PGEpisodeReporter(SPReporter):
     for stat in all_stats:
       self.add_stat(*stat)
 
+  def get_keys(self):
+    return self.stats_dict.keys()
+
+  def get_stats_for_envs(self, *args):
+    return {env: self.stats_dict[env] for env in args}
+
   def add_whatever(self, steps, name, val):
     if name not in self.whatever.keys():
       self.whatever[name] = []

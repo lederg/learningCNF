@@ -106,6 +106,7 @@ def main():
   ProviderClass = eval(settings['episode_provider'])
   provider = ProviderClass(testdir)  
   
+  settings.formula_cache = FormulaCache()
   if settings['preload_formulas']:
     settings.formula_cache.load_files(provider.items)  
 

@@ -57,7 +57,6 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
     self.reporter = Pyro4.core.Proxy("PYRONAME:{}.reporter".format(self.settings['pyro_name']))
     self.trainer = EnvTrainer(self.settings, self.provider, self.index, self, reporter=self.reporter, init_pyro=True, **kwargs)
     global_params = self.trainer.lmodel.state_dict()
-    self.logger.debug('Got randint {}'.format(np.random.randint(100)))
     for k in global_params.keys():
       if any([x in k for x in self.settings['l2g_whitelist']]):
         self.whitelisted_keys.append(k)    
@@ -73,10 +72,13 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
       self.dispatcher.notify('new_batch')
       num_env_steps, num_episodes = self.trainer.train_step(**self.kwargs)
       total_step += 1
-      if total_step % SYNC_STATS_EVERY == 0:      
+      if total_step % SYNC_STATS_EVERY == 0:
+        begin_time = time.time()
         self.node_sync.mod_g_grad_steps(SYNC_STATS_EVERY)
         self.node_sync.mod_g_episodes(num_episodes)
         self.node_sync.mod_g_steps(num_env_steps)
         global_steps = self.node_sync.g_grad_steps
+        end_time = time.time - begin_time
+        self.logger.info('Spent {} seconds syncing its stats.')
 
 

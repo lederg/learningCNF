@@ -90,7 +90,7 @@ class EnvTester:
       episode_length, finished = self.interactor.run_episode(fname, **kwargs)
       self.logger.info('Finished {}'.format(fname))
       if episode_length == 0:
-        rc[fname].append(TestResultStruct(0.,0,0.,True))
+        # rc[fname].append(TestResultStruct(0.,0,0.,True))
         continue
       ep = self.interactor.completed_episodes.pop(0)
       total_reward = sum([x.reward for x in ep])                  

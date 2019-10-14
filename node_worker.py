@@ -78,7 +78,7 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
         self.node_sync.mod_g_episodes(num_episodes)
         self.node_sync.mod_g_steps(num_env_steps)
         global_steps = self.node_sync.g_grad_steps
-        end_time = time.time - begin_time
-        self.logger.info('Spent {} seconds syncing its stats.')
+        sync_time = time.time() - begin_time
+        self.logger.info('Spent {} seconds syncing its stats.'.format(sync_time))
 
 

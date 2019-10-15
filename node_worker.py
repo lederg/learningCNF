@@ -39,7 +39,7 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
   def global_to_local(self, **kwargs):
     global_params = self.node_sync.get_state_dict(**kwargs)
     self.trainer.lmodel.load_state_dict(global_params,strict=False)
-    self.last_grad_steps = self.node_sync.g_grad_steps
+    # self.last_grad_steps = self.node_sync.g_grad_steps
 
   def update_from_worker(self, grads, state_dict):
     self.node_sync.update_grad_and_step(grads)
@@ -63,20 +63,24 @@ class NodeWorker(WorkerBase, IEnvTrainerHook):
     
   def run_loop(self):
     clock = GlobalTick()
-    SYNC_STATS_EVERY = 1
+    SYNC_STATS_EVERY = self.settings['sync_every']
     # SYNC_STATS_EVERY = 5+np.random.randint(10)
     total_step = 0    
     global_steps = 0
+    sync_num_episodes = 0
+    sync_num_steps = 0
     while global_steps < self.training_steps:
       clock.tick()
       self.dispatcher.notify('new_batch')
       num_env_steps, num_episodes = self.trainer.train_step(**self.kwargs)
       total_step += 1
+      sync_num_episodes += num_episodes
+      sync_num_steps += num_env_steps
       if total_step % SYNC_STATS_EVERY == 0:
         begin_time = time.time()
-        self.node_sync.mod_g_grad_steps(SYNC_STATS_EVERY)
-        self.node_sync.mod_g_episodes(num_episodes)
-        self.node_sync.mod_g_steps(num_env_steps)
+        self.node_sync.mod_all(sync_num_steps, sync_num_episodes)
+        sync_num_episodes = 0
+        sync_num_steps = 0 
         global_steps = self.node_sync.g_grad_steps
         sync_time = time.time() - begin_time
         self.logger.info('Spent {} seconds syncing its stats.'.format(sync_time))

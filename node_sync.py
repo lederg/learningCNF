@@ -32,7 +32,7 @@ class NodeSync(object):
     fh.setLevel(logging.DEBUG)
     self.logger.addHandler(fh)    
 
-
+    self.internal_grad_steps = 0
 
     self.blacklisted_keys = []
     self.whitelisted_keys = []
@@ -55,10 +55,6 @@ class NodeSync(object):
   def g_grad_steps(self):
     return self._g_grad_steps
 
-  @g_grad_steps.setter
-  def g_grad_steps(self, val):
-    self._g_grad_steps = val
-
   @property
   def g_episodes(self):
     return self._g_episodes
@@ -67,11 +63,12 @@ class NodeSync(object):
   def g_episodes(self, val):
     self._g_episodes = val
 
+  def mod_all(self, g_steps, g_episodes):
+    self._g_steps += g_steps
+    self._g_episodes += g_episodes
+
   def mod_g_steps(self, i):
     self._g_steps += i
-
-  def mod_g_grad_steps(self, i):
-    self._g_grad_steps += i
 
   def mod_g_episodes(self, i):
     self._g_episodes += i
@@ -102,6 +99,7 @@ class NodeSync(object):
     for lp, gp in zip(grads, self.gmodel.parameters()):
         gp._grad = lp
     self.optimizer.step()
+    self._g_grad_steps += 1
 
   def update_lr(self, new_lr):
     if new_lr != self.curr_lr:

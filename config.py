@@ -82,6 +82,7 @@ def cfg():
 	attn_non_linearity = 'F.tanh'
 	episode_provider = 'UniformEpisodeProvider'
 	test_every = 1000
+	sync_every = 5
 	is_sat=True
 # RL - PG
 	static_ed='eps/random_easy_train.eps'
@@ -216,6 +217,7 @@ def cfg():
 	sat_balanced_sat = 'data/sc_synth_sat_combined'
 	sat_balanced_unsat = 'data/sc_synth_unsat_combined'
 	sat_init_percentage = False
+	empty_step_length = 0.3
 # RL - DQN
 	learning_starts = 50000
 	replay_size = 400000

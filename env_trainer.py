@@ -89,7 +89,7 @@ class EnvTrainer:
 
   def train_step(self, **kwargs):
     self.lmodel.eval()
-    self.hook_obj.global_to_local()      
+    self.hook_obj.global_to_local()
     begin_time = time.time()
     curr_formula = self.provider.get_next()
     total_episodes = 0

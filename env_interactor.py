@@ -125,7 +125,6 @@ class EnvInteractor:
     envstr.prev_obs.append(next_obs)
     if not done:
       envstr.last_obs = env.process_observation(envstr.last_obs,next_obs)
-
     return self.envstr.last_obs, None, done
 
   def run_episode(self, fname, **kwargs):
@@ -144,7 +143,7 @@ class EnvInteractor:
       if break_env:
         break
     envstr.end_time = time.time()
-    if not envstr.env.finished:     # This is an episode where the environment did not finish on its own behalf.
+    if not done:     # This is an episode where the environment did not finish on its own behalf.
       if env.rewards:
         self.logger.info('Environment {} took too long, aborting it. reward: {}, steps: {}'.format(envstr.fname, sum(env.rewards), len(env.rewards)))
       else:
@@ -152,12 +151,12 @@ class EnvInteractor:
       env.rewards = [0.]*len(envstr.episode_memory)
       if break_crit == BREAK_CRIT_TECHNICAL and self.drop_technical:
         self.logger.info('Environment {} technically dropped.'.format(envstr.fname))
-        return 0, False, None
+        return 0, False
     for j,r in enumerate(env.rewards):
       envstr.episode_memory[j].reward = r      
-    if envstr.env.finished or self.settings['learn_from_aborted']:
-      self.completed_episodes.append(envstr.episode_memory)      
-    return i, self.envstr.env.finished
+    if done or self.settings['learn_from_aborted']:
+      self.completed_episodes.append(envstr.episode_memory)
+    return i, done
 
   def run_batch(self, *args, batch_size=0, **kwargs):
     if batch_size == 0:

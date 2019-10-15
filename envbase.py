@@ -18,6 +18,9 @@ class EnvBase(object):
 	def step(self,action):
 		pass
 
+	def exit(self):
+		pass
+
 	def reset(self,fname):
 		pass
 

@@ -67,6 +67,7 @@ class MyManager(BaseManager):
 MyManager.register('wsync',WorkersSynchronizer)
 
 def pyro_main():
+  global pyrodaemon
   utils.seed_all(settings,'myname')
   # mp.set_start_method('forkserver')
   signal.signal(signal.SIGCHLD, handleSIGCHLD)
@@ -78,6 +79,7 @@ def pyro_main():
   manager = MyManager()
   manager.start()
   main_node = False
+  pyrodaemon = None
   ns = None
   try:
     ns = Pyro4.locateNS(host=settings['pyro_host'], port=settings['pyro_port'])
@@ -230,9 +232,12 @@ def pyro_main():
 
   def main_node_tasks():
     global last_time
+    global pyrodaemon    
     curr_time = time.time()
     if curr_time-last_time > UNIT_LENGTH:
       logger.info('Round {}'.format(round_num))
+      logger.info('Daemon sockets:')
+      logger.info(pyrodaemon.sockets)
       last_time = curr_time
       common_loop_tasks()
       gsteps = node_sync.g_steps

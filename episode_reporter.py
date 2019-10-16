@@ -94,12 +94,11 @@ class PGEpisodeReporter(SPReporter):
     self.whatever = {}
 
   def add_stat(self, env_id, steps, reward, entropy, total_steps):
-    self.stats = self.stats+[[env_id,steps,reward, entropy]]
     if not env_id in self.stats_dict.keys():
       self.stats_dict[env_id] = []
 
     # Add entropy as well     
-    self.stats_dict[env_id] = self.stats_dict[env_id] + [(steps, reward, entropy)]
+    self.stats_dict[env_id] = (self.stats_dict[env_id] + [(steps, reward, entropy)])[-self.short_window:]
 
   def add_stats(self, all_stats):
     for stat in all_stats:
@@ -124,23 +123,13 @@ class PGEpisodeReporter(SPReporter):
       configure(self.fname, flush_secs=5)
       self.tb_configured = True
 
-
-  def __len__(self):
-    return len(self.stats)
-
   def log_env(self,env):
     pass
 
   def report_stats(self, total_steps, total_envs, pval=None):
-    if not self.stats:
+    if not self.stats_dict:
       self.logger.info('report_stats: No episodes registered yet, skipping')
       return    
-    _, steps, rewards, ents = zip(*self.stats)    
-    # self.report_window = total_envs*60
-    self.logger.info('Total episodes so far: %d' % len(steps))
-    self.logger.info('Total steps learned from so far: %d' % sum(steps))
-    self.logger.info('Total rewards so far: %f' % sum(rewards))
-    # Tracer()()
     totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
     if self.settings['report_uniform']:
       all_stats = [x[1] for x in self.stats_dict.items()]
@@ -187,7 +176,7 @@ class PGEpisodeReporter(SPReporter):
         log_value('pval', pval, total_steps)
 
       print('Total steps are {}'.format(total_steps))
-    return len(steps)
+
     # for id in self.ids_to_log:
     #   try:
     #     stats = self.stats_dict[id][-DEF_WINDOW:]

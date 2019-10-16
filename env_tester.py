@@ -84,8 +84,6 @@ class EnvTester:
       tasks.extend([fname]*iters)
     while tasks:      
       fname=tasks.pop(0)        
-      if fname not in rc.keys():
-        rc[fname] = []
       self.logger.debug('Starting {}'.format(fname))
       episode_length, finished = self.interactor.run_episode(fname, **kwargs)
       self.logger.info('Finished {}'.format(fname))
@@ -96,6 +94,8 @@ class EnvTester:
       total_reward = sum([x.reward for x in ep])                  
       total_time = self.interactor.envstr.end_time - self.interactor.envstr.start_time
       res = TestResultStruct(total_time,episode_length,total_reward,finished)
+      if fname not in rc.keys():
+        rc[fname] = []
       rc[fname].append(res)
       if len(rc[fname]) == iters:
         mean_steps = np.mean([x.steps for x in rc[fname]])

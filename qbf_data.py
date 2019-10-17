@@ -11,6 +11,7 @@ import collections
 import os
 import random
 from IPython.core.debugger import Tracer
+import ipdb
 
 _use_shared_memory = False
 
@@ -169,7 +170,7 @@ class QbfBase(object):
         rc = np.zeros([self.max_clauses, self.max_vars])
         for i in range(self.num_clauses):
             for j in clauses[i]:                
-                t = (abs(j)-1)*sign(j)
+                t = abs(j)-1
                 rc[i][t]=sign(j)
         return rc
     
@@ -339,4 +340,13 @@ class QbfDataset(Dataset):
 #     rc['label'] = torch.Tensor([x['label'] for x in batch]).long()
 
 #     return rc
+            
+#def main():
+#    a = QbfBase()
+#    print(a)
+#    #d = a.get_dense_adj_matrices(file)
+#    #print(d)
+#
+#if __name__ == "__main__":
+#    main()
 

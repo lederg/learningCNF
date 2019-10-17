@@ -126,9 +126,9 @@ class QbfBase(object):
     def get_adj_matrices(self):
         sample = self.qcnf
         if self.sparse:
-            return self.get_sparse_adj_matrices(sample)
+            return self.get_sparse_adj_matrices()
         else:
-            return self.get_dense_adj_matrices(sample)
+            return self.get_dense_adj_matrices()
 
     def get_sparse_adj_matrices(self):
         sample = self.qcnf

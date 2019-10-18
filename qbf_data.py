@@ -341,12 +341,219 @@ class QbfDataset(Dataset):
 
 #     return rc
             
-#def main():
-#    a = QbfBase()
-#    print(a)
-#    #d = a.get_dense_adj_matrices(file)
-#    #print(d)
-#
-#if __name__ == "__main__":
-#    main()
+class AagBase(object):    
+    """
+    Wrapper object for an `aag` circuit (read from a `.qaiger` file).
+    """
+    def __init__(self, aag = None, **kwargs):
+        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
+        self.aag = aag
+        self.sp_indices = None
+        self.sp_vals = None
+        self.extra_clauses = {}
+        self.removed_old_clauses = []
+        # self.get_base_embeddings = lru_cache(max_size=16)(self.get_base_embeddings)
+        if 'max_variables' in kwargs:
+            self._max_vars = kwargs['max_variables']
+        if 'max_clauses' in kwargs:
+            self._max_clauses = kwargs['max_clauses']
 
+    def reset(self):
+        self.sp_indices = None
+        self.sp_vals = None
+        self.extra_clauses = {}
+        
+
+    def reload_qdimacs(self, fname):
+        self.qcnf = qdimacs_to_cnf(fname)
+        self.reset()
+
+    @classmethod 
+    def from_qaiger(cls, fname, **kwargs):
+        try:
+            r = read_qaiger(fname)            
+            if r:
+                return cls(rc, **kwargs)
+        except:
+            print('Error parsing file %s' % fname)
+
+    @property
+    def num_vars(self):
+        return self.qcnf['maxvar']
+
+    @property
+    def num_existential(self):
+        a = self.var_types        
+        return len(a[a>0])
+
+    @property
+    def num_universal(self):
+        return self.num_vars - self.num_existential
+
+    @property
+    def num_clauses(self):
+        k = self.extra_clauses.keys()
+        if not k:
+            return len(self.qcnf['clauses'])            
+        return max(k)+1
+    @property
+    def max_vars(self):
+        try:
+            return self._max_vars
+        except:
+            return self.num_vars
+    @property
+    def max_clauses(self):
+        try:
+            return self._max_clauses
+        except:
+            return self.num_clauses
+
+
+    def get_adj_matrices(self):
+        sample = self.qcnf
+        if self.sparse:
+            return self.get_sparse_adj_matrices(sample)
+        else:
+            return self.get_dense_adj_matrices(sample)
+
+    def get_sparse_adj_matrices(self):
+        sample = self.qcnf
+        if self.sp_indices is None:
+            clauses = sample['clauses']
+            indices = []
+            values = []
+
+            for i,c in enumerate(clauses):
+                if i in self.removed_old_clauses:
+                    continue
+                for v in c:
+                    val = np.sign(v)
+                    v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
+                    indices.append(np.array([i,v]))
+                    values.append(val)
+
+            self.sp_indices = np.vstack(indices)
+            self.sp_vals = np.stack(values)
+        if not self.extra_clauses:
+            return self.sp_indices, self.sp_vals
+        indices = []
+        values = []            
+        for i, c in self.extra_clauses.items():            
+            for v in c:
+                val = np.sign(v)
+                v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
+                indices.append(np.array([i,v]))
+                values.append(val)        
+        # Tracer()()
+        return np.concatenate([self.sp_indices,np.asarray(indices)]), np.concatenate([self.sp_vals, np.asarray(values)])
+        
+    def get_dense_adj_matrices(self):
+        sample = self.qcnf
+        clauses = sample['clauses']          
+        new_all_clauses = []        
+
+        rc = np.zeros([self.max_clauses, self.max_vars])
+        for i in range(self.num_clauses):
+            for j in clauses[i]:                
+                t = abs(j)-1
+                rc[i][t]=sign(j)
+        return rc
+    
+
+def read_qaiger(filename, zero_based=False):
+    """
+    read from a `.qaiger` file (which contains an `aag` circuit).
+    returns a dictionary..
+    """
+    maxvar = 0
+    num_inputs = 0
+    num_latches = 0
+    num_outputs = 0
+    num_and_gates = 0
+    inputs = []
+    latches = []
+    outputs = []
+    and_gates = []
+    input_symbols = []
+    output_symbols = []
+    avars = {}
+
+    with open(filename, 'r') as f:
+        while True:
+            a = f.readline()        # header
+            if a[0:3] == 'aag':
+                break
+        line = a.split(' ')         
+        # read the first line, like "aag 256 32 0 1 224"
+        maxvar = int(line[1])
+        num_inputs = int(line[2])
+        num_latches = int(line[3])
+        num_outputs = int(line[4])
+        num_and_gates = int(line[5])
+        
+        # initialize avars
+        for v in range(maxvar):
+            avars[v + 1] =  {'universal': 'Not yet implemented', 'and_gates': []}
+        
+        # read inputs
+        k = num_inputs
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            inputs.append(int(line[0]))
+            k -= 1
+        
+        # ignore latches, for now
+        
+        # read outputs
+        k = num_outputs
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            outputs.append(int(line[0]))
+            k -= 1
+        
+        # read and gates
+        k = num_and_gates
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            and_gate = [int(line[0]), int(line[1]), int(line[2])]
+            and_gates.append(and_gate)
+            k -= 1
+            
+            # update avars
+            for l in and_gate:
+                v = int(l/2) # the variable v corresponding to the literal l
+                avars[v]['and_gates'].append(and_gate)
+            
+        # read input symbols
+        k = num_inputs
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            input_symbols.append( ' '.join(line[1:]) )
+            k -= 1
+            
+        # read output symbols
+        k = num_outputs
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            output_symbols.append( ' '.join(line[1:]) )
+            k -= 1
+        
+    return {'maxvar': maxvar,
+            'num_inputs': num_inputs,
+            'num_latches': num_latches,
+            'num_outputs': num_outputs,
+            'num_and_gates': num_and_gates,
+            'inputs': inputs,
+            'latches': latches,
+            'outputs': outputs,
+            'and_gates': and_gates,
+            'input_symbols': input_symbols,
+            'output_symbols': output_symbols,
+            #'avars': avars
+            }

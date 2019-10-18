@@ -363,105 +363,47 @@ class AagBase(object):
         self.sp_vals = None
         self.extra_clauses = {}
         
-
-    def reload_qdimacs(self, fname):
-        self.qcnf = qdimacs_to_cnf(fname)
+    def load_qaiger(self, filename):
+        self.aag = read_qaiger(filename)
         self.reset()
 
-    @classmethod 
-    def from_qaiger(cls, fname, **kwargs):
-        try:
-            r = read_qaiger(fname)            
-            if r:
-                return cls(rc, **kwargs)
-        except:
-            print('Error parsing file %s' % fname)
-
-    @property
-    def num_vars(self):
-        return self.qcnf['maxvar']
-
-    @property
-    def num_existential(self):
-        a = self.var_types        
-        return len(a[a>0])
-
-    @property
-    def num_universal(self):
-        return self.num_vars - self.num_existential
-
-    @property
-    def num_clauses(self):
-        k = self.extra_clauses.keys()
-        if not k:
-            return len(self.qcnf['clauses'])            
-        return max(k)+1
-    @property
-    def max_vars(self):
-        try:
-            return self._max_vars
-        except:
-            return self.num_vars
-    @property
-    def max_clauses(self):
-        try:
-            return self._max_clauses
-        except:
-            return self.num_clauses
-
-
     def get_adj_matrices(self):
-        sample = self.qcnf
+        sample = self.aag
         if self.sparse:
             return self.get_sparse_adj_matrices(sample)
         else:
             return self.get_dense_adj_matrices(sample)
 
     def get_sparse_adj_matrices(self):
-        sample = self.qcnf
-        if self.sp_indices is None:
-            clauses = sample['clauses']
-            indices = []
-            values = []
-
-            for i,c in enumerate(clauses):
-                if i in self.removed_old_clauses:
-                    continue
-                for v in c:
-                    val = np.sign(v)
-                    v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
-                    indices.append(np.array([i,v]))
-                    values.append(val)
-
-            self.sp_indices = np.vstack(indices)
-            self.sp_vals = np.stack(values)
-        if not self.extra_clauses:
-            return self.sp_indices, self.sp_vals
+        sample = self.aag
         indices = []
-        values = []            
-        for i, c in self.extra_clauses.items():            
-            for v in c:
-                val = np.sign(v)
-                v = abs(v)-1            # We read directly from file, which is 1-based, this makes it into 0-based
-                indices.append(np.array([i,v]))
-                values.append(val)        
-        # Tracer()()
-        return np.concatenate([self.sp_indices,np.asarray(indices)]), np.concatenate([self.sp_vals, np.asarray(values)])
+        values = []
         
-    def get_dense_adj_matrices(self):
-        sample = self.qcnf
-        clauses = sample['clauses']          
-        new_all_clauses = []        
-
-        rc = np.zeros([self.max_clauses, self.max_vars])
-        for i in range(self.num_clauses):
-            for j in clauses[i]:                
-                t = abs(j)-1
-                rc[i][t]=sign(j)
-        return rc
+        # should i include the inputs as "clauses", or just the and gates ???
+        
+        for i, ag in enumerate(sample['and_gates']):
+            for l in ag:
+                val = 1 if l % 2 == 0 else -1
+                indices.append( [i, int(l/2)] )
+                values.append(val)
+        
+        return [indices, np.array(values)]
+        
+        
+#    def get_dense_adj_matrices(self):
+#        sample = self.aag
+#        clauses = sample['clauses']          
+#        new_all_clauses = []        
+#
+#        rc = np.zeros([self.max_clauses, self.max_vars])
+#        for i in range(self.num_clauses):
+#            for j in clauses[i]:                
+#                t = abs(j)-1
+#                rc[i][t]=sign(j)
+#        return rc
     
 
-def read_qaiger(filename, zero_based=False):
+def read_qaiger(filename):
     """
     read from a `.qaiger` file (which contains an `aag` circuit).
     returns a dictionary..
@@ -555,5 +497,6 @@ def read_qaiger(filename, zero_based=False):
             'and_gates': and_gates,
             'input_symbols': input_symbols,
             'output_symbols': output_symbols,
-            #'avars': avars
+            #'avars': avars,
+            'fname': filename
             }

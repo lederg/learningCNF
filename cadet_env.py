@@ -325,6 +325,8 @@ class CadetEnv:
   def process_observation(self, last_obs, env_obs, settings=None):
     if not env_obs:
       return None
+    import ipdb
+    ipdb.set_trace()
     if env_obs.clause or not last_obs:
       # Tracer()()
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split

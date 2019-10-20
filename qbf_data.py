@@ -11,7 +11,6 @@ import collections
 import os
 import random
 from IPython.core.debugger import Tracer
-import ipdb
 
 _use_shared_memory = False
 

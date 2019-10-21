@@ -139,8 +139,10 @@ class PGEpisodeReporter(SPReporter):
       # windowed_stats = [np.array(x[-100:]) for x in all_stats]
       mean_rewards = [x.mean(axis=0)[1] for x in windowed_stats]
       mean_steps = [x.mean(axis=0)[0] for x in windowed_stats]
+      mean_ent = [x.mean(axis=0)[2] for x in windowed_stats]
       self.logger.info('Mean steps for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_steps)))
       self.logger.info('Mean reward for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_rewards)))
+      self.logger.info('Mean entropy for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_ent)))
     else:     
       self.logger.info('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
       self.logger.info('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
@@ -169,6 +171,7 @@ class PGEpisodeReporter(SPReporter):
       if self.settings['report_uniform']:
         log_value('Mean steps for last {} episodes'.format(self.short_window), np.mean(mean_steps), total_steps)
         log_value('Mean reward for last {} episodes'.format(self.short_window), np.mean(mean_rewards), total_steps)
+        log_value('Mean entropy for last {} episodes'.format(self.short_window), np.mean(mean_ent), total_steps)
       else:
         log_value('Mean steps for last {} episodes'.format(self.report_window), np.mean(steps[-self.report_window:]), total_steps)
         log_value('Mean reward for last {} episodes'.format(self.report_window), np.mean(rewards[-self.report_window:]), total_steps)

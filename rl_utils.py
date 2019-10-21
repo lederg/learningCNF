@@ -120,7 +120,10 @@ def discount_episode(ep, settings=None):
   gamma = settings['gamma']
   _, _, _,rewards, *_ = zip(*ep)
   r = discount(rewards, gamma)
-  return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
+  for transition, rew in zip(ep, r):
+    transition.reward = rew
+  return ep
+  # return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
 
 def collate_observations(batch, settings=None, replace_none=False, c_size=None, v_size=None):
   if batch.count(None) == len(batch):
@@ -219,13 +222,14 @@ def collate_transitions(batch, settings=None, packed=False, cudaize_state=False)
     obs1 = cudaize_obs(obs1)
     obs2 = cudaize_obs(obs2)
   rews = torch.FloatTensor([x.reward for x in batch])
+  ents = torch.FloatTensor([x.entropy for x in batch])
   actions = settings.policy.combine_actions([x.action for x in batch])  
   # formulas = settings.LongTensor([x.formula for x in batch])
   formulas = [x.formula for x in batch]
   prev_obs = [collate_observations(x,replace_none=True, c_size=obs1.cmask.shape[1], v_size=obs1.vmask.shape[1]) for x in zip(*[x.prev_obs for x in batch])]
   if prev_obs and prev_obs[0].vmask.shape != obs1.vmask.shape:
     Tracer()()
-  return Transition(obs1,actions,obs2,rews, formulas, prev_obs)
+  return Transition(obs1,actions,obs2,rews, ents, formulas, prev_obs)
 
 def create_policy(settings=None, is_clone=False):
   from new_policies import Actor1Policy
@@ -360,10 +364,10 @@ def undensify_obs(dobs, settings=None):
     return State(dobs.state,cmat,dobs.ground,dobs.clabels,dobs.vmask,dobs.cmask,dobs.ext_data)
 
 def densify_transition(t):
-  return Transition(densify_obs(t.state),t.action,densify_obs(t.next_state), t.reward, t.formula, t.prev_obs)
+  return Transition(densify_obs(t.state),t.action,densify_obs(t.next_state), t.reward, t.entropy, t.formula, t.prev_obs)
 
 def undensify_transition(t):
-  return Transition(undensify_obs(t.state),t.action,undensify_obs(t.next_state), t.reward, t.formula, t.prev_obs)
+  return Transition(undensify_obs(t.state),t.action,undensify_obs(t.next_state), t.reward, t.entropy, t.formula, t.prev_obs)
 
 def state_empty(s):
   return all([i is None for i in s])

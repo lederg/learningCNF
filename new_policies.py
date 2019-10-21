@@ -142,7 +142,7 @@ class Actor1Policy(PolicyBase):
     choices = range(len(dist))
     aux_action = np.random.choice(choices, p=dist)
     action = allowed_idx[aux_action]
-    return action
+    return action, 0
 
   def compute_loss(self, transition_data, **kwargs):
     _, _, _, rewards, *_ = zip(*transition_data)

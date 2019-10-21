@@ -116,8 +116,8 @@ class EnvInteractor:
     break_env = False
     break_crit = BREAK_CRIT_LOGICAL
 
-    action = self.lmodel.select_action(obs, **kwargs)
-    envstr.episode_memory.append(Transition(obs,action,None, None, envstr.env_id, envstr.prev_obs))
+    action, ent = self.lmodel.select_action(obs, **kwargs)
+    envstr.episode_memory.append(Transition(obs,action,None, None, ent, envstr.env_id, envstr.prev_obs))
     next_obs = envstr.env.step(self.lmodel.translate_action(action, obs))
     done = next_obs.done
     self.total_steps += 1
@@ -170,7 +170,8 @@ class EnvInteractor:
       total_length += episode_length
       if episode_length != 0:
         total_episodes += 1
-        stats = (self.envstr.env_id,len(self.envstr.episode_memory),sum(self.envstr.env.rewards), 0, self.total_steps)
+        ent = float(torch.cat([x.entropy.unsqueeze(0) for x in self.envstr.episode_memory]).mean().detach())
+        stats = (self.envstr.env_id,len(self.envstr.episode_memory),sum(self.envstr.env.rewards), ent, self.total_steps)
         batch_stats.append(stats)
 
     if self.reporter is not None:

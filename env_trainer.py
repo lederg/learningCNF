@@ -55,7 +55,7 @@ class EnvTrainer:
       self.lmodel = model
     self.lmodel.logger = self.logger    # override logger object with process-specific one
     self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.lmodel.parameters()))
-    self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, **kwargs)
+    self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, logger=self.logger, **kwargs)
     if self.init_model is not None:
       self.logger.info('Loading model at runtime!')
       statedict = self.lmodel.state_dict()

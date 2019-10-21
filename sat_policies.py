@@ -1187,25 +1187,25 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
 
     return final_action
 
-  def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):
+  def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):    
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     logits, clabels = self.forward(obs_batch, **kwargs)
     if every_tick(20) or log_threshold:
       self.logger.info('State is:')
       self.logger.info(obs_batch.state)
-      self.logger.info('Logits are: {}'.format(logits))
+      self.logger.info('Logits are: {}'.format(logits))    
     if deterministic:
       if every_tick(20) or log_threshold:
         action = int(torch.argmax(logits.view(-1)))
-        self.logger.info('Threshold is {}'.format(action+2))
+        self.logger.info('Threshold is {}'.format(action+2))      
       return (action, clabels), 0
     self.m = Categorical(logits=logits.view(-1))
     action=int(self.m.sample().detach())    
     if every_tick(20) or log_threshold:
       self.logger.info('Threshold is {}'.format(action+2))
 
-    return (action, clabels), self.m.entropy()
+    return (action, clabels), float(self.m.entropy().detach())
 
   def get_logprobs(self, outputs, collated_batch):    
     actions = self.settings.LongTensor(np.array([a[0] for a in collated_batch.action]))

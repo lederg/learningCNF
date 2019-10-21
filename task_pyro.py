@@ -46,7 +46,7 @@ last_time = first_time
 
 # Units of 30 seconds
 
-UNIT_LENGTH = 30
+UNIT_LENGTH = settings['unit_length']
 
 # 2 = 1 Minute
 REPORT_EVERY = 2

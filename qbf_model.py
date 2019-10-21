@@ -327,15 +327,14 @@ class QbfNewEncoder(nn.Module):
 					self.vnorm_layers[i].load_state_dict(layer.state_dict())
 
 
-# vlabels are (batch,maxvars,vlabel_dim)
-# clabels are sparse (batch,maxvars,maxvars,label_dim)
+# vlabels are (vars,vlabel_dim)
+# clabels are sparse (clauses,clabel_dim)
 # cmat_pos and cmat_neg is the bs*v -> bs*c block-diagonal adjacency matrix 
 
 	def forward(self, vlabels, clabels, cmat_pos, cmat_neg, **kwargs):
-		size = vlabels.size()
-		bs = size[0]
-		maxvars = size[1]
-		# Tracer()()
+		# size = vlabels.size()
+		# bs = size[0]
+		# maxvars = size[1]
 		pos_vars = vlabels
 		neg_vars = vlabels
 		vmat_pos = cmat_pos.t()

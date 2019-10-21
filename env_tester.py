@@ -84,7 +84,7 @@ class EnvTester:
       tasks.extend([fname]*iters)
     while tasks:      
       fname=tasks.pop(0)        
-      self.logger.debug('Starting {}'.format(fname))
+      self.logger.info('Starting {}'.format(fname))
       episode_length, finished = self.interactor.run_episode(fname, **kwargs)
       self.logger.info('Finished {}'.format(fname))
       if episode_length == 0:

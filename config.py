@@ -223,6 +223,7 @@ def cfg():
 	replay_size = 400000
 	learning_freq = 4
 	target_update_freq = 3000
+	unit_length = 30 					# number of seconds per "round"
 
 # ES
 	

@@ -82,7 +82,7 @@ class EnvInteractor:
     # Set up the previous observations to be None followed by the last_obs   
     self.envstr.prev_obs.clear()    
     for i in range(self.rnn_iters):
-      self.envstr.prev_obs.append(None)
+      self.envstr.prev_obs.append(None)    
     return self.envstr.last_obs
 
 
@@ -115,10 +115,10 @@ class EnvInteractor:
     env = envstr.env
     break_env = False
     break_crit = BREAK_CRIT_LOGICAL
-
-    action, ent = self.lmodel.select_action(obs, **kwargs)
-    envstr.episode_memory.append(Transition(obs,action,None, None, ent, envstr.env_id, envstr.prev_obs))
-    next_obs = envstr.env.step(self.lmodel.translate_action(action, obs))
+    
+    action, ent = self.lmodel.select_action(obs, **kwargs)    
+    envstr.episode_memory.append(Transition(obs,action,None, None, ent, envstr.env_id, envstr.prev_obs))    
+    next_obs = envstr.env.step(self.lmodel.translate_action(action, obs))    
     done = next_obs.done
     self.total_steps += 1
     envstr.curr_step += 1
@@ -131,13 +131,13 @@ class EnvInteractor:
     envstr = self.envstr
     env = envstr.env
     self.lmodel.eval()
-    obs = self.reset_env(fname)
+    obs = self.reset_env(fname)    
     if not obs:   # degenerate episode, return 0 actions taken. TODO - delete degenerate episodes
       return 0, False
     done = False
     i = 0
-    while not done:
-      obs, _, done = self.step(obs, **kwargs)
+    while not done:      
+      obs, _, done = self.step(obs, **kwargs)      
       i += 1
       break_env, break_crit = self.check_break()
       if break_env:
@@ -170,7 +170,7 @@ class EnvInteractor:
       total_length += episode_length
       if episode_length != 0:
         total_episodes += 1
-        ent = float(torch.cat([x.entropy.unsqueeze(0) for x in self.envstr.episode_memory]).mean().detach())
+        ent = np.mean([x.entropy for x in self.envstr.episode_memory])
         stats = (self.envstr.env_id,len(self.envstr.episode_memory),sum(self.envstr.env.rewards), ent, self.total_steps)
         batch_stats.append(stats)
 

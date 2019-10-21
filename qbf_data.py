@@ -340,12 +340,162 @@ class QbfDataset(Dataset):
 
 #     return rc
             
-#def main():
-#    a = QbfBase()
-#    print(a)
-#    #d = a.get_dense_adj_matrices(file)
-#    #print(d)
-#
-#if __name__ == "__main__":
-#    main()
+class AagBase(object):    
+    """
+    Wrapper object for an `aag` circuit (read from a `.qaiger` file).
+    """
+    def __init__(self, aag = None, **kwargs):
+        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
+        self.aag = aag
+        self.sp_indices = None
+        self.sp_vals = None
+        self.extra_clauses = {}
+        self.removed_old_clauses = []
+        # self.get_base_embeddings = lru_cache(max_size=16)(self.get_base_embeddings)
+        if 'max_variables' in kwargs:
+            self._max_vars = kwargs['max_variables']
+        if 'max_clauses' in kwargs:
+            self._max_clauses = kwargs['max_clauses']
 
+    def reset(self):
+        self.sp_indices = None
+        self.sp_vals = None
+        self.extra_clauses = {}
+        
+    def load_qaiger(self, filename):
+        self.aag = read_qaiger(filename)
+        self.reset()
+
+    def get_adj_matrices(self):
+        sample = self.aag
+        if self.sparse:
+            return self.get_sparse_adj_matrices(sample)
+        else:
+            return self.get_dense_adj_matrices(sample)
+
+    def get_sparse_adj_matrices(self):
+        sample = self.aag
+        indices = []
+        values = []
+        
+        # should i include the inputs as "clauses", or just the and gates ???
+        
+        for i, ag in enumerate(sample['and_gates']):
+            for l in ag:
+                val = 1 if l % 2 == 0 else -1
+                indices.append( [i, int(l/2)] )
+                values.append(val)
+        
+        return [indices, np.array(values)]
+        
+        
+#    def get_dense_adj_matrices(self):
+#        sample = self.aag
+#        clauses = sample['clauses']          
+#        new_all_clauses = []        
+#
+#        rc = np.zeros([self.max_clauses, self.max_vars])
+#        for i in range(self.num_clauses):
+#            for j in clauses[i]:                
+#                t = abs(j)-1
+#                rc[i][t]=sign(j)
+#        return rc
+    
+
+def read_qaiger(filename):
+    """
+    read from a `.qaiger` file (which contains an `aag` circuit).
+    returns a dictionary..
+    """
+    maxvar = 0
+    num_inputs = 0
+    num_latches = 0
+    num_outputs = 0
+    num_and_gates = 0
+    inputs = []
+    latches = []
+    outputs = []
+    and_gates = []
+    input_symbols = []
+    output_symbols = []
+    avars = {}
+
+    with open(filename, 'r') as f:
+        while True:
+            a = f.readline()        # header
+            if a[0:3] == 'aag':
+                break
+        line = a.split(' ')         
+        # read the first line, like "aag 256 32 0 1 224"
+        maxvar = int(line[1])
+        num_inputs = int(line[2])
+        num_latches = int(line[3])
+        num_outputs = int(line[4])
+        num_and_gates = int(line[5])
+        
+        # initialize avars
+        for v in range(maxvar):
+            avars[v + 1] =  {'universal': 'Not yet implemented', 'and_gates': []}
+        
+        # read inputs
+        k = num_inputs
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            inputs.append(int(line[0]))
+            k -= 1
+        
+        # ignore latches, for now
+        
+        # read outputs
+        k = num_outputs
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            outputs.append(int(line[0]))
+            k -= 1
+        
+        # read and gates
+        k = num_and_gates
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            and_gate = [int(line[0]), int(line[1]), int(line[2])]
+            and_gates.append(and_gate)
+            k -= 1
+            
+            # update avars
+            for l in and_gate:
+                v = int(l/2) # the variable v corresponding to the literal l
+                avars[v]['and_gates'].append(and_gate)
+            
+        # read input symbols
+        k = num_inputs
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            input_symbols.append( ' '.join(line[1:]) )
+            k -= 1
+            
+        # read output symbols
+        k = num_outputs
+        while k > 0 and a:
+            a = f.readline()
+            line = a.split()
+            output_symbols.append( ' '.join(line[1:]) )
+            k -= 1
+        
+    return {'maxvar': maxvar,
+            'num_inputs': num_inputs,
+            'num_latches': num_latches,
+            'num_outputs': num_outputs,
+            'num_and_gates': num_and_gates,
+            'inputs': inputs,
+            'latches': latches,
+            'outputs': outputs,
+            'and_gates': and_gates,
+            'input_symbols': input_symbols,
+            'output_symbols': output_symbols,
+            #'avars': avars,
+            'fname': filename
+            }

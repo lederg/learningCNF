@@ -236,8 +236,6 @@ def pyro_main():
     curr_time = time.time()
     if curr_time-last_time > UNIT_LENGTH:
       logger.info('Round {}'.format(round_num))
-      logger.info('Daemon sockets:')
-      logger.info(pyrodaemon.sockets)
       last_time = curr_time
       common_loop_tasks()
       gsteps = node_sync.g_steps

@@ -381,9 +381,10 @@ class AagBase(object):
         # should i include the inputs as "clauses", or just the and gates ???
         
         for i, ag in enumerate(sample['and_gates']):
-            for l in ag:
+            for l in ag[1:]:
                 val = 1 if l % 2 == 0 else -1
-                indices.append( [i, int(l/2)] )
+                
+                indices.append( [int(ag[0]/2), int(l/2)] )
                 values.append(val)
         
         return [indices, np.array(values)]

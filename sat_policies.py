@@ -1196,8 +1196,8 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
       self.logger.info(obs_batch.state)
       self.logger.info('Logits are: {}'.format(logits))    
     if deterministic:
+      action = int(torch.argmax(logits.view(-1)))
       if every_tick(20) or log_threshold:
-        action = int(torch.argmax(logits.view(-1)))
         self.logger.info('Threshold is {}'.format(action+2))      
       return (action, clabels), 0
     self.m = Categorical(logits=logits.view(-1))

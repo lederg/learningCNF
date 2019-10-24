@@ -585,7 +585,7 @@ class SatLBDPolicy(PolicyBase):
     # return torch.cat(actions)
 
   def select_action(self, obs_batch, **kwargs):
-    return [np.empty(shape=(0, 0), dtype=bool)]
+    return [np.empty(shape=(0, 0), dtype=bool)], 0
 
   def compute_loss(self, transition_data, **kwargs):
     return None, None
@@ -699,7 +699,7 @@ class SatFreeThresholdPolicy(PolicyBase):
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()
 
-    return (sampled_threshold, clabels)
+    return (sampled_threshold, clabels), 0
 
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
@@ -789,7 +789,7 @@ class SCPolicyBase(PolicyBase):
     collated_batch = collate_transitions(transition_data,self.settings)
     collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.cudaize_var(collated_batch.reward)
-    outputs, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)    
+    outputs = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)    
     logprobs, entropy = self.get_logprobs(outputs, collated_batch)
     adv_t = returns
     value_loss = 0.
@@ -1110,7 +1110,7 @@ class SatThresholdStatePolicy(SCPolicyBase):
       tmp.append((threshold.detach().numpy(),sampled_threshold.detach().numpy()))
       self.shelf_file[self.shelf_key] = tmp
 
-    return (sampled_threshold, clabels)
+    return (sampled_threshold, clabels), 0
 
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
@@ -1172,17 +1172,23 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     state, clabels = super(SatDiscreteThresholdPolicy, self).forward(obs, **kwargs)
     logits = self.policy_layers(state)
 
-    return logits, clabels
+    return logits         # We do NOT use clabels vbn, so just return logits
+    # return logits, clabels
 
-  def translate_action(self, action, obs, **kwargs):
-    threshold, clabels = action
+
+  # This is going to MUTATE the obs object. Specifically, it deletes the reference to obs.clabels in order to save
+  # memory before we save the observation in the batch trace.
+
+  def translate_action(self, action, obs, **kwargs):    
+    threshold = action
     threshold += 2    # [2,3,...]
     # print('Threshold is {}'.format(threshold))
-    rc = clabels[:,CLABEL_LBD] < float(threshold)
+    rc = obs.clabels[:,CLABEL_LBD] < float(threshold)
     a = rc.detach()
     num_learned = obs.ext_data
     locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
     final_action = torch.max(a.long(),locked).view(-1)
+    obs.clabels = None
     # break_every_tick(5)
 
     return final_action
@@ -1190,7 +1196,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
   def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):    
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
-    logits, clabels = self.forward(obs_batch, **kwargs)
+    logits = self.forward(obs_batch, **kwargs)
     if every_tick(20) or log_threshold:
       self.logger.info('State is:')
       self.logger.info(obs_batch.state)
@@ -1199,16 +1205,16 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
       action = int(torch.argmax(logits.view(-1)))
       if every_tick(20) or log_threshold:
         self.logger.info('Threshold is {}'.format(action+2))      
-      return (action, clabels), 0
+      return action, 0
     self.m = Categorical(logits=logits.view(-1))
     action=int(self.m.sample().detach())    
     if every_tick(20) or log_threshold:
       self.logger.info('Threshold is {}'.format(action+2))
 
-    return (action, clabels), float(self.m.entropy().detach())
+    return action, float(self.m.entropy().detach())
 
   def get_logprobs(self, outputs, collated_batch):    
-    actions = self.settings.LongTensor(np.array([a[0] for a in collated_batch.action]))
+    actions = self.settings.LongTensor(np.array([a for a in collated_batch.action]))
     logits = outputs
     probs = F.softmax(logits, dim=1)
     all_logprobs = safe_logprobs(probs)

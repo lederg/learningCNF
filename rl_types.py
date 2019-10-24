@@ -1,7 +1,7 @@
 from collections import namedtuple
 from namedlist import namedlist
 
-State = namedtuple('State', 
+State = namedlist('State', 
                     ['state','cmat', 'ground', 'clabels', 'vmask', 'cmask', 'ext_data'])
 
 DenseState = namedtuple('DenseState', 

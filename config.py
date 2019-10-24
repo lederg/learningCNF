@@ -117,7 +117,7 @@ def cfg():
 	do_test = False
 	test_iters = 100
 	fresh_seed = False  						# Use a fresh seed in cadet
-	seed = None
+	use_seed = None
 	follow_kl = False
 	desired_kl = 1e-6
 	min_timesteps_per_batch = 400  # replace by number of formulas per batch after normalization

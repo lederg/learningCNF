@@ -1,4 +1,5 @@
 import torch
+import time
 import itertools
 import logging
 import numpy as np
@@ -311,9 +312,9 @@ def get_logger(settings, logger_name, filename=None):
     return logger
 
 def seed_all(settings, name):
-    if settings['seed'] is None:
+    if settings['use_seed'] is None:
       np.random.seed(int(time.time())+abs(hash(name)) % 1000)
       torch.manual_seed(int(time.time())+abs(hash(name)) % 1000)
     else:
-      np.random.seed(settings['seed'])
-      torch.manual_seed(settings['seed'])      
+      np.random.seed(settings['use_seed'])
+      torch.manual_seed(settings['use_seed'])      

@@ -30,7 +30,7 @@ class WorkerBase(mp.Process):
     self.kwargs = kwargs
 
   def init_proc(self, **kwargs):
-    set_proc_name(str.encode(self.name))
+    set_proc_name(str.encode(self.name))    
     utils.seed_all(self.settings, self.name)
     self.settings.hyperparameters['cuda']=False         # No CUDA in the worker threads
 

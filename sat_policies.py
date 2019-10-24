@@ -585,7 +585,7 @@ class SatLBDPolicy(PolicyBase):
     # return torch.cat(actions)
 
   def select_action(self, obs_batch, **kwargs):
-    return [np.empty(shape=(0, 0), dtype=bool)]
+    return [np.empty(shape=(0, 0), dtype=bool)], 0
 
   def compute_loss(self, transition_data, **kwargs):
     return None, None
@@ -699,7 +699,7 @@ class SatFreeThresholdPolicy(PolicyBase):
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()
 
-    return (sampled_threshold, clabels)
+    return (sampled_threshold, clabels), 0
 
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
@@ -766,15 +766,13 @@ class SCPolicyBase(PolicyBase):
   # cmat is already "batched" into a single matrix
 
   def forward(self, obs, **kwargs):
-    clabels = obs.clabels
     state = obs.state    
-    if self.settings['cuda'] and not self.settings['mp']:
-      state, clabels = state.cuda(), clabels.cuda()
-    clabels = clabels.view(-1,self.clabel_dim)
+    clabels = obs.clabels
     if self.state_bn:      
       state = self.state_vbn(state, **kwargs)
-    if self.use_bn:
-      clabels = self.clabels_vbn(clabels, **kwargs)
+    if self.use_bn and clabels is not None:
+      clabels = clabels.view(-1,self.clabel_dim)
+      clabels = self.clabels_vbn(clabels, **kwargs)    
     return state, clabels
 
 
@@ -786,11 +784,15 @@ class SCPolicyBase(PolicyBase):
     # return torch.cat(actions)
 
   def compute_loss(self, transition_data, **kwargs):    
-    collated_batch = collate_transitions(transition_data,self.settings)
-    collated_batch.state = cudaize_obs(collated_batch.state)
-    returns = self.settings.cudaize_var(collated_batch.reward)
-    outputs, _ = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)    
-    logprobs, entropy = self.get_logprobs(outputs, collated_batch)
+    state = torch.cat([x.state.state for x in transition_data])
+    collated_batch = EmptyState
+    collated_batch.state = self.settings.cudaize_var(state)
+    # collated_batch = collate_transitions(transition_data,self.settings)
+    # collated_batch.state = cudaize_obs(collated_batch.state)
+    returns = self.settings.FloatTensor([x.reward for x in transition_data])
+    outputs = self.forward(collated_batch)
+    actions = [x.action for x in transition_data]
+    logprobs, entropy = self.get_logprobs(outputs, actions)
     adv_t = returns
     value_loss = 0.
     adv_t = (adv_t - adv_t.mean())
@@ -804,10 +806,10 @@ class SCPolicyBase(PolicyBase):
     # Recompute moving averages
 
     if self.state_bn:
-      self.state_vbn.recompute_moments(collated_batch.state.state.detach())
-    if self.use_bn:
-      z = collated_batch.state.clabels.detach().view(-1,6)
-      self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))
+      self.state_vbn.recompute_moments(collated_batch.state.detach())
+    # if self.use_bn:
+    #   z = collated_batch.state.clabels.detach().view(-1,6)
+    #   self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))
 
     
     return total_loss, outputs
@@ -1110,7 +1112,7 @@ class SatThresholdStatePolicy(SCPolicyBase):
       tmp.append((threshold.detach().numpy(),sampled_threshold.detach().numpy()))
       self.shelf_file[self.shelf_key] = tmp
 
-    return (sampled_threshold, clabels)
+    return (sampled_threshold, clabels), 0
 
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
@@ -1172,43 +1174,47 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     state, clabels = super(SatDiscreteThresholdPolicy, self).forward(obs, **kwargs)
     logits = self.policy_layers(state)
 
-    return logits, clabels
+    return logits         # We do NOT use clabels vbn, so just return logits
+    # return logits, clabels
 
-  def translate_action(self, action, obs, **kwargs):
-    threshold, clabels = action
+
+  # This is going to MUTATE the obs object. Specifically, it deletes the reference to obs.clabels in order to save
+  # memory before we save the observation in the batch trace.
+
+  def translate_action(self, action, obs, **kwargs):    
+    threshold = action
     threshold += 2    # [2,3,...]
     # print('Threshold is {}'.format(threshold))
-    rc = clabels[:,CLABEL_LBD] < float(threshold)
+    rc = obs.clabels[:,CLABEL_LBD] < float(threshold)
     a = rc.detach()
     num_learned = obs.ext_data
     locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
     final_action = torch.max(a.long(),locked).view(-1)
+    obs.clabels = None
     # break_every_tick(5)
 
     return final_action
 
   def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):    
-    obs_batch = collate_observations([obs_batch])
-    assert(obs_batch.clabels.shape[0]==1)
-    logits, clabels = self.forward(obs_batch, **kwargs)
+    logits = self.forward(obs_batch, **kwargs)
     if every_tick(20) or log_threshold:
       self.logger.info('State is:')
       self.logger.info(obs_batch.state)
       self.logger.info('Logits are: {}'.format(logits))    
     if deterministic:
+      action = int(torch.argmax(logits.view(-1)))
       if every_tick(20) or log_threshold:
-        action = int(torch.argmax(logits.view(-1)))
         self.logger.info('Threshold is {}'.format(action+2))      
-      return (action, clabels), 0
+      return action, 0
     self.m = Categorical(logits=logits.view(-1))
     action=int(self.m.sample().detach())    
     if every_tick(20) or log_threshold:
       self.logger.info('Threshold is {}'.format(action+2))
 
-    return (action, clabels), float(self.m.entropy().detach())
+    return action, float(self.m.entropy().detach())
 
-  def get_logprobs(self, outputs, collated_batch):    
-    actions = self.settings.LongTensor(np.array([a[0] for a in collated_batch.action]))
+  def get_logprobs(self, outputs, actions):    
+    actions = self.settings.LongTensor(actions)
     logits = outputs
     probs = F.softmax(logits, dim=1)
     all_logprobs = safe_logprobs(probs)

@@ -377,30 +377,29 @@ class AagBase(object):
         sample = self.aag
         indices = []
         values = []
+        n = self.aag['maxvar']
+                
+#        for i, ag in enumerate(sample['and_gates']):
+#            for l in ag[1:]:
+#                val = 1 if l % 2 == 0 else -1
+#                indices.append( [int(ag[0]/2), int(l/2)] )
+#                values.append(val)
+#        return [indices, np.array(values)]
         
-        # should i include the inputs as "clauses", or just the and gates ???
         
+        indices0 = []
+        indices1 = []
         for i, ag in enumerate(sample['and_gates']):
             for l in ag[1:]:
                 val = 1 if l % 2 == 0 else -1
-                
-                indices.append( [int(ag[0]/2), int(l/2)] )
+                indices0.append(int(ag[0]/2))
+                indices1.append(int(l/2))
                 values.append(val)
-        
-        return [indices, np.array(values)]
-        
-        
-#    def get_dense_adj_matrices(self):
-#        sample = self.aag
-#        clauses = sample['clauses']          
-#        new_all_clauses = []        
-#
-#        rc = np.zeros([self.max_clauses, self.max_vars])
-#        for i in range(self.num_clauses):
-#            for j in clauses[i]:                
-#                t = abs(j)-1
-#                rc[i][t]=sign(j)
-#        return rc
+        i = torch.LongTensor([indices0, indices1])
+        v = torch.LongTensor(values)
+        return torch.sparse.FloatTensor(i, v)
+        #return torch.sparse.FloatTensor(i, v, torch.Size([n,n]))
+
     
 
 def read_qaiger(filename):

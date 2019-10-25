@@ -180,20 +180,8 @@ def pyro_main():
   main_proc = psutil.Process(os.getpid())
   set_proc_name(str.encode('a3c_main'))
 
-  def common_loop_tasks():
-    global round_num
 
-    # Restart worker processes cooperatively
-    while wsync.get_total() > 0:
-      w = wsync.pop()
-      j = w[0]
-      logger.info('restarting worker {}'.format(j))
-      # workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem, init_model=w[1])
-      workers[j] = NodeWorker(settings,provider,j)
-      workers[j].start()
-
-    # Restart worker processes uncooperatively
-    
+  def hard_monitor(workers):
     total_workers_num = 0    
     for j,w in workers.items():
       worker_running = True
@@ -216,7 +204,27 @@ def pyro_main():
         # workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem)
         workers[j] = NodeWorker(settings, provider, j)
         workers[j].start()
-    logger.info('Total number of running workers: {}'.format(total_workers_num))
+    return total_workers_num            
+
+  def common_loop_tasks():
+    global round_num
+
+    # Restart worker processes cooperatively
+    while wsync.get_total() > 0:
+      w = wsync.pop()
+      j = w[0]
+      logger.info('restarting worker {}'.format(j))
+      # workers[j] = WorkerEnv(settings, provider, ed, j, wsync, batch_sem, init_model=w[1])
+      workers[j] = NodeWorker(settings,provider,j)
+      workers[j].start()
+
+    # Restart worker processes uncooperatively
+    try:
+      total_workers_num = hard_monitor(workers)
+      logger.info('Total number of running workers: {}'.format(total_workers_num))
+    except Exception as e:
+      logger.info('Exception while monitoring workers:')
+      logger.exception(e)
     try:
       total_mem = main_proc.memory_info().rss / float(2 ** 20)
       children = main_proc.children(recursive=True)

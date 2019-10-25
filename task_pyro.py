@@ -223,8 +223,8 @@ def pyro_main():
       total_workers_num = hard_monitor(workers)
       logger.info('Total number of running workers: {}'.format(total_workers_num))
     except Exception as e:
-      self.logger.info('Exception while monitoring workers:')
-      self.logger.exception(e)
+      logger.info('Exception while monitoring workers:')
+      logger.exception(e)
     try:
       total_mem = main_proc.memory_info().rss / float(2 ** 20)
       children = main_proc.children(recursive=True)

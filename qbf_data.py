@@ -12,6 +12,7 @@ import collections
 import os
 import random
 from IPython.core.debugger import Tracer
+from torch_geometric.data import Data
 
 _use_shared_memory = False
 
@@ -363,6 +364,13 @@ class AagBase(object):
         self.sp_vals = None
         self.extra_clauses = {}
         
+    @property
+    def num_vars(self):
+        return self.aag['maxvar']
+    @property
+    def num_and_gates(self):
+        return self.aag['num_and_gates']
+        
     def load_qaiger(self, filename):
         self.aag = read_qaiger(filename)
         self.reset()
@@ -381,7 +389,7 @@ class AagBase(object):
         sample = self.aag
         indices = []
         values = []
-        n = self.aag['maxvar']
+        n = self.num_vars
                 
 #        for i, ag in enumerate(sample['and_gates']):
 #            for l in ag[1:]:
@@ -389,7 +397,6 @@ class AagBase(object):
 #                indices.append( [int(ag[0]/2), int(l/2)] )
 #                values.append(val)
 #        return [indices, np.array(values)]
-        
         
         indices0 = []
         indices1 = []
@@ -402,22 +409,26 @@ class AagBase(object):
                 values.append(val)
         i = torch.LongTensor([indices0, indices1])
         v = torch.LongTensor(values)    
-        return torch.sparse_coo_tensor(indices = i, values = v, size=[n,n])#, size=[3,4])
+        return torch.sparse_coo_tensor(indices = i, values = v, size=[n,n])
     
-    def get_base_embeddings(self):
-        embs = np.zeros([self.num_vars,GROUND_DIM])
-        for i in (IDX_VAR_UNIVERSAL, IDX_VAR_EXISTENTIAL):
-            embs[:,i][np.where(self.var_types==i)]=1
-        return embs
+#    def get_base_embeddings(self):
+#        embs = np.zeros([self.num_vars,GROUND_DIM])
+#        for i in (IDX_VAR_UNIVERSAL, IDX_VAR_EXISTENTIAL):
+#            embs[:,i][np.where(self.var_types==i)]=1
+#        return embs
     
-    def get_clabels(self):
-        rc = np.ones(self.num_clauses)
-        rc[:len(self.qcnf['clauses'])]=0
-        return rc
+#    def get_alabels(self):
+#        rc = np.ones(self.num_and_gates)
+#        rc[:self.num_and_gates]=0
+#        return rc
         
     def get_geometric_data(self):
+        """
+        torch_geometric.data Data() class to store aag graph.
+        https://pytorch-geometric.readthedocs.io/en/latest/modules/data.html
+        """
         
         edge_index = self.get_sparse_adj_matrix()
-        num_edges = self.aag['maxvar'] ** 2
-        edge_attr = torch.zeros([num_edges, 1]) # all original clauses
+        #num_edges =self.num_vars ** 2
+        #edge_attr = torch.zeros([num_edges, 1]) # all original clauses
 

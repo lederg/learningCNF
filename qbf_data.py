@@ -459,6 +459,6 @@ class AagBase(object):
         
 #################### testing #############################
 
-a = AagBase()
-a.load_qaiger('./data/words_easy_train/words_0_SAT.qaiger')
-G = a.get_DGL_graph()
+#a = AagBase()
+#a.load_qaiger('./data/words_easy_train/words_0_SAT.qaiger')
+#G = a.get_DGL_graph()

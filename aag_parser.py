@@ -10,6 +10,10 @@ def read_qaiger(filename):
     """
     read from a `.qaiger` file (which contains an `aag` circuit).
     returns a dictionary..
+    NOTE:   NEED TO SUBTRACT 2 FROM EACH NUMBER, 
+            because aag literals are 2-indexed, and
+            our aag graph needs to be 0-indexed.
+            There are 5 occurences of subtracting 2 here.
     """
     maxvar = 0
     num_inputs = 0
@@ -46,7 +50,7 @@ def read_qaiger(filename):
         while k > 0 and a:
             a = f.readline()
             line = a.split()
-            inputs.append(int(line[0]))
+            inputs.append( int(line[0]) - 2 ) # NOTE: SUBTRACTED 2
             k -= 1
         
         # ignore latches, for now
@@ -56,7 +60,7 @@ def read_qaiger(filename):
         while k > 0 and a:
             a = f.readline()
             line = a.split()
-            outputs.append(int(line[0]))
+            outputs.append( int(line[0]) - 2 ) # NOTE: SUBTRACTED 2
             k -= 1
         
         # read and gates
@@ -64,14 +68,14 @@ def read_qaiger(filename):
         while k > 0 and a:
             a = f.readline()
             line = a.split()
-            and_gate = [int(line[0]), int(line[1]), int(line[2])]
+            and_gate = [int(line[0]) - 2, int(line[1]) - 2, int(line[2]) - 2] # NOTE: SUBTRACTED 2
             and_gates.append(and_gate)
             k -= 1
             
-            # update avars
-            for l in and_gate:
-                v = int(l/2) # the variable v corresponding to the literal l
-                avars[v]['and_gates'].append(and_gate)
+#            # update avars
+#            for l in and_gate:
+#                v = int(l/2) # the variable v corresponding to the literal l
+#                avars[v]['and_gates'].append(and_gate)
             
         # read input symbols
         k = num_inputs

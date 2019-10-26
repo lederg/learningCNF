@@ -12,7 +12,7 @@ import collections
 import os
 import random
 from IPython.core.debugger import Tracer
-from torch_geometric.data import Data
+import dgl
 
 _use_shared_memory = False
 
@@ -347,8 +347,8 @@ class AagBase(object):
     Wrapper object for an `aag` circuit (read from a `.qaiger` file).
     """
     def __init__(self, aag = None, **kwargs):
-        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
         self.aag = aag
+        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
         self.sp_indices = None
         self.sp_vals = None
         self.extra_clauses = {}
@@ -370,6 +370,15 @@ class AagBase(object):
     @property
     def num_and_gates(self):
         return self.aag['num_and_gates']
+    @property
+    def and_gates(self):
+        return self.aag['and_gates']
+    @property
+    def inputs(self):
+        return self.aag['inputs']
+    @property
+    def outputs(self):
+        return self.aag['outputs']
         
     def load_qaiger(self, filename):
         self.aag = read_qaiger(filename)
@@ -382,53 +391,74 @@ class AagBase(object):
         else:
             return self.get_dense_adj_matrices(sample)
 
-    def get_sparse_adj_matrix(self):
+    def get_DGL_graph(self):
         """
         NOTE: I SUBTRACTED 1 FROM EACH NODE NUMBER
         """
-        sample = self.aag
-        indices = []
-        values = []
+        G = dgl.DGLGraph()
+
+        # let n = num_vars, so 2*n = num_literals
+        # G has 2n nodes {0, 1, 2, ..., 2n-1} 
         n = self.num_vars
-                
+        G.add_nodes(2*n)
+        
+        # for each and gate x = y and z, G has 2 edges (x, y) and (x, z)
+        # note: edges are directional in DGL
+        for ag in self.and_gates:
+            x, y, z = ag[0], ag[1], ag[2]
+            G.add_edge(x,y)
+            G.add_edge(x,z)  
+            
+        # node (literal) features are 8-dimensional
+        # initial node features only concern the first dimension:
+        #   1 if literal is an input or output, else 0 (and gate, or neither)
+        lit_embs = torch.zeros([2*n, GROUND_DIM])
+        for l in self.inputs:
+            lit_embs[l,0] = 1
+        for l in self.outputs:
+            lit_embs[l,0] = 1
+        G.ndata['lit_embs'] = lit_embs
+        
+        # No edge (and_gate) features 
+        return G
+    
+    
+        
+#    def get_sparse_adj_matrix(self):
+#        sample = self.aag
+#        indices = []
+#        values = []
+#        n = self.num_vars
+#                
 #        for i, ag in enumerate(sample['and_gates']):
 #            for l in ag[1:]:
 #                val = 1 if l % 2 == 0 else -1
 #                indices.append( [int(ag[0]/2), int(l/2)] )
 #                values.append(val)
 #        return [indices, np.array(values)]
-        
-        indices0 = []
-        indices1 = []
-        for i, ag in enumerate(sample['and_gates']):
-            for l in ag[1:]:
-                val = 1 if l % 2 == 0 else -1
-                # NOTE: I SUBTRACTED 1 FROM EACH NODE NUMBER
-                indices0.append(int(ag[0]/2) - 1)
-                indices1.append(int(l/2) - 1)
-                values.append(val)
-        i = torch.LongTensor([indices0, indices1])
-        v = torch.LongTensor(values)    
-        return torch.sparse_coo_tensor(indices = i, values = v, size=[n,n])
+#        
+#        indices0 = []
+#        indices1 = []
+#        for i, ag in enumerate(sample['and_gates']):
+#            for l in ag[1:]:
+#                val = 1 if l % 2 == 0 else -1
+#                # NOTE: I SUBTRACTED 1 FROM EACH NODE NUMBER
+#                indices0.append(int(ag[0]/2) - 1)
+#                indices1.append(int(l/2) - 1)
+#                values.append(val)
+#        i = torch.LongTensor([indices0, indices1])
+#        v = torch.LongTensor(values)    
+#        return torch.sparse_coo_tensor(indices = i, values = v, size=[n,n])
     
-#    def get_base_embeddings(self):
-#        embs = np.zeros([self.num_vars,GROUND_DIM])
-#        for i in (IDX_VAR_UNIVERSAL, IDX_VAR_EXISTENTIAL):
-#            embs[:,i][np.where(self.var_types==i)]=1
-#        return embs
+    
     
 #    def get_alabels(self):
 #        rc = np.ones(self.num_and_gates)
 #        rc[:self.num_and_gates]=0
 #        return rc
         
-    def get_geometric_data(self):
-        """
-        torch_geometric.data Data() class to store aag graph.
-        https://pytorch-geometric.readthedocs.io/en/latest/modules/data.html
-        """
-        
-        edge_index = self.get_sparse_adj_matrix()
-        #num_edges =self.num_vars ** 2
-        #edge_attr = torch.zeros([num_edges, 1]) # all original clauses
+#################### testing #############################
 
+a = AagBase()
+a.load_qaiger('./data/words_easy_train/words_0_SAT.qaiger')
+G = a.get_DGL_graph()

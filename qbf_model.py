@@ -340,8 +340,8 @@ class QbfNewEncoder(nn.Module):
         vmat_pos = cmat_pos.t()
         vmat_neg = cmat_neg.t()
         
-        import ipdb
-        ipdb.set_trace()
+#        import ipdb
+#        ipdb.set_trace()
 
 
         for t, p in enumerate(self.W_L_params):

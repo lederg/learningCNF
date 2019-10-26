@@ -392,9 +392,6 @@ class AagBase(object):
             return self.get_dense_adj_matrices(sample)
 
     def get_DGL_graph(self):
-        """
-        NOTE: I SUBTRACTED 1 FROM EACH NODE NUMBER
-        """
         G = dgl.DGLGraph()
 
         # let n = num_vars, so 2*n = num_literals

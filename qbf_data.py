@@ -392,19 +392,21 @@ class AagBase(object):
             return self.get_dense_adj_matrices(sample)
 
     def get_DGL_graph(self):
-        G = dgl.DGLGraph()
-
-        # let n = num_vars, so 2*n = num_literals
-        # G has 2n nodes {0, 1, 2, ..., 2n-1} 
-        n = self.num_vars
-        G.add_nodes(2*n)
         
-        # for each and gate x = y and z, G has 2 edges (x, y) and (x, z)
-        # note: edges are directional in DGL
+        forward_edges, backward_edges = [], []
         for ag in self.and_gates:
             x, y, z = ag[0], ag[1], ag[2]
-            G.add_edge(x,y)
-            G.add_edge(x,z)  
+            forward_edges.append( (x,y) )
+            forward_edges.append( (x,z) )
+            backward_edges.append( (y,x) )
+            backward_edges.append( (z,x) )
+       
+        n = self.num_vars
+        G = dgl.heterograph(
+            {('lit', 'forward', 'lit') : forward_edges,
+             ('lit', 'backward', 'lit') : backward_edges},
+            {'lit': 2*n}
+        )
             
         # node (literal) features are 8-dimensional
         # initial node features only concern the first dimension:
@@ -414,45 +416,10 @@ class AagBase(object):
             lit_embs[l,0] = 1
         for l in self.outputs:
             lit_embs[l,0] = 1
-        G.ndata['lit_embs'] = lit_embs
+        G.nodes['lit'].data['lit_embs'] = lit_embs
         
         # No edge (and_gate) features 
         return G
-    
-    
-        
-#    def get_sparse_adj_matrix(self):
-#        sample = self.aag
-#        indices = []
-#        values = []
-#        n = self.num_vars
-#                
-#        for i, ag in enumerate(sample['and_gates']):
-#            for l in ag[1:]:
-#                val = 1 if l % 2 == 0 else -1
-#                indices.append( [int(ag[0]/2), int(l/2)] )
-#                values.append(val)
-#        return [indices, np.array(values)]
-#        
-#        indices0 = []
-#        indices1 = []
-#        for i, ag in enumerate(sample['and_gates']):
-#            for l in ag[1:]:
-#                val = 1 if l % 2 == 0 else -1
-#                # NOTE: I SUBTRACTED 1 FROM EACH NODE NUMBER
-#                indices0.append(int(ag[0]/2) - 1)
-#                indices1.append(int(l/2) - 1)
-#                values.append(val)
-#        i = torch.LongTensor([indices0, indices1])
-#        v = torch.LongTensor(values)    
-#        return torch.sparse_coo_tensor(indices = i, values = v, size=[n,n])
-    
-    
-    
-#    def get_alabels(self):
-#        rc = np.ones(self.num_and_gates)
-#        rc[:self.num_and_gates]=0
-#        return rc
         
 #################### testing #############################
 

@@ -38,6 +38,7 @@ class CadetEnv:
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
+    self.aag = AagBase(**kwargs)
     self.greedy_rewards = greedy_rewards
     self.clause_learning = clause_learning
     self.vars_set = vars_set
@@ -122,13 +123,33 @@ class CadetEnv:
       rewards = np.asarray(list(map(float,a.split()[1:])))
       return rewards
 
-  def reset(self, fname):    
+  def reset(self, fname):  
     self.terminate()
     if self.debug:
       print('Starting Env {}'.format(fname))
-    # if fname == 'data/huge_gen1/small-bug1-fixpoint-3.qdimacs':
-    #   Tracer()()
-    self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
+    
+    ##############################
+    """
+        FIXME: need to update filename scraping method,
+        and the QbfBase(), AagBase() loading mechanisms
+    """
+    
+    assert fname.endswith('.qdimacs') or fname.endswith('.qaiger'), "FIXME."
+    if fname.endswith('.aiger'):
+        self.qbf.reload_qdimacs(fname)
+        self.aag.load_qaiger(fname + '.qdimacs')
+    if fname.endswith('.qdimacs'):
+        if fname.endswith('.qaiger.qdimacs'):
+            self.qbf.reload_qdimacs(fname)
+            self.aag.load_qaiger(fname[:-8])
+        else:
+            raise Exception("FIXME.")
+    else:
+        raise Exception("FIXME.")
+            
+    ##############################
+    
+    
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
     self.total_vars_deterministic = np.zeros(self.qbf.num_vars)    
     self.activities = np.zeros(self.qbf.num_vars)
@@ -339,6 +360,10 @@ class CadetEnv:
       ground_embs = self.qbf.get_base_embeddings()
       vmask = None
       cmask = None
+      
+    print(ground_embs)
+    print('*')
+      
     if env_obs.decision:
       ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
     if len(env_obs.vars_add):
@@ -359,7 +384,21 @@ class CadetEnv:
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state,cmat, ground_embs, clabels, vmask, cmask, None)
+    
+    print(ground_embs)
+    print('***')
+    
+    G = self.aag.dgl_
+    print(G)
+
+    ## Modify the aag graph node features
+    G.nodes['lit'].data['lit_embs'] = torch.ones([2*self.aag.num_vars, GROUND_DIM])*5
+    
+    print(G.ndata)
+    print('****')
+    exit()
+    
+    return State(state, cmat, ground_embs, clabels, vmask, cmask, self.aag)
     
 
 

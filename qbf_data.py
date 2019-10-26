@@ -346,23 +346,9 @@ class AagBase(object):
     """
     Wrapper object for an `aag` circuit (read from a `.qaiger` file).
     """
-    def __init__(self, aag = None, **kwargs):
+    def __init__(self, aag = None, dgl_ = None, **kwargs):
         self.aag = aag
-        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
-        self.sp_indices = None
-        self.sp_vals = None
-        self.extra_clauses = {}
-        self.removed_old_clauses = []
-        # self.get_base_embeddings = lru_cache(max_size=16)(self.get_base_embeddings)
-        if 'max_variables' in kwargs:
-            self._max_vars = kwargs['max_variables']
-        if 'max_clauses' in kwargs:
-            self._max_clauses = kwargs['max_clauses']
-
-    def reset(self):
-        self.sp_indices = None
-        self.sp_vals = None
-        self.extra_clauses = {}
+        self.dgl_ = dgl_
         
     @property
     def num_vars(self):
@@ -382,7 +368,7 @@ class AagBase(object):
         
     def load_qaiger(self, filename):
         self.aag = read_qaiger(filename)
-        self.reset()
+        self.dgl_ = self.initialize_DGL_graph()
 
     def get_adj_matrices(self):
         sample = self.aag
@@ -391,8 +377,7 @@ class AagBase(object):
         else:
             return self.get_dense_adj_matrices(sample)
 
-    def get_DGL_graph(self):
-        
+    def initialize_DGL_graph(self):
         forward_edges, backward_edges = [], []
         for ag in self.and_gates:
             x, y, z = ag[0], ag[1], ag[2]
@@ -407,19 +392,22 @@ class AagBase(object):
              ('lit', 'backward', 'lit') : backward_edges},
             {'lit': 2*n}
         )
-            
-        # node (literal) features are 8-dimensional
-        # initial node features only concern the first dimension:
-        #   1 if literal is an input or output, else 0 (and gate, or neither)
+        G.nodes['lit'].data['lit_embs'] = self.get_initial_node_features()
+        return G
+    
+    def get_initial_node_features(self):
+        """
+        node (literal) features are 8-dimensional
+        initial node features only concern the first dimension:
+            1 if literal is an input or output, else 0 (and gate, or neither)
+        """
+        n = self.num_vars
         lit_embs = torch.zeros([2*n, GROUND_DIM])
         for l in self.inputs:
             lit_embs[l,0] = 1
         for l in self.outputs:
             lit_embs[l,0] = 1
-        G.nodes['lit'].data['lit_embs'] = lit_embs
-        
-        # No edge (and_gate) features 
-        return G
+        return lit_embs
         
 #################### testing #############################
 

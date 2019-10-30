@@ -9,6 +9,7 @@ Created on Thu Oct 24 22:16:14 2019
 def read_qaiger(filename):
     """
     read from a `.qaiger` file (which contains an `aag` circuit).
+    reads the file exactly as written, without modifying numbering.
     returns a dictionary..
     """
     maxvar = 0
@@ -68,10 +69,10 @@ def read_qaiger(filename):
             and_gates.append(and_gate)
             k -= 1
             
-            # update avars
-            for l in and_gate:
-                v = int(l/2) # the variable v corresponding to the literal l
-                avars[v]['and_gates'].append(and_gate)
+#            # update avars
+#            for l in and_gate:
+#                v = int(l/2) # the variable v corresponding to the literal l
+#                avars[v]['and_gates'].append(and_gate)
             
         # read input symbols
         k = num_inputs

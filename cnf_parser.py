@@ -7,7 +7,7 @@ from cnf_tools import *
 # import ipdb
 
 def simplify_clause(c):
-    s = set(c)
+    s = c#set(c)
     for x in s:
         if -x in s:
             return None
@@ -70,6 +70,11 @@ def dimacs_to_cnf(filename):
 
 
 def qdimacs_to_cnf(filename, zero_based=False):
+    """
+    read from a `.qdimacs` file (which contains a `qcnf` circuit).
+    reads the file exactly as written, without modifying numbering.
+    returns a dictionary..
+    """
     cvars = {}
     clauses = []
     maxvar = 0

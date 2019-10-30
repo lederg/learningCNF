@@ -12,6 +12,7 @@ import collections
 import os
 import random
 from IPython.core.debugger import Tracer
+import dgl
 
 _use_shared_memory = False
 
@@ -19,9 +20,10 @@ MAX_VARIABLES = 1000000
 MAX_CLAUSES = 5000000
 # MAX_VARIABLES = 10000
 # MAX_CLAUSES = 50000
-GROUND_DIM = 8          # config.ground_dim duplicates this. 
+GROUND_DIM = 8          # config.ground_dim duplicates this. # changed for DGL branch 
 IDX_VAR_UNIVERSAL = 0
 IDX_VAR_EXISTENTIAL = 1
+IDX_VAR_INPUT_OUTPUT = 8 # Last Column
 # IDX_VAR_MISSING = 2
 IDX_VAR_DETERMINIZED = 2
 IDX_VAR_ACTIVITY = 3
@@ -305,119 +307,161 @@ class QbfDataset(Dataset):
         else:
             return self.samples[1][idx-self.num_unsat].as_np_dict()
 
-
-# Obselete, used only in qbf_train.py
-
-# def qbf_collate(batch):
-#     rc = {}
-
-#     # Get max var/clauses for this batch    
-#     v_size = max([b['num_vars'] for b in batch])
-#     c_size = max([b['num_clauses'] for b in batch])
-
-#     # adjacency matrix indices in one huge matrix
-#     rc_i = np.concatenate([b['sp_indices'] + np.asarray([i*c_size,i*v_size]) for i,b in enumerate(batch)], 0)
-#     rc_v = np.concatenate([b['sp_vals'] for b in batch], 0)
-
-#     # make var_types into ground embeddings
-#     all_embs = []
-#     for i,b in enumerate(batch):
-#         embs = b['ground']
-#         l = len(embs)
-#         embs = np.concatenate([embs,np.zeros([v_size-l,GROUND_DIM])])
-#         all_embs.append(embs)    
-
-#     # break into pos/neg
-#     sp_ind_pos = torch.from_numpy(rc_i[np.where(rc_v>0)])
-#     sp_ind_neg = torch.from_numpy(rc_i[np.where(rc_v<0)])
-#     sp_val_pos = torch.ones(len(sp_ind_pos))
-#     sp_val_neg = torch.ones(len(sp_ind_neg))
-
-
-#     rc['sp_v2c_pos'] = torch.sparse.FloatTensor(sp_ind_pos.t(),sp_val_pos,torch.Size([c_size*len(batch),v_size*len(batch)]))
-#     rc['sp_v2c_neg'] = torch.sparse.FloatTensor(sp_ind_neg.t(),sp_val_neg,torch.Size([c_size*len(batch),v_size*len(batch)]))
-#     rc['ground'] = torch.from_numpy(np.stack(all_embs))
-#     rc['label'] = torch.Tensor([x['label'] for x in batch]).long()
-
-#     return rc
+##############################################################################
             
-class AagBase(object):    
+class CombinedGraph1Base(object):    
     """
-    Wrapper object for an `aag` circuit (read from a `.qaiger` file).
+    Wrapper object for paired files ('a.qaiger', 'a.qdimacs) 
+    Holds the combined AAG-CNF graph (our first implementation, Oct 2019)
+    Uses the DGL package to store this heterogeneous graph
+        3 types of nodes: AAG literals, QCNF literals, QCNF clauses
+        4 types of edges: 
+            AAG literal -> AAG literal forward edges 
+            AAG literal -> AAG literal backward edges 
+            QCNF literal -> QCNF clause forward edges 
+            QCNF clause -> QCNF literal backward edges
+        9-dimensional node features for AAG literals and QCNF literals
     """
-    def __init__(self, aag = None, **kwargs):
-        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else True
+    def __init__(self, qcnf = None, qcnf_base = None, aag = None, dgl_ = None, **kwargs):
+        self.qcnf = qcnf
+        self.qcnf_base = qcnf_base
         self.aag = aag
-        self.sp_indices = None
-        self.sp_vals = None
-        self.extra_clauses = {}
-        self.removed_old_clauses = []
-        # self.get_base_embeddings = lru_cache(max_size=16)(self.get_base_embeddings)
-        if 'max_variables' in kwargs:
-            self._max_vars = kwargs['max_variables']
-        if 'max_clauses' in kwargs:
-            self._max_clauses = kwargs['max_clauses']
-
-    def reset(self):
-        self.sp_indices = None
-        self.sp_vals = None
-        self.extra_clauses = {}
+        self.dgl_ = dgl_
+        self.GROUNDDIM = 9
+        self.IDX_VAR_UNIVERSAL = 0
+        self.IDX_VAR_EXISTENTIAL = 1
+        self.IDX_VAR_INPUT_OUTPUT = 8 # Last Column
         
-    def load_qaiger(self, filename):
-        self.aag = read_qaiger(filename)
-        self.reset()
-
-    def get_adj_matrices(self):
-        sample = self.aag
-        if self.sparse:
-            return self.get_sparse_adj_matrices(sample)
-        else:
-            return self.get_dense_adj_matrices(sample)
-
-    def get_sparse_adj_matrix(self):
+    def load_paired_files(self, aag_fname = None, qcnf_fname = None):
+        assert aag_fname.endswith('.qaiger') and qcnf_fname.endswith('.qdimacs')
+        self.aag_og = read_qaiger(aag_fname)        # for testing that file reading works
+        self.qcnf_og = qdimacs_to_cnf(qcnf_fname)   # for testing that file reading works
+        self.aag = self.fix_aag_numbering(read_qaiger(aag_fname))
+        self.qcnf = self.fix_qcnf_numbering(qdimacs_to_cnf(qcnf_fname))
+        self.dgl_ = self.initialize_DGL_graph()
+        
+    def fix_aag_numbering(self, aag):
         """
-        NOTE: I SUBTRACTED 1 FROM EACH NODE NUMBER
+        .qaiger file read in with variables 1,2,...,n and literals 2,3,4,5,...,2n,2n+1.
+        Change  literals 2,  3, 4,  5, ..., 2n,  2n+1
+        to      literals 0,  1, 2,  3, ..., 2n-2,2n-1 
+        in order to make the literals 0-based.
         """
-        sample = self.aag
-        indices = []
-        values = []
-        n = self.aag['maxvar']
-                
-#        for i, ag in enumerate(sample['and_gates']):
-#            for l in ag[1:]:
-#                val = 1 if l % 2 == 0 else -1
-#                indices.append( [int(ag[0]/2), int(l/2)] )
-#                values.append(val)
-#        return [indices, np.array(values)]
-        
-        
-        indices0 = []
-        indices1 = []
-        for i, ag in enumerate(sample['and_gates']):
-            for l in ag[1:]:
-                val = 1 if l % 2 == 0 else -1
-                # NOTE: I SUBTRACTED 1 FROM EACH NODE NUMBER
-                indices0.append(int(ag[0]/2) - 1)
-                indices1.append(int(l/2) - 1)
-                values.append(val)
-        i = torch.LongTensor([indices0, indices1])
-        v = torch.LongTensor(values)    
-        return torch.sparse_coo_tensor(indices = i, values = v, size=[n,n])#, size=[3,4])
+        for i, inp in enumerate(aag['inputs']):
+            aag['inputs'][i] = int(inp - 2)            
+        for i, out in enumerate(aag['outputs']):
+            aag['outputs'][i] = int(out - 2)
+        for ag in aag['and_gates']:
+            for i, e in enumerate(ag):
+                ag[i] = int(e - 2)
+        return aag
     
-    def get_base_embeddings(self):
-        embs = np.zeros([self.num_vars,GROUND_DIM])
-        for i in (IDX_VAR_UNIVERSAL, IDX_VAR_EXISTENTIAL):
-            embs[:,i][np.where(self.var_types==i)]=1
+    def convert_qdimacs_lit(self, lit):
+        L = 2 * abs(lit)
+        L = L + 1 if (lit < 0) else L
+        return int(L - 2)
+    
+    def fix_qcnf_numbering(self, qcnf):
+        """
+        .qdimacs file read in with variables 1,2,...,n and literals 1,-1,2,-2,...,n,-n.
+        Change  literals 1, -1, 2, -2, ..., n,   -n
+        to      literals 2,  3, 4,  5, ..., 2n,  2n+1
+        to      literals 0,  1, 2,  3, ..., 2n-2,2n-1 
+        in order to make the literals 0-based.
+        """
+        # change literal numbers: in 'clauses'
+        for cl in qcnf ['clauses']:
+            for i, lit in enumerate(cl):
+                cl[i] = self.convert_qdimacs_lit(lit)
+                
+        # change variable numbers: keys of 'cvars'
+        cvars = {}
+        for key in qcnf['cvars']:
+            cvars[int(key - 1)] = qcnf['cvars'][key]
+        qcnf['cvars'] = cvars
+        
+        return qcnf
+    
+    def initialize_DGL_graph(self):
+        """
+        Create the combined AAG-QCNF graph.
+        """
+        
+        # create aag edges, which remain fixed
+        aag_forward_edges, aag_backward_edges = [], []
+        for ag in self.aag['and_gates']:
+            x, y, z = ag[0], ag[1], ag[2]
+            aag_forward_edges.append( (x,y) )
+            aag_forward_edges.append( (x,z) )
+            aag_backward_edges.append( (y,x) )
+            aag_backward_edges.append( (z,x) )
+            
+        # create qcnf edges, which will need to be updated from CADET obs
+        qcnf_forward_edges, qcnf_backward_edges = [], []
+        for cl_num, clause in enumerate(self.qcnf['clauses']):
+            for lit in clause:
+                qcnf_forward_edges.append( (lit,cl_num) )
+                qcnf_backward_edges.append( (cl_num,lit) )
+            
+        G = dgl.heterograph(
+            {('aag_lit', 'aag_forward', 'aag_lit') : aag_forward_edges,
+             ('aag_lit', 'aag_backward', 'aag_lit') : aag_backward_edges,
+             ('qcnf_lit', 'qcnf_forward', 'qcnf_clause') : qcnf_forward_edges,
+             ('qcnf_clause', 'qcnf_backward', 'qcnf_lit') : qcnf_backward_edges},
+             
+            {'aag_lit': 2 * self.aag['maxvar'],
+             'qcnf_lit' : 2 * self.qcnf['maxvar'],
+             'qcnf_clause': self.qcnf['num_clauses']}
+        )
+        
+        G.nodes['aag_lit'].data['aag_lit_embs'] = self.initial_aag_features()
+        G.nodes['qcnf_lit'].data['qcnf_lit_embs'] = self.initial_qcnf_features()
+        
+        
+        import ipdb
+        ipdb.set_trace()
+        
+        return G
+    
+    
+    def initial_qcnf_features(self):
+        """
+        9 dimensional features for 'qcnf_lit' nodes. Shape (num_nodes, num_features=9).
+        1st column: 1 iff lit is universal
+        2nd column: 1 iff lit is existential
+        9th column: 1 iff lit is an input or output [NOT YET IMPLEMENTED]
+        """
+        universal_lits, existential_lits = [], []
+        for v in self.qcnf['cvars'].keys():
+            if self.qcnf['cvars'][v]['universal']:
+                universal_lits.append(2*v)
+                universal_lits.append(2*v+1)
+            else:
+                existential_lits.append(2*v)
+                existential_lits.append(2*v+1)
+        embs = np.zeros([2 * self.qcnf['maxvar'], self.GROUNDDIM]) 
+        embs[:, self.IDX_VAR_UNIVERSAL][universal_lits] = 1
+        embs[:, self.IDX_VAR_EXISTENTIAL][existential_lits] = 1
+        return embs
+        
+    
+    def initial_aag_features(self):
+        """
+        9 dimensional features for 'qcnf_lit' nodes. Shape (num_nodes, num_features=9).
+        1st column: 1 iff lit is universal [NOT YET IMPLEMENTED]
+        2nd column: 1 iff lit is existential [NOT YET IMPLEMENTED]
+        9th column: 1 iff (lit or (not lit)) is an input or output 
+        """
+        embs = torch.zeros([2 * self.aag['maxvar'], self.GROUNDDIM]) 
+        embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['inputs']] = 1
+        embs[:, self.IDX_VAR_INPUT_OUTPUT][np.array(self.aag['inputs'])+1] = 1  # DELETE THIS?
+        embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
+        embs[:, self.IDX_VAR_INPUT_OUTPUT][np.array(self.aag['outputs'])+1] = 1  # DELETE THIS?
         return embs
     
-    def get_clabels(self):
-        rc = np.ones(self.num_clauses)
-        rc[:len(self.qcnf['clauses'])]=0
-        return rc
+##############################################################################
+##### TESTING    
         
-    def get_geometric_data(self):
-        
-        edge_index = self.get_sparse_adj_matrix()
-        num_edges = self.aag['maxvar'] ** 2
-        edge_attr = torch.zeros([num_edges, 1]) # all original clauses
+a = CombinedGraph1Base()
+a.load_paired_files(aag_fname = './data/words_test_ryan/words_ry_SAT.qaiger', qcnf_fname = './data/words_test_ryan/words_ry_SAT.qaiger.qdimacs')
 

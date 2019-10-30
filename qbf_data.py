@@ -1,5 +1,5 @@
 from cnf_parser import *
-from aag_parser import read_qaiger
+# from aag_parser import read_qaiger
 from utils import *
 import numpy as np
 from functools import partial

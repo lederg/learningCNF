@@ -386,7 +386,6 @@ class CombinedGraph1Base(object):
         """
         Create the combined AAG-QCNF graph.
         """
-        
         # create aag edges, which remain fixed
         aag_forward_edges, aag_backward_edges = [], []
         for ag in self.aag['and_gates']:
@@ -395,14 +394,14 @@ class CombinedGraph1Base(object):
             aag_forward_edges.append( (x,z) )
             aag_backward_edges.append( (y,x) )
             aag_backward_edges.append( (z,x) )
-            
+                        
         # create qcnf edges, which will need to be updated from CADET obs
         qcnf_forward_edges, qcnf_backward_edges = [], []
         for cl_num, clause in enumerate(self.qcnf['clauses']):
             for lit in clause:
                 qcnf_forward_edges.append( (lit,cl_num) )
                 qcnf_backward_edges.append( (cl_num,lit) )
-            
+                            
         G = dgl.heterograph(
             {('aag_lit', 'aag_forward', 'aag_lit') : aag_forward_edges,
              ('aag_lit', 'aag_backward', 'aag_lit') : aag_backward_edges,
@@ -449,14 +448,17 @@ class CombinedGraph1Base(object):
         """
         embs = torch.zeros([2 * self.aag['maxvar'], self.GROUNDDIM]) 
         embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['inputs']] = 1
-        embs[:, self.IDX_VAR_INPUT_OUTPUT][np.array(self.aag['inputs'])+1] = 1  # DELETE THIS?
         embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
-        embs[:, self.IDX_VAR_INPUT_OUTPUT][np.array(self.aag['outputs'])+1] = 1  # DELETE THIS?
+        try:
+            embs[:, self.IDX_VAR_INPUT_OUTPUT][np.array(self.aag['inputs'])+1] = 1  # DELETE THIS?
+            embs[:, self.IDX_VAR_INPUT_OUTPUT][np.array(self.aag['outputs'])+1] = 1  # DELETE THIS?
+        except:
+            pass
         return embs
     
 ##############################################################################
 ##### TESTING    
         
-a = CombinedGraph1Base()
-a.load_paired_files(aag_fname = './data/words_test_ryan/words_ry_SAT.qaiger', qcnf_fname = './data/words_test_ryan/words_ry_SAT.qaiger.qdimacs')
+#a = CombinedGraph1Base()
+#a.load_paired_files(aag_fname = './data/words_test_ryan/words_ry_SAT.qaiger', qcnf_fname = './data/words_test_ryan/words_ry_SAT.qaiger.qdimacs')
 

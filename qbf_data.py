@@ -416,11 +416,6 @@ class CombinedGraph1Base(object):
         
         G.nodes['aag_lit'].data['aag_lit_embs'] = self.initial_aag_features()
         G.nodes['qcnf_lit'].data['qcnf_lit_embs'] = self.initial_qcnf_features()
-        
-        
-        import ipdb
-        ipdb.set_trace()
-        
         return G
     
     

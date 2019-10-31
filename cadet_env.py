@@ -38,6 +38,7 @@ class CadetEnv:
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
+    self.aag_qcnf = CombinedGraph1Base(**kwargs)
     self.greedy_rewards = greedy_rewards
     self.clause_learning = clause_learning
     self.vars_set = vars_set
@@ -122,13 +123,22 @@ class CadetEnv:
       rewards = np.asarray(list(map(float,a.split()[1:])))
       return rewards
 
-  def reset(self, fname):    
+  def reset(self, fname):   
     self.terminate()
     if self.debug:
       print('Starting Env {}'.format(fname))
     # if fname == 'data/huge_gen1/small-bug1-fixpoint-3.qdimacs':
     #   Tracer()()
-    self.qbf.reload_qdimacs(fname)    # This holds our own representation of the qbf graph
+    
+    #########################################
+    if type(fname) == tuple and len(fname) == 2:
+        self.aag_qcnf.load_paired_files(aag_fname = fname[0], qcnf_fname = fname[1])
+        self.qbf.reload_qdimacs(fname[1])
+    else:
+        self.qbf.reload_qdimacs(fname)    
+    fname = fname[1]
+    #########################################
+    
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
     self.total_vars_deterministic = np.zeros(self.qbf.num_vars)    
     self.activities = np.zeros(self.qbf.num_vars)
@@ -355,11 +365,14 @@ class CadetEnv:
       idx = a[:,0][np.where(a[:,1]==-1)[0]]
       ground_embs[:,IDX_VAR_SET_NEG][idx] = True
       idx = a[:,0][np.where(a[:,1]==0)[0]]
-      ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][idx] = False  
+      ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][idx] = False 
+      
+#    import ipdb
+#    ipdb.set_trace()
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state,cmat, ground_embs, clabels, vmask, cmask, None)
+    return State(state,cmat, ground_embs, clabels, vmask, cmask, self.aag_qcnf)
     
 
 
@@ -371,8 +384,9 @@ class CadetEnv:
       # state, vars_add, vars_remove, activities, _, _ , _, vars_set, _ = self.reset(fname)
       if obs.state is not None:   # Env solved in 0 steps
         return obs
-    except:
+    except Exception as e:
       print('Error reseting with file {}'.format(fname))
+      print(e)
 
   def step(self, action):
     assert(not self.done)

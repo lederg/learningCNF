@@ -349,12 +349,118 @@ class RandomOrderedProvider(AbstractEpisodeProvider):
 
   def __iter__(self):
     return self.get_next()
-
-
     
 class RandomEpisodeProvider(AbstractEpisodeProvider):
   def sample(self, **kwargs):
     return np.random.choice(self.items, **kwargs)
   def get_next(self, **kwargs):
     return self.sample(**kwargs)
+
+##############################################################################
+    """
+    Providers added for the combined AAG-CNF graph
+    Ryan Brill, Oct. 2019
+    """
+##############################################################################
+    
+class UniformEpisodeProviderCombinedGraph(AbstractProvider):
+  """
+    Provider for PAIRED data (a .qiager file, and a corresponding .qdimacs file)
+  """
+  def __init__(self, directory, **kwargs):
+    self.items = self.load_paired_files(directory)
+    ObserverDispatcher().register('new_batch',self)   
+    self.current = self.sample()
+    #############################
+    self.settings = CnfSettings()
+    self.logger = logging.getLogger('episode_provider')
+    self.logger.setLevel(eval(self.settings['loglevel']))
+    
+  def notify(self, *args, **kwargs):
+    self.reset()
+
+  def sample(self, **kwargs):
+    indices = np.arange(len(self.items))
+    i = np.random.choice(indices, **kwargs)
+    return self.items[i]
+
+  def reset(self, **kwargs):
+    self.current = self.sample(**kwargs)
+    
+  def delete_item(self, item):
+    self.logger.debug('Asked to delete {}'.format(item))
+    try:
+      self.items.remove(item)
+    except ValueError:
+      self.logger.warning('Tried to delete non-existing item: {}'.format(item))
+
+  def get_next(self, **kwargs):
+    return self.current
+
+  def __iter__(self):
+    return self.get_next()
+
+  def get_total(self):
+    return len(self.items)
+
+  def __len__(self):
+    return self.get_total()
+    
+  def load_paired_files(self, files):
+    """
+    load paired files as tuples (a.qaiger, a.qdimacs) 
+    """
+    if type(files) is not list:
+      files = [files]
+    only_files = [x for x in files if os.path.isfile(x)]
+    only_dirs = [x for x in files if os.path.isdir(x)]
+    fnames = only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([self.load_dir(x) for x in only_dirs]))
+    
+    #################
+    ## if the above line already gets the `tuples`, no need to modify the tuples:
+    L = list(dict.fromkeys([type(f) for f in fnames]))
+    if len(L) == 1 and L[0] == tuple:
+        return fnames
+    #################
+        
+    fname_prefixes = self.strip_suffixes(fnames)        # remove the suffixes '.qaiger', '.qdimacs', '.qaiger.qdimacs'
+    fnames = self.paired_fnames(fnames, fname_prefixes) # get the pairs of (qaiger, qdimacs) files as tuples
+    
+    return fnames
+
+  def load_dir(self, directory):
+    return self.load_paired_files([join(directory, f) for f in listdir(directory)])
+
+  def strip_suffixes(self, fnames):
+      file_prefixes = []
+      
+      for fname in fnames:
+        if fname.endswith('.qaiger.qdimacs'):
+          L = len('.qaiger.qdimacs')
+        elif fname.endswith('.qaiger'):
+          L = len('.qaiger')
+        elif fname.endswith('.qdimacs'):
+          L = len('.qdimacs')
+        else:
+          continue
+        fname_prefix = fname[:-L]
+        if fname_prefix not in file_prefixes:
+          file_prefixes.append(fname_prefix)
+      
+      return file_prefixes
+      
+  def paired_fnames(self, fnames, fname_prefixes):
+    suffixes = ['.qaiger.qdimacs', '.qaiger', '.qdimacs']
+    paired = []
+    for prefix in fname_prefixes:
+      pair = tuple([f for f in fnames if f.startswith(prefix)])
+      if len(pair) != 2:
+          continue
+      # check pair suffixes
+      s0, s1 = pair[0][len(prefix):], pair[1][len(prefix):]
+      if (s0 != s1) and (s0 in suffixes) and (s1 in suffixes):
+          paired.append(tuple(sorted(pair)))
+    return paired
+
+
 

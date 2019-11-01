@@ -12,7 +12,6 @@ import collections
 import os
 import random
 from IPython.core.debugger import Tracer
-# from torch_geometric.data import Data
 
 _use_shared_memory = False
 

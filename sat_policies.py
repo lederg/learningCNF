@@ -1165,6 +1165,7 @@ class SatPercentagePolicy(SCPolicyBase):
 class SatDiscreteThresholdPolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatDiscreteThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
+    self.threshold_base = self.settings['sat_discrete_threshold_base']
 
   def input_dim(self):
     return self.settings['state_dim']
@@ -1182,7 +1183,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
 
   def translate_action(self, action, obs, **kwargs):    
     threshold = action
-    threshold += 2    # [2,3,...]
+    threshold += self.threshold_base    # [2,3,...]
     # print('Threshold is {}'.format(threshold))
     rc = obs.clabels[:,CLABEL_LBD] < float(threshold)
     a = rc.detach()
@@ -1225,7 +1226,9 @@ class SatFreeDiscretePolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(SatFreeDiscretePolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
     self.t = float(self.settings['init_threshold'])
-    self.threshold_logits = nn.Parameter(torch.FloatTensor(29*[self.t]), requires_grad=True)
+    self.threshold_base = self.settings['sat_discrete_threshold_base']
+    self.num_actions = self.settings['sat_num_free_actions']
+    self.threshold_logits = nn.Parameter(torch.FloatTensor(self.num_actions*[self.t]), requires_grad=True)
 
   def forward(self, obs, **kwargs):    
     return None
@@ -1237,9 +1240,9 @@ class SatFreeDiscretePolicy(PolicyBase):
   # This is going to MUTATE the obs object. Specifically, it deletes the reference to obs.clabels in order to save
   # memory before we save the observation in the batch trace.
 
-  def translate_action(self, action, obs, **kwargs):    
+  def translate_action(self, action, obs, **kwargs):
     threshold = action
-    threshold += 2    # [2,3,...]
+    threshold += self.threshold_base    # [2,3,...]
     # print('Threshold is {}'.format(threshold))
     rc = obs.clabels[:,CLABEL_LBD] < float(threshold)
     a = rc.detach()
@@ -1262,12 +1265,12 @@ class SatFreeDiscretePolicy(PolicyBase):
     if deterministic:
       action = int(torch.argmax(logits.view(-1)))
       if every_tick(20) or log_threshold:
-        self.logger.info('Threshold is {}'.format(action+2))      
+        self.logger.info('Threshold is {}'.format(action+self.threshold_base))
       return action, 0
     self.m = Categorical(logits=logits.view(-1))
     action=int(self.m.sample().detach())    
     if every_tick(20) or log_threshold:
-      self.logger.info('Threshold is {}'.format(action+2))
+      self.logger.info('Threshold is {}'.format(action+self.threshold_base))
 
     return action, float(self.m.entropy().detach())
 

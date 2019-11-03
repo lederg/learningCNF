@@ -331,49 +331,71 @@ class CadetEnv:
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
-    import ipdb
-    ipdb.set_trace()
-    
     if not env_obs:
       return None
     if env_obs.clause or not last_obs:
-      # Tracer()()
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
-    else:
+      
+      # remake combined graph
+      
+    else: # no changed clauses AND last_obs
       cmat, clabels = last_obs.cmat, last_obs.clabels
+      
+      G = last_obs.ext_data.G
     if last_obs:
       ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
       vmask = last_obs.vmask
       cmask = last_obs.cmask
+      
+      G = last_obs.ext_data.G
+      lit_embs = G.nodes['lit'].data['lit_embs']
     else:      
       ground_embs = self.qbf.get_base_embeddings()
       vmask = None
       cmask = None
+      
+      G = self.aag_qcnf.G
+      lit_embs = G.nodes['lit'].data['lit_embs']
+      
+    ### Update Ground Embeddings / Literal Embeddings
     if env_obs.decision:
       ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
+      
+      ## FIXME: signed lit ??
+      lit = vars_to_lits([env_obs.decision[0]],env_obs.decision[1])[0]
+      lit_embs[lit][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = 1 
     if len(env_obs.vars_add):
       ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_add] = True
+      
+      lit_embs[:,IDX_VAR_DETERMINIZED][vars_to_lits(env_obs.vars_add)] = 1
     if len(env_obs.vars_remove):
       ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_remove] = False
       ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][env_obs.vars_remove] = False
+      
+      lit_embs[:,IDX_VAR_DETERMINIZED][vars_to_lits(env_obs.vars_remove)] = 0
+      lit_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][vars_to_lits(env_obs.vars_remove)] = 0
     if self.use_activities:
       ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
-    if len(env_obs.vars_set):
-      a = env_obs.vars_set
-      idx = a[:,0][np.where(a[:,1]==1)[0]]
-      ground_embs[:,IDX_VAR_SET_POS][idx] = True
-      idx = a[:,0][np.where(a[:,1]==-1)[0]]
-      ground_embs[:,IDX_VAR_SET_NEG][idx] = True
-      idx = a[:,0][np.where(a[:,1]==0)[0]]
-      ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][idx] = False 
       
-#    import ipdb
-#    ipdb.set_trace()
+      lit_embs[:,IDX_VAR_ACTIVITY] = Vars01_to_Lits01(env_obs.activities)
+    if len(env_obs.vars_set):
+      x = env_obs.vars_set
+      pos_idx = x[:,0][np.where(x[:,1]==1)[0]]
+      ground_embs[:,IDX_VAR_SET_POS][pos_idx] = True
+      neg_idx = x[:,0][np.where(x[:,1]==-1)[0]]
+      ground_embs[:,IDX_VAR_SET_NEG][neg_idx] = True
+      not_yet_idx = x[:,0][np.where(x[:,1]==0)[0]]
+      ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][not_yet_idx] = False 
+      
+      ## FIXME: signed lits ??
+      lit_embs[:,IDX_VAR_SET_POS][vars_to_lits(pos_idx,1)] = 1
+      lit_embs[:,IDX_VAR_SET_NEG][vars_to_lits(neg_idx,-1)] = 1
+      lit_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][vars_to_lits(not_yet_idx)] = 0
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state,cmat, ground_embs, clabels, vmask, cmask, self.aag_qcnf)
+    return State(state, cmat, ground_embs, clabels, vmask, cmask, self.aag_qcnf)
     
 
 

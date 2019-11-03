@@ -337,59 +337,9 @@ class CombinedGraph1Base(object):
         assert aag_fname.endswith('.qaiger') and qcnf_fname.endswith('.qdimacs')
         self.aag_og = read_qaiger(aag_fname)        # for testing that file reading works
         self.qcnf_og = qdimacs_to_cnf(qcnf_fname)   # for testing that file reading works
-        self.aag = self.fix_aag_numbering(read_qaiger(aag_fname))
-        self.qcnf = self.fix_qcnf_numbering(qdimacs_to_cnf(qcnf_fname))
+        self.aag = fix_aag_numbering(read_qaiger(aag_fname))
+        self.qcnf = fix_qcnf_numbering(qdimacs_to_cnf(qcnf_fname))
         self.G = self.initialize_DGL_graph()
-        
-    def fix_aag_numbering(self, aag):
-        """
-        .qaiger file read in with variables 1,2,...,n and literals 2,3,4,5,...,2n,2n+1.
-        Change  literals 2,  3, 4,  5, ..., 2n,  2n+1
-        to      literals 0,  1, 2,  3, ..., 2n-2,2n-1 
-        in order to make the literals 0-based.
-        """
-        for i, inp in enumerate(aag['inputs']):
-            aag['inputs'][i] = int(inp - 2)            
-        for i, out in enumerate(aag['outputs']):
-            aag['outputs'][i] = int(out - 2)
-        for ag in aag['and_gates']:
-            for i, e in enumerate(ag):
-                ag[i] = int(e - 2)
-        return aag
-    
-    def convert_qdimacs_lit(self, lit):
-        L = 2 * abs(lit)
-        L = L + 1 if (lit < 0) else L
-        return int(L - 2)
-    
-    def fix_qcnf_numbering(self, qcnf):
-        """
-        .qdimacs file read in with variables 1,2,...,n and literals 1,-1,2,-2,...,n,-n.
-        Change  literals 1, -1, 2, -2, ..., n,   -n
-        to      literals 2,  3, 4,  5, ..., 2n,  2n+1
-        to      literals 0,  1, 2,  3, ..., 2n-2,2n-1 
-        in order to make the literals 0-based.
-        """
-        # change literal numbers: in 'clauses'
-        for cl in qcnf ['clauses']:
-            for i, lit in enumerate(cl):
-                cl[i] = self.convert_qdimacs_lit(lit)
-                
-        # change variable numbers: keys of 'cvars'
-        cvars = {}
-        for key in qcnf['cvars']:
-            cvars[int(key - 1)] = qcnf['cvars'][key]
-        qcnf['cvars'] = cvars
-        
-        return qcnf
-    
-    def flip(self, lit):
-        """
-        literals 0, 1, 2, 3, ..., 2n-2, 2n-1 
-        if lit is even (positive literal),  not_lit = lit + 1
-        if lit is odd (negative literal),   not_lit = lit - 1
-        """
-        return lit + 1 if lit % 2 == 0 else lit - 1
     
     def initialize_DGL_graph(self):
         """
@@ -445,8 +395,8 @@ class CombinedGraph1Base(object):
         embs = torch.zeros([2 * self.qcnf['maxvar'], self.LIT_FEATURE_DIM]) 
         embs[:, self.IDX_VAR_UNIVERSAL][universal_lits] = 1
         embs[:, self.IDX_VAR_EXISTENTIAL][existential_lits] = 1
-        flipped_inputs = [self.flip(i) for i in self.aag['inputs']]
-        flipped_outputs = [self.flip(o) for o in self.aag['outputs']]
+        flipped_inputs = [flip(i) for i in self.aag['inputs']]
+        flipped_outputs = [flip(o) for o in self.aag['outputs']]
         embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['inputs']] = 1
         embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_inputs] = 1
         embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
@@ -459,7 +409,93 @@ class CombinedGraph1Base(object):
         1st column: 0 if clause is original, 1 if clause is learned/derived (so, initially all 0).
         """
         return torch.zeros([self.qcnf['num_clauses'], self.CLAUSE_FEATURE_DIM])
+    
+##############################################################################
+##### Functions involving QCNF, AAG, Literal/Variable numbering    
+##############################################################################
         
+def fix_aag_numbering(aag):
+    """
+    .qaiger file read in with variables 1,2,...,n and literals 2,3,4,5,...,2n,2n+1.
+    Change  literals 2,  3, 4,  5, ..., 2n,  2n+1
+    to      literals 0,  1, 2,  3, ..., 2n-2,2n-1 
+    in order to make the literals 0-based.
+    """
+    for i, inp in enumerate(aag['inputs']):
+        aag['inputs'][i] = int(inp - 2)            
+    for i, out in enumerate(aag['outputs']):
+        aag['outputs'][i] = int(out - 2)
+    for ag in aag['and_gates']:
+        for i, e in enumerate(ag):
+            ag[i] = int(e - 2)
+    return aag
+
+def convert_qdimacs_lit(lit):
+    L = 2 * abs(lit)
+    L = L + 1 if (lit < 0) else L
+    return int(L - 2)
+
+def fix_qcnf_numbering(qcnf):
+    """
+    .qdimacs file read in with variables 1,2,...,n and literals 1,-1,2,-2,...,n,-n.
+    Change  literals 1, -1, 2, -2, ..., n,   -n
+    to      literals 2,  3, 4,  5, ..., 2n,  2n+1
+    to      literals 0,  1, 2,  3, ..., 2n-2,2n-1 
+    in order to make the literals 0-based.
+    """
+    # change literal numbers: in 'clauses'
+    for cl in qcnf ['clauses']:
+        for i, lit in enumerate(cl):
+            cl[i] = convert_qdimacs_lit(lit)
+            
+    # change variable numbers: keys of 'cvars'
+    cvars = {}
+    for key in qcnf['cvars']:
+        cvars[int(key - 1)] = qcnf['cvars'][key]
+    qcnf['cvars'] = cvars
+    
+    return qcnf
+
+def flip(lit):
+    """
+    literals 0, 1, 2, 3, ..., 2n-2, 2n-1 
+    if lit is even (positive literal),  not_lit = lit + 1
+    if lit is odd (negative literal),   not_lit = lit - 1
+    """
+    return lit + 1 if lit % 2 == 0 else lit - 1
+
+def vars_to_lits(V, sign=None):
+    """
+    Given list of variables V = [v0, v1, ..., vn] (all positive integers 0,1,2,...),
+    return list of literals [2*v0, 2*v0+1, 2*v1, 2*v1+1, ..., 2*vn, 2*vn+1]
+    """
+    L = []
+    for v in V:
+        if not sign:
+            L.append(int(2*v))
+            L.append(int(2*v+1))
+        if sign == 1:
+            L.append(int(2*v))
+        elif sign == -1:
+            L.append(int(2*v+1))
+    return L
+
+def Vars01_to_Lits01(V):
+    """
+    Given list in {0,1} indexed by variable (size n=num_vars),
+    return list in {0,1} indexed by literal (size 2n=num_lits),
+    where literal entry is 1 if corresponding variable entry is 1, else 0.
+    """
+    L = []
+    for v in V:
+        if v == 1:
+            L.append(1)
+            L.append(1)
+        else:
+            L.append(0)
+            L.append(0)
+    return torch.tensor(L)
+    
     
 ##############################################################################
 ##### TESTING    

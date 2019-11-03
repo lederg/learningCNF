@@ -677,8 +677,8 @@ class SatFreeThresholdPolicy(PolicyBase):
     pass
 
   def translate_action(self, action, obs, **kwargs):
-    threshold, clabels = action
-    rc = clabels[:,CLABEL_LBD] < threshold
+    threshold = action
+    rc = obs.clabels[:,CLABEL_LBD] < threshold
     a = rc.detach()
     num_learned = obs.ext_data
     locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
@@ -690,16 +690,18 @@ class SatFreeThresholdPolicy(PolicyBase):
     return actions
     # return torch.cat(actions)
 
-  def select_action(self, obs_batch, training=True, **kwargs):
+  def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     threshold, clabels = self.forward(obs_batch, **kwargs)
-    if not training:
+    if deterministic:
+      if log_threshold:
+        self.logger.info('Threshold is {}'.format(threshold))
       return (threshold, clabels)
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()
 
-    return (sampled_threshold, clabels), 0
+    return sampled_threshold, 0
 
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
@@ -1096,11 +1098,11 @@ class SatThresholdStatePolicy(SCPolicyBase):
 
     return final_action
 
-  def select_action(self, obs_batch, training=True, **kwargs):
+  def select_action(self, obs_batch, deterministic=False, **kwargs):
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     threshold, clabels = self.forward(obs_batch, **kwargs)
-    if not training:
+    if deterministic:
       return (threshold, clabels)
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()

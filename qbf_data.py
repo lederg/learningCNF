@@ -322,11 +322,11 @@ class CombinedGraph1Base(object):
             QCNF clause -> QCNF literal backward edges
         9-dimensional node features for AAG literals and QCNF literals
     """
-    def __init__(self, qcnf = None, qcnf_base = None, aag = None, dgl_ = None, **kwargs):
+    def __init__(self, qcnf = None, qcnf_base = None, aag = None, G = None, **kwargs):
         self.qcnf = qcnf
         self.qcnf_base = qcnf_base
         self.aag = aag
-        self.dgl_ = dgl_
+        self.G = G
         self.GROUNDDIM = 9
         self.IDX_VAR_UNIVERSAL = 0
         self.IDX_VAR_EXISTENTIAL = 1
@@ -338,7 +338,7 @@ class CombinedGraph1Base(object):
         self.qcnf_og = qdimacs_to_cnf(qcnf_fname)   # for testing that file reading works
         self.aag = self.fix_aag_numbering(read_qaiger(aag_fname))
         self.qcnf = self.fix_qcnf_numbering(qdimacs_to_cnf(qcnf_fname))
-        self.dgl_ = self.initialize_DGL_graph()
+        self.G = self.initialize_DGL_graph()
         
     def fix_aag_numbering(self, aag):
         """

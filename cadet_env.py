@@ -123,7 +123,7 @@ class CadetEnv:
       rewards = np.asarray(list(map(float,a.split()[1:])))
       return rewards
 
-  def reset(self, fname):   
+  def reset(self, fname): 
     self.terminate()
     if self.debug:
       print('Starting Env {}'.format(fname))
@@ -153,8 +153,6 @@ class CadetEnv:
     self.current_fname = fname
     rc = self.read_state_update()     # Initial state
     return rc
-    
-
 
   def read_line_with_timeout(self, timeout=10.):
     return self.cadet_proc.stdout.readline()
@@ -333,6 +331,9 @@ class CadetEnv:
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
+    import ipdb
+    ipdb.set_trace()
+    
     if not env_obs:
       return None
     if env_obs.clause or not last_obs:

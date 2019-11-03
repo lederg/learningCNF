@@ -327,7 +327,8 @@ class CombinedGraph1Base(object):
         self.qcnf_base = qcnf_base
         self.aag = aag
         self.G = G
-        self.GROUNDDIM = 9
+        self.LIT_FEATURE_DIM = 9
+        self.CLAUSE_FEATURE_DIM = 1
         self.IDX_VAR_UNIVERSAL = 0
         self.IDX_VAR_EXISTENTIAL = 1
         self.IDX_VAR_INPUT_OUTPUT = 8 # Last Column
@@ -423,6 +424,7 @@ class CombinedGraph1Base(object):
         )
         
         G.nodes['lit'].data['lit_embs'] = self.initial_lit_features()
+        G.nodes['qcnf_clause'].data['clause_embs'] = self.initial_clause_features()
         return G
     
     def initial_lit_features(self):
@@ -440,7 +442,7 @@ class CombinedGraph1Base(object):
             else:
                 existential_lits.append(2*v)
                 existential_lits.append(2*v+1)
-        embs = torch.zeros([2 * self.qcnf['maxvar'], self.GROUNDDIM]) 
+        embs = torch.zeros([2 * self.qcnf['maxvar'], self.LIT_FEATURE_DIM]) 
         embs[:, self.IDX_VAR_UNIVERSAL][universal_lits] = 1
         embs[:, self.IDX_VAR_EXISTENTIAL][existential_lits] = 1
         flipped_inputs = [self.flip(i) for i in self.aag['inputs']]
@@ -450,6 +452,13 @@ class CombinedGraph1Base(object):
         embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
         embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_outputs] = 1
         return embs
+    
+    def initial_clause_features(self):
+        """
+        1 dimensional features for 'qcnf_clause' nodes. Shape (num_clauses, num_features=1).
+        1st column: 0 if clause is original, 1 if clause is learned/derived (so, initially all 0).
+        """
+        return torch.zeros([self.qcnf['num_clauses'], self.CLAUSE_FEATURE_DIM])
         
     
 ##############################################################################

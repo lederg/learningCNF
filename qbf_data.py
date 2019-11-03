@@ -382,6 +382,14 @@ class CombinedGraph1Base(object):
         
         return qcnf
     
+    def flip(self, lit):
+        """
+        literals 0, 1, 2, 3, ..., 2n-2, 2n-1 
+        if lit is even (positive literal),  not_lit = lit + 1
+        if lit is odd (negative literal),   not_lit = lit - 1
+        """
+        return lit + 1 if lit % 2 == 0 else lit - 1
+    
     def initialize_DGL_graph(self):
         """
         Create the combined AAG-QCNF graph.
@@ -401,29 +409,28 @@ class CombinedGraph1Base(object):
             for lit in clause:
                 qcnf_forward_edges.append( (lit,cl_num) )
                 qcnf_backward_edges.append( (cl_num,lit) )
-                            
+                           
+        # assert self.aag['maxvar'] == self.qcnf['maxvar'] # same number of variables
+        
         G = dgl.heterograph(
-            {('aag_lit', 'aag_forward', 'aag_lit') : aag_forward_edges,
-             ('aag_lit', 'aag_backward', 'aag_lit') : aag_backward_edges,
-             ('qcnf_lit', 'qcnf_forward', 'qcnf_clause') : qcnf_forward_edges,
-             ('qcnf_clause', 'qcnf_backward', 'qcnf_lit') : qcnf_backward_edges},
+            {('lit', 'aag_forward', 'lit') : aag_forward_edges,
+             ('lit', 'aag_backward', 'lit') : aag_backward_edges,
+             ('lit', 'qcnf_forward', 'qcnf_clause') : qcnf_forward_edges,
+             ('qcnf_clause', 'qcnf_backward', 'lit') : qcnf_backward_edges},
              
-            {'aag_lit': 2 * self.aag['maxvar'],
-             'qcnf_lit' : 2 * self.qcnf['maxvar'],
+            {'lit': 2 * self.qcnf['maxvar'],
              'qcnf_clause': self.qcnf['num_clauses']}
         )
         
-        G.nodes['aag_lit'].data['aag_lit_embs'] = self.initial_aag_features()
-        G.nodes['qcnf_lit'].data['qcnf_lit_embs'] = self.initial_qcnf_features()
+        G.nodes['lit'].data['lit_embs'] = self.initial_lit_features()
         return G
     
-    
-    def initial_qcnf_features(self):
+    def initial_lit_features(self):
         """
-        9 dimensional features for 'qcnf_lit' nodes. Shape (num_nodes, num_features=9).
-        1st column: 1 iff lit is universal
-        2nd column: 1 iff lit is existential
-        9th column: 1 iff lit is an input or output [NOT YET IMPLEMENTED]
+        9 dimensional features for 'lit' nodes. Shape (num_literals, num_features=9).
+        1st column: 1 iff lit is universal (from qcnf graph)
+        2nd column: 1 iff lit is existential (from qcnf graph)
+        9th column: 1 iff lit is an input or output (from aag graph)
         """
         universal_lits, existential_lits = [], []
         for v in self.qcnf['cvars'].keys():
@@ -433,28 +440,17 @@ class CombinedGraph1Base(object):
             else:
                 existential_lits.append(2*v)
                 existential_lits.append(2*v+1)
-        embs = np.zeros([2 * self.qcnf['maxvar'], self.GROUNDDIM]) 
+        embs = torch.zeros([2 * self.qcnf['maxvar'], self.GROUNDDIM]) 
         embs[:, self.IDX_VAR_UNIVERSAL][universal_lits] = 1
         embs[:, self.IDX_VAR_EXISTENTIAL][existential_lits] = 1
+        flipped_inputs = [self.flip(i) for i in self.aag['inputs']]
+        flipped_outputs = [self.flip(o) for o in self.aag['outputs']]
+        embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['inputs']] = 1
+        embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_inputs] = 1
+        embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
+        embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_outputs] = 1
         return embs
         
-    
-    def initial_aag_features(self):
-        """
-        9 dimensional features for 'qcnf_lit' nodes. Shape (num_nodes, num_features=9).
-        1st column: 1 iff lit is universal [NOT YET IMPLEMENTED]
-        2nd column: 1 iff lit is existential [NOT YET IMPLEMENTED]
-        9th column: 1 iff (lit or (not lit)) is an input or output 
-        """
-        embs = torch.zeros([2 * self.aag['maxvar'], self.GROUNDDIM]) 
-        embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['inputs']] = 1
-        embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
-        try:
-            embs[:, self.IDX_VAR_INPUT_OUTPUT][np.array(self.aag['inputs'])+1] = 1  # DELETE THIS?
-            embs[:, self.IDX_VAR_INPUT_OUTPUT][np.array(self.aag['outputs'])+1] = 1  # DELETE THIS?
-        except:
-            pass
-        return embs
     
 ##############################################################################
 ##### TESTING    

@@ -323,29 +323,128 @@ class CombinedGraph1Base(object):
         9-dimensional node features for AAG literals and QCNF literals
     """
     def __init__(self, qcnf = None, qcnf_base = None, aag = None, G = None, **kwargs):
-        self.qcnf = qcnf
+        self.qcnf = qcnf # WARNING: if use update_DGL_graph(), check that fix_qcnf_numbering() is used too
         self.qcnf_base = qcnf_base
         self.aag = aag
+        self.aag_forward_edges = []
+        self.aag_backward_edges = []
         self.G = G
+        self.extra_clauses = {}
+        self.removed_old_clauses = []
         self.LIT_FEATURE_DIM = 9
         self.CLAUSE_FEATURE_DIM = 1
         self.IDX_VAR_UNIVERSAL = 0
         self.IDX_VAR_EXISTENTIAL = 1
         self.IDX_VAR_INPUT_OUTPUT = 8 # Last Column
         
+    def reset(self):
+        self.extra_clauses = {}
+        self.removed_old_clauses = []
+        
     def load_paired_files(self, aag_fname = None, qcnf_fname = None):
         assert aag_fname.endswith('.qaiger') and qcnf_fname.endswith('.qdimacs')
-        self.aag_og = read_qaiger(aag_fname)        # for testing that file reading works
-        self.qcnf_og = qdimacs_to_cnf(qcnf_fname)   # for testing that file reading works
+        # self.aag_og = read_qaiger(aag_fname)        # for testing
+        # self.qcnf_og = qdimacs_to_cnf(qcnf_fname)   # for testing
         self.aag = fix_aag_numbering(read_qaiger(aag_fname))
         self.qcnf = fix_qcnf_numbering(qdimacs_to_cnf(qcnf_fname))
-        self.G = self.initialize_DGL_graph()
+        self.create_DGL_graph()        
+        self.reset()
+        
+    @property
+    def num_vars(self):
+        return self.aag['maxvar']
     
-    def initialize_DGL_graph(self):
+    @property
+    def num_lits(self):
+        return 2 * self.num_vars
+    
+#    @property
+#    def num_clauses(self): ##FIXME ??
+#        k = self.extra_clauses.keys()
+#        if not k:
+#            return self.num_og_clauses     
+#        return max(k)+1
+        
+    def num_clauses(self, extra_clauses): ##FIXME ??
+        k = extra_clauses.keys()
+        if not k:
+            return self.num_og_clauses     
+        return max(k)+1
+    
+    @property
+    def num_og_clauses(self): 
+        return self.qcnf['num_clauses']       
+        
+    def create_DGL_graph(self, qcnf_base = None,
+            aag_forward_edges = [], aag_backward_edges = [],
+            qcnf_forward_edges = [], qcnf_backward_edges = [],
+            extra_clauses = {}, removed_old_clauses = [], 
+            lit_embs = [], clause_embs = []
+        ):
         """
         Create the combined AAG-QCNF graph.
+        
+        Updates from CADET:
+            extra_clauses : learned/derived clauses not included in original qcnf formula
+                add qcnf_clause node
+                add qcnf_clause node embeddings `1`
+                add qcnf_forward edges
+                add qcnf_backward edge
+            removed_old_clauses : clauses included in original qcnf formula to be removed
+                remove qcnf_forward edges
+                remove qcnf_backward edge
         """
-        # create aag edges, which remain fixed
+        if qcnf_base:
+            self.qcnf_base = qcnf_base
+            # self.qcnf = fix_qcnf_numbering(self.qcnf_base.qcnf)
+        if not aag_forward_edges or not aag_backward_edges:
+            aag_forward_edges, aag_backward_edges = self.initial_aag_edges()
+        if not qcnf_forward_edges or not qcnf_backward_edges:
+            qcnf_forward_edges, qcnf_backward_edges = self.initial_qcnf_edges()
+        if type(lit_embs) == list and lit_embs == []: ##FIXME
+            lit_embs = self.initial_lit_features()
+        if type(clause_embs) == list and clause_embs == []: ##FIXME
+            clause_embs =  self.initial_clause_features()
+            
+        ## add qcnf edges for each clause in extra_clauses
+        for cl_num in extra_clauses:
+            for lit in extra_clauses[cl_num]:
+                qcnf_forward_edges.append( (lit,cl_num) )
+                qcnf_backward_edges.append( (cl_num,lit) )
+        ## change clause embeddings : 1 for extra clauses        
+        if extra_clauses:
+            clause_embs = torch.zeros([self.num_clauses(extra_clauses), self.CLAUSE_FEATURE_DIM])
+            clause_embs[[cl_num for cl_num in extra_clauses.keys()]] = 1
+
+        ## remove qcnf edges for each clause in remove_old_clauses
+        for cl_num in removed_old_clauses:
+            qcnf_forward_edges_cl_num = [e for e in qcnf_forward_edges if e[1]==cl_num]
+            qcnf_backward_edges_cl_num = [e for e in qcnf_backward_edges if e[0]==cl_num]
+            for e in qcnf_forward_edges_cl_num:
+                qcnf_forward_edges.remove(qcnf_forward_edges_cl_num)
+                qcnf_backward_edges.remove(qcnf_backward_edges_cl_num)
+                
+        # superfluous
+        self.extra_clauses = extra_clauses
+        self.removed_old_clauses = removed_old_clauses
+
+        G = dgl.heterograph(
+            {('lit', 'aag_forward', 'lit') : aag_forward_edges,
+             ('lit', 'aag_backward', 'lit') : aag_backward_edges,
+             ('lit', 'qcnf_forward', 'qcnf_clause') : qcnf_forward_edges,
+             ('qcnf_clause', 'qcnf_backward', 'lit') : qcnf_backward_edges},
+             
+            {'lit': self.num_lits,
+             'qcnf_clause': self.num_clauses(extra_clauses)}
+        ) 
+        G.nodes['lit'].data['lit_embs'] = lit_embs
+        G.nodes['qcnf_clause'].data['clause_embs'] = clause_embs
+        self.G = G
+        
+    def initial_aag_edges(self):
+        """
+        create aag edges, which remain fixed
+        """
         aag_forward_edges, aag_backward_edges = [], []
         for ag in self.aag['and_gates']:
             x, y, z = ag[0], ag[1], ag[2]
@@ -353,29 +452,23 @@ class CombinedGraph1Base(object):
             aag_forward_edges.append( (x,z) )
             aag_backward_edges.append( (y,x) )
             aag_backward_edges.append( (z,x) )
-                        
-        # create qcnf edges, which will need to be updated from CADET obs
+        self.aag_forward_edges = aag_forward_edges
+        self.aag_backward_edges = aag_backward_edges
+        return (aag_forward_edges, aag_backward_edges)
+    
+    def initial_qcnf_edges(self):
+        """
+        create qcnf edges, from original clauses only
+        need to be updated from CADET obs
+        """
         qcnf_forward_edges, qcnf_backward_edges = [], []
         for cl_num, clause in enumerate(self.qcnf['clauses']):
             for lit in clause:
                 qcnf_forward_edges.append( (lit,cl_num) )
                 qcnf_backward_edges.append( (cl_num,lit) )
-                           
-        # assert self.aag['maxvar'] == self.qcnf['maxvar'] # same number of variables
-        
-        G = dgl.heterograph(
-            {('lit', 'aag_forward', 'lit') : aag_forward_edges,
-             ('lit', 'aag_backward', 'lit') : aag_backward_edges,
-             ('lit', 'qcnf_forward', 'qcnf_clause') : qcnf_forward_edges,
-             ('qcnf_clause', 'qcnf_backward', 'lit') : qcnf_backward_edges},
-             
-            {'lit': 2 * self.qcnf['maxvar'],
-             'qcnf_clause': self.qcnf['num_clauses']}
-        )
-        
-        G.nodes['lit'].data['lit_embs'] = self.initial_lit_features()
-        G.nodes['qcnf_clause'].data['clause_embs'] = self.initial_clause_features()
-        return G
+        self.qcnf_forward_edges = qcnf_forward_edges
+        self.qcnf_backward_edges = qcnf_backward_edges
+        return (qcnf_forward_edges, qcnf_backward_edges)
     
     def initial_lit_features(self):
         """
@@ -392,7 +485,7 @@ class CombinedGraph1Base(object):
             else:
                 existential_lits.append(2*v)
                 existential_lits.append(2*v+1)
-        embs = torch.zeros([2 * self.qcnf['maxvar'], self.LIT_FEATURE_DIM]) 
+        embs = torch.zeros([2 * self.aag['maxvar'], self.LIT_FEATURE_DIM]) 
         embs[:, self.IDX_VAR_UNIVERSAL][universal_lits] = 1
         embs[:, self.IDX_VAR_EXISTENTIAL][existential_lits] = 1
         flipped_inputs = [flip(i) for i in self.aag['inputs']]
@@ -408,7 +501,17 @@ class CombinedGraph1Base(object):
         1 dimensional features for 'qcnf_clause' nodes. Shape (num_clauses, num_features=1).
         1st column: 0 if clause is original, 1 if clause is learned/derived (so, initially all 0).
         """
-        return torch.zeros([self.qcnf['num_clauses'], self.CLAUSE_FEATURE_DIM])
+        return torch.zeros([self.num_og_clauses, self.CLAUSE_FEATURE_DIM])
+    
+    def add_clause(self,clause, clause_id):
+        assert(clause_id not in self.extra_clauses.keys())
+        self.extra_clauses[clause_id]=clause
+
+    def remove_clause(self, clause_id):
+        if not (clause_id in self.extra_clauses.keys()):            
+            self.removed_old_clauses.append(clause_id)
+        else:
+            del self.extra_clauses[clause_id]
     
 ##############################################################################
 ##### Functions involving QCNF, AAG, Literal/Variable numbering    

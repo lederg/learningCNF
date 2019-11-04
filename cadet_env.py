@@ -293,8 +293,6 @@ class CadetEnv:
           cid = int(c[1])
           b = [int(x) for x in c[4:]]
           self.qbf.add_clause(b,cid)
-          # print('Adding clause id {}'.format(cid))
-          # print(a)
         else:
           print('This version is too old')
           Tracer()()
@@ -333,22 +331,58 @@ class CadetEnv:
   def process_observation(self, last_obs, env_obs, settings=None):
     if not env_obs:
       return None
+      
     if env_obs.clause or not last_obs:
+      # If learned/derived/removed a clause, or this is the first observation, then UPDATE THE GRAPH.
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
       
-      # remake combined graph
+      G = last_obs.ext_data if last_obs else self.aag_qcnf.G      
+      try:
+          lit_embs = G.nodes['lit'].data['lit_embs']
+      except:
+          lit_embs = []
+      try:
+          clause_embs = G.nodes['qcnf_clause'].data['clause_embs']
+      except:
+          clause_embs = []
+
+      extra_clauses = self.qbf.extra_clauses.copy()
+      for k in extra_clauses:
+          extra_clauses[k] = [convert_qdimacs_lit(l) for l in extra_clauses[k]]
+        
+#      if env_obs.clause:
+#          import ipdb
+#          ipdb.set_trace()
       
-    else: # no changed clauses AND last_obs
+      # update the combined graph
+      self.aag_qcnf.create_DGL_graph(
+              qcnf_base = self.qbf,
+              aag_forward_edges = self.aag_qcnf.aag_forward_edges, 
+              aag_backward_edges = self.aag_qcnf.aag_backward_edges,
+              qcnf_forward_edges = self.aag_qcnf.qcnf_forward_edges, 
+              qcnf_backward_edges = self.aag_qcnf.qcnf_backward_edges,
+              extra_clauses = extra_clauses, # UPDATE: learned/derived clauses
+              removed_old_clauses = self.qbf.removed_old_clauses, # UPDATE: removed old clauses
+              lit_embs = lit_embs, 
+              clause_embs = clause_embs
+      )
+      G = self.aag_qcnf
+          
+#      if env_obs.clause:
+#          ipdb.set_trace()
+      
+    else: # no changed clauses AND last_obs, graph is the same
       cmat, clabels = last_obs.cmat, last_obs.clabels
       
-      G = last_obs.ext_data.G
+      # no action for combined graph
+    ### Get the combined graph G and the literal embeddings
     if last_obs:
       ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
       vmask = last_obs.vmask
       cmask = last_obs.cmask
       
-      G = last_obs.ext_data.G
+      G = self.aag_qcnf.G if env_obs.clause else last_obs.ext_data
       lit_embs = G.nodes['lit'].data['lit_embs']
     else:      
       ground_embs = self.qbf.get_base_embeddings()
@@ -357,7 +391,6 @@ class CadetEnv:
       
       G = self.aag_qcnf.G
       lit_embs = G.nodes['lit'].data['lit_embs']
-      
     ### Update Ground Embeddings / Literal Embeddings
     if env_obs.decision:
       ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
@@ -395,7 +428,7 @@ class CadetEnv:
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state, cmat, ground_embs, clabels, vmask, cmask, self.aag_qcnf)
+    return State(state, cmat, ground_embs, clabels, vmask, cmask, G)
     
 
 
@@ -410,6 +443,8 @@ class CadetEnv:
     except Exception as e:
       print('Error reseting with file {}'.format(fname))
       print(e)
+#      import traceback
+#      print("***", traceback.format_exc())
 
   def step(self, action):
     assert(not self.done)

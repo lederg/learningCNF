@@ -351,10 +351,6 @@ class CadetEnv:
       for k in extra_clauses:
           extra_clauses[k] = [convert_qdimacs_lit(l) for l in extra_clauses[k]]
         
-#      if env_obs.clause:
-#          import ipdb
-#          ipdb.set_trace()
-      
       # update the combined graph
       self.aag_qcnf.create_DGL_graph(
               qcnf_base = self.qbf,
@@ -367,11 +363,6 @@ class CadetEnv:
               lit_embs = lit_embs, 
               clause_embs = clause_embs
       )
-      G = self.aag_qcnf
-          
-#      if env_obs.clause:
-#          ipdb.set_trace()
-      
     else: # no changed clauses AND last_obs, graph is the same
       cmat, clabels = last_obs.cmat, last_obs.clabels
       

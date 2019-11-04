@@ -424,7 +424,8 @@ class CombinedGraph1Base(object):
                 qcnf_forward_edges.remove(qcnf_forward_edges_cl_num)
                 qcnf_backward_edges.remove(qcnf_backward_edges_cl_num)
                 
-        # superfluous
+        self.qcnf_forward_edges = qcnf_forward_edges
+        self.qcnf_backward_edges = qcnf_backward_edges
         self.extra_clauses = extra_clauses
         self.removed_old_clauses = removed_old_clauses
 

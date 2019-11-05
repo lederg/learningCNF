@@ -677,8 +677,8 @@ class SatFreeThresholdPolicy(PolicyBase):
     pass
 
   def translate_action(self, action, obs, **kwargs):
-    threshold, clabels = action
-    rc = clabels[:,CLABEL_LBD] < threshold
+    threshold = action
+    rc = obs.clabels[:,CLABEL_LBD] < threshold
     a = rc.detach()
     num_learned = obs.ext_data
     locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
@@ -690,16 +690,18 @@ class SatFreeThresholdPolicy(PolicyBase):
     return actions
     # return torch.cat(actions)
 
-  def select_action(self, obs_batch, training=True, **kwargs):
+  def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     threshold, clabels = self.forward(obs_batch, **kwargs)
-    if not training:
+    if deterministic:
+      if log_threshold:
+        self.logger.info('Threshold is {}'.format(threshold))
       return (threshold, clabels)
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()
 
-    return (sampled_threshold, clabels), 0
+    return sampled_threshold, 0
 
   def get_logprobs(self, outputs, collated_batch):    
     actions = collated_batch.action
@@ -728,8 +730,7 @@ class SatFreeThresholdPolicy(PolicyBase):
 class SCPolicyBase(PolicyBase):
   def __init__(self, **kwargs):
     super(SCPolicyBase, self).__init__(**kwargs)
-    self.snorm_window = self.settings['vbn_window']
-    self.entropy_alpha = self.settings['entropy_alpha']
+    self.snorm_window = self.settings['vbn_window']    
     # self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
       # self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
@@ -1097,11 +1098,11 @@ class SatThresholdStatePolicy(SCPolicyBase):
 
     return final_action
 
-  def select_action(self, obs_batch, training=True, **kwargs):
+  def select_action(self, obs_batch, deterministic=False, **kwargs):
     obs_batch = collate_observations([obs_batch])
     assert(obs_batch.clabels.shape[0]==1)
     threshold, clabels = self.forward(obs_batch, **kwargs)
-    if not training:
+    if deterministic:
       return (threshold, clabels)
     m = Normal(threshold,self.sigma)
     sampled_threshold = m.sample()
@@ -1166,6 +1167,7 @@ class SatPercentagePolicy(SCPolicyBase):
 class SatDiscreteThresholdPolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatDiscreteThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
+    self.threshold_base = self.settings['sat_discrete_threshold_base']
 
   def input_dim(self):
     return self.settings['state_dim']
@@ -1183,7 +1185,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
 
   def translate_action(self, action, obs, **kwargs):    
     threshold = action
-    threshold += 2    # [2,3,...]
+    threshold += self.threshold_base    # [2,3,...]
     # print('Threshold is {}'.format(threshold))
     rc = obs.clabels[:,CLABEL_LBD] < float(threshold)
     a = rc.detach()
@@ -1222,3 +1224,80 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
     logprobs = all_logprobs.gather(1,actions.view(-1,1)).squeeze()
     return logprobs, entropy
 
+class SatFreeDiscretePolicy(PolicyBase):
+  def __init__(self, encoder=None, **kwargs):
+    super(SatFreeDiscretePolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
+    self.t = float(self.settings['init_threshold'])
+    self.threshold_base = self.settings['sat_discrete_threshold_base']
+    self.num_actions = self.settings['sat_num_free_actions']
+    self.threshold_logits = nn.Parameter(torch.FloatTensor(self.num_actions*[self.t]), requires_grad=True)
+
+  def forward(self, obs, **kwargs):    
+    return None
+
+
+  def get_allowed_actions(self, obs, **kwargs):
+    pass
+
+  # This is going to MUTATE the obs object. Specifically, it deletes the reference to obs.clabels in order to save
+  # memory before we save the observation in the batch trace.
+
+  def translate_action(self, action, obs, **kwargs):
+    threshold = action
+    threshold += self.threshold_base    # [2,3,...]
+    # print('Threshold is {}'.format(threshold))
+    rc = obs.clabels[:,CLABEL_LBD] < float(threshold)
+    a = rc.detach()
+    num_learned = obs.ext_data
+    locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    final_action = torch.max(a.long(),locked).view(-1)
+    obs.clabels = None
+
+    return final_action
+
+  def combine_actions(self, actions, **kwargs):    
+    return actions
+
+  def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):    
+    logits = self.threshold_logits
+    if every_tick(20) or log_threshold:
+      self.logger.info('State is:')
+      self.logger.info(obs_batch.state)
+      self.logger.info('Logits are: {}'.format(logits))    
+    if deterministic:
+      action = int(torch.argmax(logits.view(-1)))
+      if every_tick(20) or log_threshold:
+        self.logger.info('Threshold is {}'.format(action+self.threshold_base))
+      return action, 0
+    self.m = Categorical(logits=logits.view(-1))
+    action=int(self.m.sample().detach())    
+    if every_tick(20) or log_threshold:
+      self.logger.info('Threshold is {}'.format(action+self.threshold_base))
+
+    return action, float(self.m.entropy().detach())
+
+  def get_logprobs(self, outputs, actions):    
+    actions = self.settings.LongTensor(actions)
+    logits = outputs
+    probs = F.softmax(logits, dim=1)
+    all_logprobs = safe_logprobs(probs)
+    entropy = -(probs*all_logprobs).sum(dim=1)
+    logprobs = all_logprobs.gather(1,actions.view(-1,1)).squeeze()
+    return logprobs, entropy
+
+  def compute_loss(self, transition_data, **kwargs):    
+    returns = self.settings.FloatTensor([x.reward for x in transition_data])    
+    actions = [x.action for x in transition_data]
+    all_logits = self.threshold_logits.expand(len(transition_data),len(self.threshold_logits))
+    logprobs, entropy = self.get_logprobs(all_logits, actions)
+    adv_t = returns
+    value_loss = 0.
+    adv_t = (adv_t - adv_t.mean())
+    pg_loss = (-adv_t*logprobs)
+    loss = pg_loss - self.entropy_alpha*entropy
+    if self.settings['use_sum']:
+      total_loss = loss.sum()
+    else:
+      total_loss = loss.mean()
+
+    return total_loss, all_logits

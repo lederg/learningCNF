@@ -19,6 +19,7 @@ class PolicyBase(nn.Module):
     self.max_iters = self.settings['max_iters']   
     self.state_bn = self.settings['state_bn']
     self.use_bn = self.settings['use_bn']
+    self.entropy_alpha = self.settings['entropy_alpha']    
     self.lambda_value = self.settings['lambda_value']
     self.lambda_disallowed = self.settings['lambda_disallowed']
     self.lambda_aux = self.settings['lambda_aux']

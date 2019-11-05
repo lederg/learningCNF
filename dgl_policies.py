@@ -19,34 +19,50 @@ from rl_utils import *
 
 
 class CNFLayer(nn.Module):
-	def __init__(self, in_size, clause_size, out_size):
-		super(CNFLayer, self).__init__()
-		self.ntypes = ['literal', 'clause']
-		self.etypes = ['l2c', 'c2l']
-	  # W_r for each relation
-	  self.weight = nn.ModuleDict({
-	          self.etypes[0] : nn.Linear(in_size, clause_size), 
-	          self.etypes[1] : nn.Linear(clause_size, out_size)
-    })
+    def __init__(self, in_size, clause_size, out_size, activation):
+        super(CNFLayer, self).__init__()
+        self.ntypes = ['literal', 'clause']
+        self.etypes = ['l2c', 'c2l']
+        # W_r for each relation
+        self.weight = nn.ModuleDict({
+                self.etypes[0] : nn.Linear(in_size, clause_size),
+                self.etypes[1] : nn.Linear(clause_size, out_size)
+        })
+        self.activation = activation
+    
+    def forward(self, G, feat_dict):
+        # the input is a dictionary of node features for each type
+#        funcs = {}
+        
+        Wh_l2c = self.weight['l2c'](feat_dict['literal'])
+        Wh_l2c = self.activation(Wh_l2c)
+        G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
+        G.update_all(message_func=fn.copy_src(src='literal', out='m'),
+                     reduce_func=fn.mean(msg='m',out='h'))
+        
+        
+        
+            
+        #return {'Wh' : Wh}
+        
+        # save it in graph for message passing 
+         G.nodes[srctype].data['Wh_%s' % etype] = Wh
 
-  def forward(self, G, feat_dict):
-    # The input is a dictionary of node features for each type
-	  funcs = {}
+        
+        # Specify per-relation message passing functions: (message_func, reduce_func).
+        # Note that the results are saved to the same destination feature 'h', which
+        # hints the type wise reducer for aggregation.
+        funcs[etype] = (fn.copy_u('Wh_%s' % etype, 'm'), fn.mean('m', 'h'))
+        
+        # Trigger message passing of multiple types.
+    	# The first argument is the message passing functions for each relation.
+    	# The second one is the type wise reducer, could be "sum", "max",
+    	# "min", "mean", "stack"
+        G.update_all(funcs, 'sum')
+    	# return the updated node feature dictionary
+        return {ntype : G.nodes[ntype].data['h'] for ntype in G.ntypes}
 
-    Wh = self.weight['l2c'](feat_dict['literal'])
-    # Save it in graph for message passing
-    G.nodes[srctype].data['Wh_%s' % etype] = Wh
-    # Specify per-relation message passing functions: (message_func, reduce_func).
-    # Note that the results are saved to the same destination feature 'h', which
-    # hints the type wise reducer for aggregation.
-    funcs[etype] = (fn.copy_u('Wh_%s' % etype, 'm'), fn.mean('m', 'h'))
-	  # Trigger message passing of multiple types.
-	  # The first argument is the message passing functions for each relation.
-	  # The second one is the type wise reducer, could be "sum", "max",
-	  # "min", "mean", "stack"
-	  G.update_all(funcs, 'sum')
-	  # return the updated node feature dictionary
-	  return {ntype : G.nodes[ntype].data['h'] for ntype in G.ntypes}
+
 
 
 class QbfNewEncoder(nn.Module):

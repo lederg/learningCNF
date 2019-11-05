@@ -31,22 +31,11 @@ class CNFLayer(nn.Module):
 
   def forward(self, G, feat_dict):
     # The input is a dictionary of node features for each type
-	  funcs = {}
-
     Wh = self.weight['l2c'](feat_dict['literal'])
-    # Save it in graph for message passing
-    G.nodes[srctype].data['Wh_%s' % etype] = Wh
-    # Specify per-relation message passing functions: (message_func, reduce_func).
-    # Note that the results are saved to the same destination feature 'h', which
-    # hints the type wise reducer for aggregation.
-    funcs[etype] = (fn.copy_u('Wh_%s' % etype, 'm'), fn.mean('m', 'h'))
-	  # Trigger message passing of multiple types.
-	  # The first argument is the message passing functions for each relation.
-	  # The second one is the type wise reducer, could be "sum", "max",
-	  # "min", "mean", "stack"
-	  G.update_all(funcs, 'sum')
+    G.nodes['literal'].data['Wh_l2c'] = Wh
+	  G.update_all(fn.copy_u('Wh_l2c', 'm'), fn.mean('m', 'h'))
 	  # return the updated node feature dictionary
-	  return {ntype : G.nodes[ntype].data['h'] for ntype in G.ntypes}
+	  return G.nodes['literal'].data['h']
 
 
 class QbfNewEncoder(nn.Module):

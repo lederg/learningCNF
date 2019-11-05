@@ -386,13 +386,13 @@ class CombinedGraph1Base(object):
         
         Updates from CADET:
             extra_clauses : learned/derived clauses not included in original qcnf formula
-                add qcnf_clause node
-                add qcnf_clause node embeddings `1`
-                add qcnf_forward edges
-                add qcnf_backward edge
+                add clause node
+                add clause node embeddings `1`
+                add l2c edges
+                add c2l edges
             removed_old_clauses : clauses included in original qcnf formula to be removed
-                remove qcnf_forward edges
-                remove qcnf_backward edge
+                remove l2c edges
+                remove c2l edges
         """
         if qcnf_base:
             self.qcnf_base = qcnf_base
@@ -430,16 +430,16 @@ class CombinedGraph1Base(object):
         self.removed_old_clauses = removed_old_clauses
 
         G = dgl.heterograph(
-            {('lit', 'aag_forward', 'lit') : aag_forward_edges,
-             ('lit', 'aag_backward', 'lit') : aag_backward_edges,
-             ('lit', 'qcnf_forward', 'qcnf_clause') : qcnf_forward_edges,
-             ('qcnf_clause', 'qcnf_backward', 'lit') : qcnf_backward_edges},
+            {('literal', 'aag_forward', 'literal') : aag_forward_edges,
+             ('literal', 'aag_backward', 'literal') : aag_backward_edges,
+             ('literal', 'l2c', 'clause') : qcnf_forward_edges,
+             ('clause', 'c2l', 'literal') : qcnf_backward_edges},
              
-            {'lit': self.num_lits,
-             'qcnf_clause': self.num_clauses(extra_clauses)}
+            {'literal': self.num_lits,
+             'clause': self.num_clauses(extra_clauses)}
         ) 
-        G.nodes['lit'].data['lit_embs'] = lit_embs
-        G.nodes['qcnf_clause'].data['clause_embs'] = clause_embs
+        G.nodes['literal'].data['lit_embs'] = lit_embs
+        G.nodes['clause'].data['clause_embs'] = clause_embs
         self.G = G
         
     def initial_aag_edges(self):
@@ -499,7 +499,7 @@ class CombinedGraph1Base(object):
     
     def initial_clause_features(self):
         """
-        1 dimensional features for 'qcnf_clause' nodes. Shape (num_clauses, num_features=1).
+        1 dimensional features for 'clause' nodes. Shape (num_clauses, num_features=1).
         1st column: 0 if clause is original, 1 if clause is learned/derived (so, initially all 0).
         """
         return torch.zeros([self.num_og_clauses, self.CLAUSE_FEATURE_DIM])

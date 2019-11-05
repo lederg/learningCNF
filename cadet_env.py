@@ -339,11 +339,11 @@ class CadetEnv:
       
       G = last_obs.ext_data if last_obs else self.aag_qcnf.G      
       try:
-          lit_embs = G.nodes['lit'].data['lit_embs']
+          lit_embs = G.nodes['literal'].data['lit_embs']
       except:
           lit_embs = []
       try:
-          clause_embs = G.nodes['qcnf_clause'].data['clause_embs']
+          clause_embs = G.nodes['clause'].data['clause_embs']
       except:
           clause_embs = []
 
@@ -374,14 +374,14 @@ class CadetEnv:
       cmask = last_obs.cmask
       
       G = self.aag_qcnf.G if env_obs.clause else last_obs.ext_data
-      lit_embs = G.nodes['lit'].data['lit_embs']
+      lit_embs = G.nodes['literal'].data['lit_embs']
     else:      
       ground_embs = self.qbf.get_base_embeddings()
       vmask = None
       cmask = None
       
       G = self.aag_qcnf.G
-      lit_embs = G.nodes['lit'].data['lit_embs']
+      lit_embs = G.nodes['literal'].data['lit_embs']
     ### Update Ground Embeddings / Literal Embeddings
     if env_obs.decision:
       ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True

@@ -17,6 +17,7 @@ from settings import *
 from policy_base import *
 from rl_utils import *
 
+    
 
 class CNFLayer(nn.Module):
     def __init__(self, in_size, clause_size, out_size, activation):
@@ -37,12 +38,13 @@ class CNFLayer(nn.Module):
         G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
         G.update_all(fn.copy_u('Wh_l2c', 'm'), fn.mean('m', 'h'))
         
+        # apply_node_func : function on NodeBatch object, to implement ACTIVATION on the nodes
         
         # pass the message back
         Wh_c2l = self.weight['l2c'](feat_dict['clause'])
         Wh_c2l = self.activation(Wh_c2l)
         G.nodes['clause'].data['Wh_c2l'] = Wh_c2l
-        G.update_all(fn.copy_u('Wh_c2l', 'm'), fn.mean('m', 'h2'))
+        G.update_all(fn.copy_u('Wh_c2l', 'm'), fn.mean('m', 'h2')) 
         
         # return the updated node feature dictionary
         return {'literal' : G.nodes['literal'].data['h'], 'clause' : G.nodes['clause'].data['h2']}

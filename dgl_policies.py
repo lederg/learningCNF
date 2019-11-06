@@ -174,31 +174,27 @@ class QbfNewEncoder(nn.Module):
 ###############################################################################
 """Test CNFLayer and AAGLayer"""
 ###############################################################################
-print()
-a = CombinedGraph1Base()
-a.load_paired_files(aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs')
-feat_dict = {
-        'literal': a.G.nodes['literal'].data['lit_embs'],   # num_literals x 9 = 104 x 9
-        'clause' : a.G.nodes['clause'].data['clause_embs']  # num_clauses  x 1 = 109 x 9
-}
-#import ipdb
-#ipdb.set_trace()
-in_size = feat_dict['literal'].shape[1]
-clause_size = 11 #a.G.number_of_nodes('clause')
-out_size = 107 #9 #FIXME??
-C = CNFLayer(in_size, clause_size, out_size, activation=F.relu)
-C_f = C(a.G, feat_dict) # shape        in_size x out_size = 
+#a = CombinedGraph1Base()
+#a.load_paired_files(aag_fname = './data/words_easy_train/words_0_SAT.qaiger', qcnf_fname = './data/words_easy_train/words_0_SAT.qaiger.qdimacs')
+#feat_dict = {
+#        'literal': a.G.nodes['literal'].data['lit_embs'],   # num_literals x 9 = 104 x 9
+#        'clause' : a.G.nodes['clause'].data['clause_embs']  # num_clauses  x 1 = 109 x 9
+#}
+#
+#in_size = feat_dict['literal'].shape[1]
+#clause_size = 11 #a.G.number_of_nodes('clause')
+#out_size = 107 #9 #FIXME??
+#C = CNFLayer(in_size, clause_size, out_size, activation=F.relu)
+#C_f = C(a.G, feat_dict) # shape        in_size x out_size = 
 #print(C_f)
 #print(C_f.shape)
-
-#exit()
-in_size = C_f.shape[1]
-#hidden_size = 20
-out_size = 82 #FIXME??
-A = AAGLayer(in_size, out_size, activation=F.relu)
-A_f = A(a.G, C_f)
-print(A_f)
-print(A_f.shape)
+#
+#in_size = C_f.shape[1]
+#out_size = 82 #FIXME??
+#A = AAGLayer(in_size, out_size, activation=F.relu)
+#A_f = A(a.G, C_f)
+#print(A_f)
+#print(A_f.shape)
 
 
 

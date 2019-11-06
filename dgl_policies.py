@@ -17,10 +17,9 @@ from settings import *
 from policy_base import *
 from rl_utils import *
 
-    
 
 class CNFLayer(nn.Module):
-    def __init__(self, in_size, clause_size, out_size, activation):
+    def __init__(self, in_size, clause_size, out_size, activation=None):
         super(CNFLayer, self).__init__()
         self.ntypes = ['literal', 'clause']
         self.etypes = ['l2c', 'c2l']
@@ -29,25 +28,24 @@ class CNFLayer(nn.Module):
                 self.etypes[0] : nn.Linear(in_size, clause_size),
                 self.etypes[1] : nn.Linear(clause_size, out_size)
         })
-        self.activation = activation
+        if activation is not None:
+            self.activation = activation
+        else:
+            self.activation = eval(self.settings['non_linearity'])
     
     def forward(self, G, feat_dict):
         # the input is a dictionary of node features for each type
         Wh_l2c = self.weight['l2c'](feat_dict['literal'])
-        Wh_l2c = self.activation(Wh_l2c)
         G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
-        G.update_all(fn.copy_u('Wh_l2c', 'm'), fn.mean('m', 'h'))
-        
-        # apply_node_func : function on NodeBatch object, to implement ACTIVATION on the nodes
-        
-        # pass the message back
-        Wh_c2l = self.weight['l2c'](feat_dict['clause'])
-        Wh_c2l = self.activation(Wh_c2l)
+        G['l2c'].update_all(fn.copy_src('Wh_l2c', 'm'), fn.mean('m', 'h'))
+        cembs = self.activation(G.nodes['clause'].data['h'])            # cembs now holds the half-round embedding
+
+        Wh_c2l = self.weight['c2l'](torch.cat([cembs,feat_dict['clause']], dim=1))
         G.nodes['clause'].data['Wh_c2l'] = Wh_c2l
-        G.update_all(fn.copy_u('Wh_c2l', 'm'), fn.mean('m', 'h2')) 
-        
-        # return the updated node feature dictionary
-        return {'literal' : G.nodes['literal'].data['h'], 'clause' : G.nodes['clause'].data['h2']}
+        G['c2l'].update_all(fn.copy_src('Wh_c2l', 'm'), fn.mean('m', 'h'))
+        lembs = self.activation(G.nodes['literal'].data['h'])
+                        
+        return lembs
 
 
 class QbfNewEncoder(nn.Module):

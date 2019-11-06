@@ -19,19 +19,17 @@ from rl_utils import *
 
 
 class CNFLayer(nn.Module):
-    def __init__(self, in_size, clause_size, out_size, activation=None):
+    def __init__(self, in_size, clause_size, out_size, activation=None, settings=None):
         super(CNFLayer, self).__init__()
         self.ntypes = ['literal', 'clause']
         self.etypes = ['l2c', 'c2l']
         # W_r for each relation
         self.weight = nn.ModuleDict({
                 self.etypes[0] : nn.Linear(in_size, clause_size),
-                self.etypes[1] : nn.Linear(clause_size, out_size)
+                self.etypes[1] : nn.Linear(clause_size+1, out_size)
         })
-        if activation is not None:
-            self.activation = activation
-        else:
-            self.activation = eval(self.settings['non_linearity'])
+        self.settings = settings if settings else CnfSettings()
+        self.activation = activation if activation else eval(self.settings['non_linearity'])
     
     def forward(self, G, feat_dict):
         # the input is a dictionary of node features for each type
@@ -46,8 +44,36 @@ class CNFLayer(nn.Module):
         lembs = self.activation(G.nodes['literal'].data['h'])
                         
         return lembs
+    
+class AAGLayer(nn.Module):
+    def __init__(self, in_size, out_size, activation=None, settings=None):
+        super(AAGLayer, self).__init__()
+        self.ntype = 'literal'
+        self.etypes = ['aag_forward', 'aag_backward']
+        # W_r for each relation
+        self.weight = nn.ModuleDict({
+                self.etypes[0] : nn.Linear(in_size, out_size),
+                self.etypes[1] : nn.Linear(in_size, out_size)
+        })
+        self.settings = settings if settings else CnfSettings()
+        self.activation = activation if activation else eval(self.settings['non_linearity'])
+    
+    def forward(self, G, cnf_output):
+        # the input is a dictionary of node features for each type
+        Wh_af = self.weight['aag_forward'](cnf_output)
+        G.nodes['literal'].data['Wh_af'] = Wh_af
+        Wh_ab = self.weight['aag_backward'](cnf_output)
+        G.nodes['literal'].data['Wh_ab'] = Wh_ab
 
-
+        G.send(G['aag_forward'].edges(), fn.copy_src('Wh_af', 'm_a'), etype='aag_forward')
+        G.send(G['aag_backward'].edges(), fn.copy_src('Wh_ab', 'm_a'), etype='aag_backward')
+        G.recv(G.nodes('literal'), fn.mean('m_a', 'h_a'), etype='aag_forward')
+        G.recv(G.nodes('literal'), fn.mean('m_a', 'h_a'), etype='aag_backward')
+        
+        lembs = self.activation(G.nodes['literal'].data['h_a'])
+        return lembs
+    
+    
 class QbfNewEncoder(nn.Module):
     def __init__(self, **kwargs):
         super(QbfNewEncoder, self).__init__() 
@@ -144,5 +170,35 @@ class QbfNewEncoder(nn.Module):
 
 
         return pos_vars, neg_vars   
+    
+###############################################################################
+"""Test CNFLayer and AAGLayer"""
+###############################################################################
+print()
+a = CombinedGraph1Base()
+a.load_paired_files(aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs')
+feat_dict = {
+        'literal': a.G.nodes['literal'].data['lit_embs'],   # num_literals x 9 = 104 x 9
+        'clause' : a.G.nodes['clause'].data['clause_embs']  # num_clauses  x 1 = 109 x 9
+}
+#import ipdb
+#ipdb.set_trace()
+in_size = feat_dict['literal'].shape[1]
+clause_size = 11 #a.G.number_of_nodes('clause')
+out_size = 107 #9 #FIXME??
+C = CNFLayer(in_size, clause_size, out_size, activation=F.relu)
+C_f = C(a.G, feat_dict) # shape        in_size x out_size = 
+#print(C_f)
+#print(C_f.shape)
+
+#exit()
+in_size = C_f.shape[1]
+#hidden_size = 20
+out_size = 82 #FIXME??
+A = AAGLayer(in_size, out_size, activation=F.relu)
+A_f = A(a.G, C_f)
+print(A_f)
+print(A_f.shape)
+
 
 

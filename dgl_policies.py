@@ -19,7 +19,7 @@ from rl_utils import *
 
 
 class CNFLayer(nn.Module):
-    def __init__(self, in_size, clause_size, out_size, activation):
+    def __init__(self, in_size, clause_size, out_size, activation=None):
         super(CNFLayer, self).__init__()
         self.ntypes = ['literal', 'clause']
         self.etypes = ['l2c', 'c2l']
@@ -28,15 +28,22 @@ class CNFLayer(nn.Module):
                 self.etypes[0] : nn.Linear(in_size, clause_size),
                 self.etypes[1] : nn.Linear(clause_size, out_size)
         })
-        self.activation = activation
+        if activation is not None:
+            self.activation = activation
+        else:
+            self.activation = eval(self.settings['non_linearity'])         
     
     def forward(self, G, feat_dict):
         # the input is a dictionary of node features for each type
-        Wh_l2c = self.weight['l2c'](feat_dict['literal'])
-        Wh_l2c = self.activation(Wh_l2c)
+        Wh_l2c = self.weight['l2c'](feat_dict['literal'])        
         G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
-        G.update_all(fn.copy_u('Wh_l2c', 'm'), fn.mean('m', 'h'))
-        
+        G['l2c'].update_all(fn.copy_src('Wh_l2c', 'm'), fn.mean('m', 'h'))
+        cembs = self.activation(G.nodes['clause'].data['h'])            # cembs now holds the half-round embedding
+
+        Wh_c2l = self.weight['c2l'](torch.cat([cembs,feat_dict['literal']], dim=1))
+        G.nodes['clause'].data['Wh_c2l'] = Wh_c2l
+        G['c2l'].update_all(fn.copy_src('Wh_c2l', 'm'), fn.mean('m', 'h'))
+        lembs = self.activation(G.nodes['literal'].data['h'])            # cembs now holds the half-round embedding
         
         # pass the message back
         Wh_c2l = self.weight['l2c'](feat_dict['clause'])

@@ -19,60 +19,84 @@ from rl_utils import *
 
 
 class CNFLayer(nn.Module):
-    def __init__(self, in_size, clause_size, out_size, activation=None, settings=None):
-        super(CNFLayer, self).__init__()
-        self.ntypes = ['literal', 'clause']
-        self.etypes = ['l2c', 'c2l']
-        # W_r for each relation
-        self.weight = nn.ModuleDict({
-                self.etypes[0] : nn.Linear(in_size, clause_size),
-                self.etypes[1] : nn.Linear(clause_size+1, out_size)
-        })
-        self.settings = settings if settings else CnfSettings()
-        self.activation = activation if activation else eval(self.settings['non_linearity'])
+  def __init__(self, in_size, clause_size, out_size, activation=None, settings=None):
+    super(CNFLayer, self).__init__()
+    self.ntypes = ['literal', 'clause']
+    self.etypes = ['l2c', 'c2l']
+    # W_r for each relation
+    self.weight = nn.ModuleDict({
+      self.etypes[0] : nn.Linear(in_size, clause_size),
+      self.etypes[1] : nn.Linear(clause_size+1, out_size)
+    })
+    self.settings = settings if settings else CnfSettings()
+    self.activation = activation if activation else eval(self.settings['non_linearity'])
     
-    def forward(self, G, feat_dict):
-        # the input is a dictionary of node features for each type
-        Wh_l2c = self.weight['l2c'](feat_dict['literal'])
-        G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
-        G['l2c'].update_all(fn.copy_src('Wh_l2c', 'm'), fn.mean('m', 'h'))
-        cembs = self.activation(G.nodes['clause'].data['h'])            # cembs now holds the half-round embedding
+  def forward(self, G, feat_dict):
+    # the input is a dictionary of node features for each type
+    Wh_l2c = self.weight['l2c'](feat_dict['literal'])
+    G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
+    G['l2c'].update_all(fn.copy_src('Wh_l2c', 'm'), fn.mean('m', 'h'))
+    cembs = self.activation(G.nodes['clause'].data['h'])            # cembs now holds the half-round embedding
 
-        Wh_c2l = self.weight['c2l'](torch.cat([cembs,feat_dict['clause']], dim=1))
-        G.nodes['clause'].data['Wh_c2l'] = Wh_c2l
-        G['c2l'].update_all(fn.copy_src('Wh_c2l', 'm'), fn.mean('m', 'h'))
-        lembs = self.activation(G.nodes['literal'].data['h'])
-                        
-        return lembs
+    Wh_c2l = self.weight['c2l'](torch.cat([cembs,feat_dict['clause']], dim=1))
+    G.nodes['clause'].data['Wh_c2l'] = Wh_c2l
+    G['c2l'].update_all(fn.copy_src('Wh_c2l', 'm'), fn.mean('m', 'h'))
+    lembs = self.activation(G.nodes['literal'].data['h'])
+                    
+    return lembs
     
 class AAGLayer(nn.Module):
-    def __init__(self, in_size, out_size, activation=None, settings=None):
-        super(AAGLayer, self).__init__()
-        self.ntype = 'literal'
-        self.etypes = ['aag_forward', 'aag_backward']
-        # W_r for each relation
-        self.weight = nn.ModuleDict({
-                self.etypes[0] : nn.Linear(in_size, out_size),
-                self.etypes[1] : nn.Linear(in_size, out_size)
-        })
-        self.settings = settings if settings else CnfSettings()
-        self.activation = activation if activation else eval(self.settings['non_linearity'])
-    
-    def forward(self, G, cnf_output):
-        # the input is a dictionary of node features for each type
-        Wh_af = self.weight['aag_forward'](cnf_output)
-        G.nodes['literal'].data['Wh_af'] = Wh_af
-        Wh_ab = self.weight['aag_backward'](cnf_output)
-        G.nodes['literal'].data['Wh_ab'] = Wh_ab
+  def __init__(self, in_size, out_size, activation=None, settings=None):
+    super(AAGLayer, self).__init__()
+    self.ntype = 'literal'
+    self.etypes = ['aag_forward', 'aag_backward']
+    # W_r for each relation
+    self.weight = nn.ModuleDict({
+      self.etypes[0] : nn.Linear(in_size, out_size),
+      self.etypes[1] : nn.Linear(in_size, out_size)
+    })
+    self.settings = settings if settings else CnfSettings()
+    self.activation = activation if activation else eval(self.settings['non_linearity'])
+  
+  def forward(self, G, cnf_output):
+    # the input is a dictionary of node features for each type
+    Wh_af = self.weight['aag_forward'](cnf_output)
+    G.nodes['literal'].data['Wh_af'] = Wh_af
+    Wh_ab = self.weight['aag_backward'](cnf_output)
+    G.nodes['literal'].data['Wh_ab'] = Wh_ab
 
-        G.send(G['aag_forward'].edges(), fn.copy_src('Wh_af', 'm_a'), etype='aag_forward')
-        G.send(G['aag_backward'].edges(), fn.copy_src('Wh_ab', 'm_a'), etype='aag_backward')
-        G.recv(G.nodes('literal'), fn.mean('m_a', 'h_a'), etype='aag_forward')
-        G.recv(G.nodes('literal'), fn.mean('m_a', 'h_a'), etype='aag_backward')
-        
-        lembs = self.activation(G.nodes['literal'].data['h_a'])
-        return lembs
+    G.send(G['aag_forward'].edges(), fn.copy_src('Wh_af', 'm_a'), etype='aag_forward')
+    G.send(G['aag_backward'].edges(), fn.copy_src('Wh_ab', 'm_a'), etype='aag_backward')
+    G.recv(G.nodes('literal'), fn.mean('m_a', 'h_a'), etype='aag_forward')
+    G.recv(G.nodes('literal'), fn.mean('m_a', 'h_a'), etype='aag_backward')
     
+    lembs = self.activation(G.nodes['literal'].data['h_a'])
+    return lembs
+    
+
+
+class CnfAagEncoder(nn.Module):
+  def __init__(self, in_size, clause_size, out_size, settings=None, **kwargs):
+    super(CnfAagLayer, self).__init__()
+    if settings is None:
+      self.settings = CnfSettings()
+    else:
+      self.settings = settings
+
+    self.vlabel_dim = self.settings['vlabel_dim']
+    self.clabel_dim = self.settings['clabel_dim']
+    self.vemb_dim = self.settings['vemb_dim']
+    self.cemb_dim = self.settings['cemb_dim']
+    self.max_iters = self.settings['max_iters']        
+    self.non_linearity = eval(self.settings['non_linearity'])
+
+    self.cnf_layer = CNFLayer(self.vlabel_dim,self.cemb_dim,self.vemb_dim, **kwargs)
+    self.aag_layer = AAGLayer(2*self.vemb_dim,vemb_dim, **kwargs)
+
+  def forward(self, G, feat_dict):
+
+
+
     
 class QbfNewEncoder(nn.Module):
     def __init__(self, **kwargs):

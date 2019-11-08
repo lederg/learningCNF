@@ -129,8 +129,6 @@ class CadetEnv:
     
     ############################################
     if type(fname) == str:
-#        import ipdb
-#        ipdb.set_trace()
         fname = (None, fname)
     if type(fname) == tuple and len(fname) == 2:
         self.aag_qcnf.load_paired_files(aag_fname = fname[0], qcnf_fname = fname[1])

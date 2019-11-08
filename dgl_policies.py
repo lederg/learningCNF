@@ -58,21 +58,46 @@ class AAGLayer(nn.Module):
     self.settings = settings if settings else CnfSettings()
     self.activation = activation if activation else eval(self.settings['non_linearity'])
   
-  def forward(self, G, cnf_output):
+  def forward(self, G, feat_dict):
     # the input is a dictionary of node features for each type
-    Wh_af = self.weight['aag_forward'](cnf_output)
+    Wh_af = self.weight['aag_forward'](feat_dict['literal'])
     G.nodes['literal'].data['Wh_af'] = Wh_af
-    Wh_ab = self.weight['aag_backward'](cnf_output)
+    Wh_ab = self.weight['aag_backward'](feat_dict['literal'])
     G.nodes['literal'].data['Wh_ab'] = Wh_ab
+    
+    G['aag_forward'].update_all(fn.copy_src('Wh_af', 'm_af'), fn.sum('m_af', 'h_af'))
+    G['aag_backward'].update_all(fn.copy_src('Wh_ab', 'm_ab'), fn.sum('m_ab', 'h_ab'))
+    lembs = G.nodes['literal'].data['h_af'] + G.nodes['literal'].data['h_ab']
 
-    G.send(G['aag_forward'].edges(), fn.copy_src('Wh_af', 'm_a'), etype='aag_forward')
-    G.send(G['aag_backward'].edges(), fn.copy_src('Wh_ab', 'm_a'), etype='aag_backward')
-    G.recv(G.nodes('literal'), fn.mean('m_a', 'h_a'), etype='aag_forward')
-    G.recv(G.nodes('literal'), fn.mean('m_a', 'h_a'), etype='aag_backward')
+    # normalize by in_degree(v) + out_degree(v) for each literal node v
+    combined_degrees = G.out_degrees(etype="aag_forward") + G.out_degrees(etype="aag_backward")
+    combined_degrees[combined_degrees == 0] = 1
+    combined_degrees = combined_degrees.float()
+    lembs = ((lembs.T)/combined_degrees).T
+    G.nodes['literal'].data['h_a'] = lembs
     
-    lembs = self.activation(G.nodes['literal'].data['h_a'])
-    return lembs
+    ##########################################################################
+    """
+    EXAMPLE:   files found in words_test_ryan_mini_1
+    10 literals            0,1,2,...,9
+    6 aag_forward_edges   (4,0) (4,2) (6,1) (6,4) (8,2) (8,7)
+    6 aag_backward_edges  (0,4) (2,4) (1,6) (4,6) (2,8) (7,8)
+    The following is what the literal embeddings should be,
+        given that we have already passed the cnf_output through a linear layer
+        to produce Wh_af, Wh_ab:
+    """
+    embs = torch.zeros(10, 5) 
+    embs[0] = Wh_af[4]
+    embs[1] = Wh_af[6]
+    embs[2] = (Wh_af[4] + Wh_af[8])/2
+    embs[4] = (Wh_af[6] + Wh_ab[0] + Wh_ab[2])/3
+    embs[6] = (Wh_ab[1] + Wh_ab[4])/2
+    embs[7] = Wh_af[8]
+    embs[8] = (Wh_ab[2] + Wh_ab[7])/2
+    ##########################################################################
     
+    return self.activation(G.nodes['literal'].data['h_a'])
+   
 
 class CNFEncoder(nn.Module):
   def __init__(self, settings=None, **kwargs):
@@ -127,7 +152,7 @@ class CnfAagEncoder(nn.Module):
     self.aag_layer = AAGLayer(2*self.vemb_dim,vemb_dim, **kwargs)
 
   def forward(self, G, feat_dict, **kwargs):
-
+    pass #FIXME
 
 
     

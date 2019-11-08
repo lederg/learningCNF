@@ -120,7 +120,7 @@ class CadetEnv:
       rewards = np.asarray(list(map(float,a.split()[1:])))
       return rewards
 
-  def reset(self, fname): 
+  def reset(self, fname):     
     self.terminate()
     if self.debug:
       print('Starting Env {}'.format(fname))
@@ -328,7 +328,6 @@ class CadetEnv:
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
-
     if not env_obs:
       return None
       
@@ -337,7 +336,6 @@ class CadetEnv:
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
       
-#      if self.cnf_and_aag:
       G = last_obs.ext_data if last_obs else self.aag_qcnf.G      
       try:
           lit_embs = G.nodes['literal'].data['lit_embs']

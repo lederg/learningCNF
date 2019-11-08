@@ -20,7 +20,7 @@ class EnvFactory:
       envtype = self.settings['solver']
 
     if envtype == 'cadet':
-      return CadetEnv(**self.settings.hyperparameters)
+      return CadetEnv(**self.settings.hyperparameters, **kwargs)
     elif envtype == 'minisat':
       satenv = SatActiveEnv(**kwargs)
       satserv = SatEnvServer(satenv)

@@ -7,6 +7,7 @@ from settings import *
 from new_policies import *
 from sat_policies import *
 from function_policies import *
+from dgl_policies import *
 from policy_config import *
 
 class PolicyFactory(metaclass=Singleton):

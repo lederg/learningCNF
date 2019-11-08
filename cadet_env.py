@@ -134,9 +134,9 @@ class CadetEnv:
     if type(fname) == tuple and len(fname) == 2:
         self.aag_qcnf.load_paired_files(aag_fname = fname[0], qcnf_fname = fname[1])
         self.qbf.reload_qdimacs(fname[1])
+        fname = fname[1]
     else:
         self.qbf.reload_qdimacs(fname)    
-    fname = fname[1]
     #########################################
     
     self.vars_deterministic = np.zeros(self.qbf.num_vars)

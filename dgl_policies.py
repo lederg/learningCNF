@@ -133,6 +133,7 @@ class CNFEncoder(nn.Module):
       embs = CNFEncoder.tie_literals(pre_embs)
 
     return embs
+
 class CnfAagEncoder(nn.Module):
   def __init__(self, in_size, clause_size, out_size, settings=None, **kwargs):
     super(CnfAagEncoder, self).__init__()
@@ -156,102 +157,177 @@ class CnfAagEncoder(nn.Module):
 
 
     
-class QbfNewEncoder(nn.Module):
-    def __init__(self, **kwargs):
-        super(QbfNewEncoder, self).__init__() 
-        self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()
-        self.debug = False
-        self.ground_dim = self.settings['ground_dim']
-        self.vlabel_dim = self.settings['vlabel_dim']
-        self.clabel_dim = self.settings['clabel_dim']
-        self.vemb_dim = self.settings['vemb_dim']
-        self.cemb_dim = self.settings['cemb_dim']
-        self.batch_size = self.settings['batch_size']
-        # self.embedding_dim = self.settings['embedding_dim']                
-        self.max_iters = self.settings['max_iters']        
-        self.non_linearity = eval(self.settings['non_linearity'])
-        W_L_params = []
-        B_L_params = []
-        W_C_params = []
-        B_C_params = []
-        # if self.settings['use_bn']:
-        self.vnorm_layers = nn.ModuleList([])
-        for i in range(self.max_iters):
-            W_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim,self.vlabel_dim+2*i*self.vemb_dim)))
-            B_L_params.append(nn.Parameter(self.settings.FloatTensor(self.cemb_dim)))
-            W_C_params.append(nn.Parameter(self.settings.FloatTensor(self.vemb_dim,self.clabel_dim+self.cemb_dim)))
-            B_C_params.append(nn.Parameter(self.settings.FloatTensor(self.vemb_dim)))
-            nn_init.normal_(W_L_params[i])
-            nn_init.normal_(B_L_params[i])        
-            nn_init.normal_(W_C_params[i])                
-            nn_init.normal_(B_C_params[i])
-            if self.settings['use_bn']:
-                self.vnorm_layers.append(nn.BatchNorm1d(self.vemb_dim))
-            elif self.settings['use_ln']:
-                self.vnorm_layers.append(nn.LayerNorm(self.vemb_dim))
+class DGLPolicy(PolicyBase):
+  def __init__(self, encoder=None, **kwargs):
+    super(DGLPolicy, self).__init__(**kwargs)
+    self.final_embedding_dim = 2*self.max_iters*self.vemb_dim+self.vlabel_dim
+    self.hidden_dim = 50
+    if encoder:
+      print('Bootstraping Policy from existing encoder')
+      self.encoder = encoder
+    else:
+      self.encoder = CNFEncoder(**kwargs)
+    if self.settings['use_global_state']:
+      self.linear1 = nn.Linear(self.state_dim+self.final_embedding_dim, self.policy_dim1)
+    else:
+      self.linear1 = nn.Linear(self.final_embedding_dim, self.policy_dim1)
 
+    if self.policy_dim2:
+      self.linear2 = nn.Linear(self.policy_dim1,self.policy_dim2)
+      self.action_score = nn.Linear(self.policy_dim2,1)
+    else:
+      self.action_score = nn.Linear(self.policy_dim1,1)
+    if self.state_bn:
+      self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
+    self.use_global_state = self.settings['use_global_state']
+    self.activation = eval(self.settings['policy_non_linearity'])
 
-        if self.settings['use_gru']:
-            self.gru = GruOperator(embedding_dim=self.vemb_dim, settings=self.settings)
+  
+  # state is just a (batched) vector of fixed size state_dim which should be expanded. 
+  # ground_embeddings are batch * max_vars * ground_embedding
 
-        self.W_L_params = nn.ParameterList(W_L_params)
-        self.B_L_params = nn.ParameterList(B_L_params)
-        self.W_C_params = nn.ParameterList(W_C_params)
-        self.B_C_params = nn.ParameterList(B_C_params)
-        
-                    
-    def copy_from_encoder(self, other, freeze=False):
-        for i in range(len(other.W_L_params)):
-            self.W_L_params[i] = other.W_L_params[i]
-            self.B_L_params[i] = other.B_L_params[i]
-            self.W_C_params[i] = other.W_C_params[i]
-            self.B_C_params[i] = other.B_C_params[i]
-            if freeze:
-                self.W_L_params[i].requires_grad=False
-                self.B_L_params[i].requires_grad=False
-                self.W_C_params[i].requires_grad=False
-                self.B_C_params[i].requires_grad=False
-            if self.settings['use_bn']:
-                for i, layer in enumerate(other.vnorm_layers):
-                    self.vnorm_layers[i].load_state_dict(layer.state_dict())
+  # cmat_net and cmat_pos are already "batched" into a single matrix
 
+  def forward(self, obs, **kwargs):
+    state = obs.state
+    import ipdb
+    ipdb.set_trace()    
+    G = obs.ext_data.local_var_()
+    ground_embeddings = G.nodes['literal'].data['lit_embs']
 
-# vlabels are (vars,vlabel_dim)
-# clabels are sparse (clauses,clabel_dim)
-# cmat_pos and cmat_neg is the bs*v -> bs*c block-diagonal adjacency matrix 
+    aux_losses = []
+    size = ground_embeddings.size()
+    self.batch_size=size[0]
+    if 'vs' in kwargs.keys():
+      vs = kwargs['vs']   
+    else:
+      pos_vars, neg_vars = self.encoder(ground_embeddings.view(-1,self.vlabel_dim), clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
+      vs_pos = pos_vars.view(self.batch_size,-1,self.final_embedding_dim)
+      vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
+      vs = torch.cat([vs_pos,vs_neg])
+      if 'do_debug' in kwargs:
+        Tracer()()
+    
 
-    def forward(self, vlabels, clabels, cmat_pos, cmat_neg, **kwargs):
-        # size = vlabels.size()
-        # bs = size[0]
-        # maxvars = size[1]
-        pos_vars = vlabels
-        neg_vars = vlabels
-        vmat_pos = cmat_pos.t()
-        vmat_neg = cmat_neg.t()
-        
-#        import ipdb
-#        ipdb.set_trace()
+    if self.use_global_state:
+      if self.state_bn:
+        state = self.state_vbn(state)
+      a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
+      reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
+      inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
+    else:
+      inputs = vs.view(-1,self.final_embedding_dim)
 
+    if self.policy_dim2:      
+      outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
+    else:
+      outputs = self.action_score(self.activation(self.linear1(inputs)))
+    # Tracer()()
+    outputs = outputs.view(2,self.batch_size,-1)
+    outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
+    outputs = outputs.contiguous().view(self.batch_size,-1)
+    if self.settings['ac_baseline'] and self.batch_size > 1:
+      embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)
+      mask = torch.cat([obs.vmask]*2,dim=1)
+      graph_embedding, value_aux_loss = self.value_attn(state,embs,attn_mask=mask)
+      aux_losses.append(value_aux_loss)
+      if self.settings['use_state_in_vn']:
+        val_inp = torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1)
+      else:
+        val_inp = graph_embedding.view(self.batch_size,-1)
+      value = self.value_score2(self.activation(self.value_score1(val_inp)))
+    else:
+      value = None
+    return outputs, value, vs, aux_losses
 
-        for t, p in enumerate(self.W_L_params):
-            # results is everything we computed so far, its precisely the correct input to W_L_t
-            av = (torch.mm(cmat_pos,pos_vars)+torch.mm(cmat_neg,neg_vars)).t()
-            c_t_pre = self.non_linearity(torch.mm(self.W_L_params[t],av).t() + self.B_L_params[t])
-            c_t = torch.cat([clabels,c_t_pre],dim=1)
-            pv = torch.mm(vmat_pos,c_t).t()
-            nv = torch.mm(vmat_neg,c_t).t()
-            pv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],pv).t() + self.B_C_params[t])
-            nv_t_pre = self.non_linearity(torch.mm(self.W_C_params[t],nv).t() + self.B_C_params[t])
-            if self.settings['use_bn'] or self.settings['use_ln']:
-                pv_t_pre = self.vnorm_layers[t](pv_t_pre.contiguous())
-                nv_t_pre = self.vnorm_layers[t](nv_t_pre.contiguous())            
-            # if bs>1:
-            #     Tracer()()            
-            pos_vars = torch.cat([pos_vars,pv_t_pre,nv_t_pre],dim=1)
-            neg_vars = torch.cat([neg_vars,nv_t_pre,pv_t_pre],dim=1)
+  def get_allowed_actions(self, obs, **kwargs):
+    rc = cadet_utils.get_allowed_actions(obs,**kwargs)
+    s = rc.shape
+    rc = rc.unsqueeze(2).expand(*s,2).contiguous()
+    rc = rc.view(s[0],-1)
+    return rc
 
+  def translate_action(self, action, obs, **kwargs):
+    try:
+      if action in ['?']:
+        return action
+    except:
+      pass
+    return (int(action/2),int(action%2))
 
-        return pos_vars, neg_vars   
+  def combine_actions(self, actions, **kwargs):
+    return self.settings.LongTensor(actions)
+
+  def select_action(self, obs_batch, **kwargs):
+    [logits], *_ = self.forward(collate_observations([obs_batch]))
+    allowed_actions = self.get_allowed_actions(obs_batch)[0]
+    allowed_idx = self.settings.cudaize_var(torch.from_numpy(np.where(allowed_actions.numpy())[0]))
+    l = logits[allowed_idx]
+    probs = F.softmax(l.contiguous().view(1,-1),dim=1)
+    dist = probs.data.cpu().numpy()[0]
+    choices = range(len(dist))
+    aux_action = np.random.choice(choices, p=dist)
+    action = allowed_idx[aux_action]
+    return action, 0
+
+  def compute_loss(self, transition_data, **kwargs):
+    _, _, _, rewards, *_ = zip(*transition_data)
+    collated_batch = collate_transitions(transition_data,settings=self.settings)
+    collated_batch.state = cudaize_obs(collated_batch.state)
+    logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
+    allowed_actions = Variable(self.get_allowed_actions(collated_batch.state))
+    if self.settings['cuda']:
+      allowed_actions = allowed_actions.cuda()
+    # unpacked_logits = unpack_logits(logits, collated_batch.state.pack_indices[1])
+    effective_bs = len(logits)    
+
+    if self.settings['masked_softmax']:
+      allowed_mask = allowed_actions.float()      
+      probs, debug_probs = masked_softmax2d(logits,allowed_mask)
+    else:
+      probs = F.softmax(logits, dim=1)
+    all_logprobs = safe_logprobs(probs)
+    if self.settings['disallowed_aux']:        # Disallowed actions are possible, so we add auxilliary loss
+      aux_probs = F.softmax(logits,dim=1)
+      disallowed_actions = Variable(allowed_actions.data^1).float()      
+      disallowed_mass = (aux_probs*disallowed_actions).sum(1)
+      disallowed_loss = disallowed_mass.mean()
+      # print('Disallowed loss is {}'.format(disallowed_loss))
+
+    returns = self.settings.FloatTensor(rewards)
+    if self.settings['ac_baseline']:
+      adv_t = returns - values.squeeze().data      
+      value_loss = mse_loss(values.squeeze(), Variable(returns))    
+      print('Value loss is {}'.format(value_loss.data.numpy()))
+      print('Value Auxilliary loss is {}'.format(sum(aux_losses).data.numpy()))
+      if i>0 and i % 60 == 0:
+        vecs = {'returns': returns.numpy(), 'values': values.squeeze().data.numpy()}        
+        pprint_vectors(vecs)
+    else:
+      adv_t = returns
+      value_loss = 0.
+    actions = collated_batch.action    
+    try:
+      logprobs = all_logprobs.gather(1,Variable(actions).view(-1,1)).squeeze()
+    except:
+      Tracer()()
+    entropies = (-probs*all_logprobs).sum(1)    
+    adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
+    # Tracer()()
+    if self.settings['normalize_episodes']:
+      episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
+      adv_t = adv_t*self.settings.FloatTensor(episodes_weights)    
+    if self.settings['use_sum']:
+      pg_loss = (-Variable(adv_t)*logprobs).sum()
+    else:
+      pg_loss = (-Variable(adv_t)*logprobs).mean()
+    total_aux_loss = sum(aux_losses) if aux_losses else 0.    
+    loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
+
+    if self.use_global_state and self.state_bn:
+      self.state_vbn.recompute_moments(collated_batch.state.state.detach())
+
+    return loss, logits
     
 ###############################################################################
 """Test CNFLayer and AAGLayer"""

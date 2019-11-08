@@ -342,17 +342,17 @@ class CombinedGraph1Base(object):
         self.removed_old_clauses = []
         
     def load_paired_files(self, aag_fname = None, qcnf_fname = None):
-        assert aag_fname.endswith('.qaiger') and qcnf_fname.endswith('.qdimacs')
         # self.aag_og = read_qaiger(aag_fname)        # for testing
         # self.qcnf_og = qdimacs_to_cnf(qcnf_fname)   # for testing
-        self.aag = fix_aag_numbering(read_qaiger(aag_fname))
+        if not qcnf_fname: raise Exception
+        self.aag = fix_aag_numbering(read_qaiger(aag_fname)) if aag_fname else None
         self.qcnf = fix_qcnf_numbering(qdimacs_to_cnf(qcnf_fname))
-        self.create_DGL_graph()        
+        self.create_DGL_graph()
         self.reset()
         
     @property
     def num_vars(self):
-        return self.aag['maxvar']
+        return self.qcnf['maxvar']
     
     @property
     def num_lits(self):
@@ -396,7 +396,7 @@ class CombinedGraph1Base(object):
         """
         if qcnf_base:
             self.qcnf_base = qcnf_base
-            # self.qcnf = fix_qcnf_numbering(self.qcnf_base.qcnf)
+            # self.qcnf = fix_qcnf_numbering(self.qcnf_base.qcnf)            
         if not aag_forward_edges or not aag_backward_edges:
             aag_forward_edges, aag_backward_edges = self.initial_aag_edges()
         if not qcnf_forward_edges or not qcnf_backward_edges:
@@ -428,16 +428,16 @@ class CombinedGraph1Base(object):
         self.qcnf_backward_edges = qcnf_backward_edges
         self.extra_clauses = extra_clauses
         self.removed_old_clauses = removed_old_clauses
-
+        
         G = dgl.heterograph(
-            {('literal', 'aag_forward', 'literal') : aag_forward_edges,
-             ('literal', 'aag_backward', 'literal') : aag_backward_edges,
-             ('literal', 'l2c', 'clause') : qcnf_forward_edges,
-             ('clause', 'c2l', 'literal') : qcnf_backward_edges},
-             
-            {'literal': self.num_lits,
-             'clause': self.num_clauses(extra_clauses)}
+                {('literal', 'aag_forward', 'literal') : aag_forward_edges,
+                 ('literal', 'aag_backward', 'literal') : aag_backward_edges,
+                 ('literal', 'l2c', 'clause') : qcnf_forward_edges,
+                 ('clause', 'c2l', 'literal') : qcnf_backward_edges},
+                {'literal': self.num_lits,
+                 'clause': self.num_clauses(extra_clauses)}
         ) 
+
         G.nodes['literal'].data['lit_embs'] = lit_embs
         G.nodes['clause'].data['clause_embs'] = clause_embs
         self.G = G
@@ -447,12 +447,13 @@ class CombinedGraph1Base(object):
         create aag edges, which remain fixed
         """
         aag_forward_edges, aag_backward_edges = [], []
-        for ag in self.aag['and_gates']:
-            x, y, z = ag[0], ag[1], ag[2]
-            aag_forward_edges.append( (x,y) )
-            aag_forward_edges.append( (x,z) )
-            aag_backward_edges.append( (y,x) )
-            aag_backward_edges.append( (z,x) )
+        if self.aag:
+            for ag in self.aag['and_gates']:
+                x, y, z = ag[0], ag[1], ag[2]
+                aag_forward_edges.append( (x,y) )
+                aag_forward_edges.append( (x,z) )
+                aag_backward_edges.append( (y,x) )
+                aag_backward_edges.append( (z,x) )
         self.aag_forward_edges = aag_forward_edges
         self.aag_backward_edges = aag_backward_edges
         return (aag_forward_edges, aag_backward_edges)
@@ -486,15 +487,16 @@ class CombinedGraph1Base(object):
             else:
                 existential_lits.append(2*v)
                 existential_lits.append(2*v+1)
-        embs = torch.zeros([2 * self.aag['maxvar'], self.LIT_FEATURE_DIM]) 
+        embs = torch.zeros([2 * self.qcnf['maxvar'], self.LIT_FEATURE_DIM]) 
         embs[:, self.IDX_VAR_UNIVERSAL][universal_lits] = 1
         embs[:, self.IDX_VAR_EXISTENTIAL][existential_lits] = 1
-        flipped_inputs = [flip(i) for i in self.aag['inputs']]
-        flipped_outputs = [flip(o) for o in self.aag['outputs']]
-        embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['inputs']] = 1
-        embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_inputs] = 1
-        embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
-        embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_outputs] = 1
+        if self.aag:
+            flipped_inputs = [flip(i) for i in self.aag['inputs']]
+            flipped_outputs = [flip(o) for o in self.aag['outputs']]
+            embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['inputs']] = 1
+            embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_inputs] = 1
+            embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
+            embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_outputs] = 1
         return embs
     
     def initial_clause_features(self):

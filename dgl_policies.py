@@ -82,18 +82,23 @@ class AAGLayer(nn.Module):
     10 literals            0,1,2,...,9
     6 aag_forward_edges   (4,0) (4,2) (6,1) (6,4) (8,2) (8,7)
     6 aag_backward_edges  (0,4) (2,4) (1,6) (4,6) (2,8) (7,8)
-    The following is what the literal embeddings should be,
+    The following is what the literal embeddings should be (before the nonlinearity),
         given that we have already passed the cnf_output through a linear layer
         to produce Wh_af, Wh_ab:
     """
-    embs = torch.zeros(10, 5) 
-    embs[0] = Wh_af[4]
-    embs[1] = Wh_af[6]
-    embs[2] = (Wh_af[4] + Wh_af[8])/2
-    embs[4] = (Wh_af[6] + Wh_ab[0] + Wh_ab[2])/3
-    embs[6] = (Wh_ab[1] + Wh_ab[4])/2
-    embs[7] = Wh_af[8]
-    embs[8] = (Wh_ab[2] + Wh_ab[7])/2
+    should_be = torch.zeros(10, 5) 
+    should_be[0] = Wh_af[4]
+    should_be[1] = Wh_af[6]
+    should_be[2] = (Wh_af[4] + Wh_af[8])/2
+    should_be[4] = (Wh_af[6] + Wh_ab[0] + Wh_ab[2])/3
+    should_be[6] = (Wh_ab[1] + Wh_ab[4])/2
+    should_be[7] = Wh_af[8]
+    should_be[8] = (Wh_ab[2] + Wh_ab[7])/2
+    
+#    import ipdb
+#    ipdb.set_trace()
+#    print(lembs)
+#    print(should_be)
     ##########################################################################
     
     return self.activation(G.nodes['literal'].data['h_a'])

@@ -120,7 +120,7 @@ class CadetEnv:
       rewards = np.asarray(list(map(float,a.split()[1:])))
       return rewards
 
-  def reset(self, fname): 
+  def reset(self, fname):     
     self.terminate()
     if self.debug:
       print('Starting Env {}'.format(fname))

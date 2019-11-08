@@ -74,49 +74,22 @@ class AAGLayer(nn.Module):
     combined_degrees[combined_degrees == 0] = 1
     combined_degrees = combined_degrees.float()
     lembs = ((lembs.T)/combined_degrees).T
+    lembs = self.activation(lembs)
     G.nodes['literal'].data['h_a'] = lembs
     
-    ##########################################################################
-    """
-    EXAMPLE:   files found in words_test_ryan_mini_1
-    10 literals            0,1,2,...,9
-    6 aag_forward_edges   (4,0) (4,2) (6,1) (6,4) (8,2) (8,7)
-    6 aag_backward_edges  (0,4) (2,4) (1,6) (4,6) (2,8) (7,8)
-    The following is what the literal embeddings should be,
-        given that we have already passed the cnf_output through a linear layer
-        to produce Wh_af, Wh_ab:
-    """
-    embs = torch.zeros(10, 5) 
-    embs[0] = Wh_af[4]
-    embs[1] = Wh_af[6]
-    embs[2] = (Wh_af[4] + Wh_af[8])/2
-    embs[4] = (Wh_af[6] + Wh_ab[0] + Wh_ab[2])/3
-    embs[6] = (Wh_ab[1] + Wh_ab[4])/2
-    embs[7] = Wh_af[8]
-    embs[8] = (Wh_ab[2] + Wh_ab[7])/2
-    ##########################################################################
-    
-    return self.activation(G.nodes['literal'].data['h_a'])
+    return lembs
    
 
-class CNFEncoder(nn.Module):
+class DGLEncoder(nn.Module):
   def __init__(self, settings=None, **kwargs):
-    super(CNFEncoder, self).__init__()
-    if settings is None:
-      self.settings = CnfSettings()
-    else:
-      self.settings = settings
-
+    super(DGLEncoder, self).__init__()
+    self.settings = settings if settings else CnfSettings()
     self.vlabel_dim = self.settings['vlabel_dim']
     self.clabel_dim = self.settings['clabel_dim']
     self.vemb_dim = self.settings['vemb_dim']
     self.cemb_dim = self.settings['cemb_dim']
     self.max_iters = self.settings['max_iters']        
     self.non_linearity = eval(self.settings['non_linearity'])
-
-    self.layers = nn.ModuleList(CNFLayer(self.vlabel_dim,self.cemb_dim,self.vemb_dim, **kwargs))
-    for i in range(1,self.max_iters):
-      self.layers.append(CNFLayer(2*self.vemb_dim,self.cemb_dim,self.vemb_dim, **kwargs))
 
   def tie_literals(embs):
     bs = len(embs)
@@ -124,37 +97,46 @@ class CNFEncoder(nn.Module):
     neg_part = embs[int(bs/2):]
     return torch.cat([torch.cat([pos_part,neg_part],dim=1), torch.cat([neg_part,pos_part],dim=1)], dim=0)
 
+  def forward(self, G, feat_dict, **kwargs):
+    raise NotImplementedError
+
+class CNFEncoder(DGLEncoder):
+  def __init__(self, settings=None, **kwargs):
+    super(CNFEncoder, self).__init__(settings=settings, **kwargs)
+
+    self.layers = nn.ModuleList(CNFLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, **kwargs))
+    for i in range(1,self.max_iters):
+      self.layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, **kwargs))
 
   def forward(self, G, feat_dict, **kwargs):
-    embs = CNFEncoder.tie_literals(self.layers[0](G,feat_dict))
+    embs = DGLEncoder.tie_literals(self.layers[0](G,feat_dict))
     for i in range(1,self.max_iters):      
       feat_dict['literal'] = embs
       pre_embs = self.layers[i](G, feat_dict)
-      embs = CNFEncoder.tie_literals(pre_embs)
-
+      embs = DGLEncoder.tie_literals(pre_embs)
     return embs
 
-class CnfAagEncoder(nn.Module):
+class CnfAagEncoder(DGLEncoder):
   def __init__(self, in_size, clause_size, out_size, settings=None, **kwargs):
-    super(CnfAagEncoder, self).__init__()
-    if settings is None:
-      self.settings = CnfSettings()
-    else:
-      self.settings = settings
-
-    self.vlabel_dim = self.settings['vlabel_dim']
-    self.clabel_dim = self.settings['clabel_dim']
-    self.vemb_dim = self.settings['vemb_dim']
-    self.cemb_dim = self.settings['cemb_dim']
-    self.max_iters = self.settings['max_iters']        
-    self.non_linearity = eval(self.settings['non_linearity'])
-
-    self.cnf_layer = CNFLayer(self.vlabel_dim,self.cemb_dim,self.vemb_dim, **kwargs)
-    self.aag_layer = AAGLayer(2*self.vemb_dim,vemb_dim, **kwargs)
+    super(CnfAagEncoder, self).__init__(settings=settings, **kwargs)
+    
+    self.cnf_layers = nn.ModuleList(CNFLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, **kwargs))
+    self.aag_layers = nn.ModuleList(AAGLayer(self.vemb_dim, self.vemb_dim, **kwargs))
+    for i in range(1,self.max_iters):
+      self.cnf_layers.append(CNFLayer(self.vemb_dim, self.cemb_dim, self.vemb_dim, **kwargs))
+      self.aag_layers.append(AAGLayer(self.vemb_dim, self.vemb_dim, **kwargs))
 
   def forward(self, G, feat_dict, **kwargs):
-    pass #FIXME
+    embs = DGLEncoder.tie_literals(self.layers[0](G,feat_dict))
+    for i in range(1,self.max_iters):      
+      feat_dict['literal'] = embs
+      embs_cnf = self.cnf_layers[i](G, feat_dict)
+      feat_dict['literal'] = embs_cnf
+      pre_embs = self.aag_layers[i](G, feat_dict)
+      embs = DGLEncoder.tie_literals(pre_embs)
+    return embs
 
+###############################################################################
 
     
 class DGLPolicy(PolicyBase):
@@ -354,5 +336,30 @@ class DGLPolicy(PolicyBase):
 #print(A_f)
 #print(A_f.shape)
 
-
+#    ##########################################################################
+#    ## TO GO INSIDE AAGLayer() Forward()
+#    """
+#    EXAMPLE:   files found in words_test_ryan_mini_1
+#    10 literals            0,1,2,...,9
+#    6 aag_forward_edges   (4,0) (4,2) (6,1) (6,4) (8,2) (8,7)
+#    6 aag_backward_edges  (0,4) (2,4) (1,6) (4,6) (2,8) (7,8)
+#    The following is what the literal embeddings should be (before the nonlinearity),
+#        given that we have already passed the cnf_output through a linear layer
+#        to produce Wh_af, Wh_ab:
+#    """
+#    embs = torch.zeros(10, 5) 
+#    embs[0] = Wh_af[4]
+#    embs[1] = Wh_af[6]
+#    embs[2] = (Wh_af[4] + Wh_af[8])/2
+#    embs[4] = (Wh_af[6] + Wh_ab[0] + Wh_ab[2])/3
+#    embs[6] = (Wh_ab[1] + Wh_ab[4])/2
+#    embs[7] = Wh_af[8]
+#    embs[8] = (Wh_ab[2] + Wh_ab[7])/2
+#    
+##    import ipdb
+##    ipdb.set_trace()
+##    print(lembs)
+##    print(should_be)
+#    ##########################################################################
+###############################################################################
 

@@ -30,11 +30,8 @@ class CadetEnv:
     self.EnvObservation = namedtuple('EnvObservation', 
                     ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
                       'reward', 'vars_set', 'done'])
-
-    if settings:
-      self.settings = settings
-    else:
-      self.settings = CnfSettings()
+    
+    self.settings = settings if settings else CnfSettings()
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
@@ -130,14 +127,18 @@ class CadetEnv:
     # if fname == 'data/huge_gen1/small-bug1-fixpoint-3.qdimacs':
     #   Tracer()()
     
-    #########################################
+    ############################################
+    if type(fname) == str:
+#        import ipdb
+#        ipdb.set_trace()
+        fname = (None, fname)
     if type(fname) == tuple and len(fname) == 2:
         self.aag_qcnf.load_paired_files(aag_fname = fname[0], qcnf_fname = fname[1])
         self.qbf.reload_qdimacs(fname[1])
         fname = fname[1]
     else:
-        self.qbf.reload_qdimacs(fname)    
-    #########################################
+        raise Exception 
+    ############################################
     
     self.vars_deterministic = np.zeros(self.qbf.num_vars)
     self.total_vars_deterministic = np.zeros(self.qbf.num_vars)    
@@ -382,27 +383,27 @@ class CadetEnv:
       
       G = self.aag_qcnf.G
       lit_embs = G.nodes['literal'].data['lit_embs']
-    ### Update Ground Embeddings / Literal Embeddings
+
     if env_obs.decision:
       ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
       
       ## FIXME: signed lit ??
-      lit = vars_to_lits([env_obs.decision[0]],env_obs.decision[1])[0]
-      lit_embs[lit][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = 1 
+#      lit = vars_to_lits([env_obs.decision[0]],env_obs.decision[1])[0]
+#      lit_embs[lit][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = 1 
     if len(env_obs.vars_add):
       ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_add] = True
       
-      lit_embs[:,IDX_VAR_DETERMINIZED][vars_to_lits(env_obs.vars_add)] = 1
+#      lit_embs[:,IDX_VAR_DETERMINIZED][vars_to_lits(env_obs.vars_add)] = 1
     if len(env_obs.vars_remove):
       ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_remove] = False
       ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][env_obs.vars_remove] = False
       
-      lit_embs[:,IDX_VAR_DETERMINIZED][vars_to_lits(env_obs.vars_remove)] = 0
-      lit_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][vars_to_lits(env_obs.vars_remove)] = 0
+#      lit_embs[:,IDX_VAR_DETERMINIZED][vars_to_lits(env_obs.vars_remove)] = 0
+#      lit_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][vars_to_lits(env_obs.vars_remove)] = 0
     if self.use_activities:
       ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
       
-      lit_embs[:,IDX_VAR_ACTIVITY] = Vars01_to_Lits01(env_obs.activities)
+#      lit_embs[:,IDX_VAR_ACTIVITY] = Vars01_to_Lits01(env_obs.activities)
     if len(env_obs.vars_set):
       x = env_obs.vars_set
       pos_idx = x[:,0][np.where(x[:,1]==1)[0]]
@@ -412,10 +413,12 @@ class CadetEnv:
       not_yet_idx = x[:,0][np.where(x[:,1]==0)[0]]
       ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][not_yet_idx] = False 
       
-      ## FIXME: signed lits ??
-      lit_embs[:,IDX_VAR_SET_POS][vars_to_lits(pos_idx,1)] = 1
-      lit_embs[:,IDX_VAR_SET_NEG][vars_to_lits(neg_idx,-1)] = 1
-      lit_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][vars_to_lits(not_yet_idx)] = 0
+#      lit_embs[:,IDX_VAR_SET_POS][vars_to_lits(pos_idx,1)] = 1
+#      lit_embs[:,IDX_VAR_SET_NEG][vars_to_lits(neg_idx,-1)] = 1
+#      lit_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][vars_to_lits(not_yet_idx)] = 0
+      
+#    import ipdb
+#    ipdb.set_trace()
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))

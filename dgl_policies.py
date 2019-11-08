@@ -74,10 +74,43 @@ class AAGLayer(nn.Module):
     return lembs
     
 
+class CNFEncoder(nn.Module):
+  def __init__(self, settings=None, **kwargs):
+    super(CNFEncoder, self).__init__()
+    if settings is None:
+      self.settings = CnfSettings()
+    else:
+      self.settings = settings
 
+    self.vlabel_dim = self.settings['vlabel_dim']
+    self.clabel_dim = self.settings['clabel_dim']
+    self.vemb_dim = self.settings['vemb_dim']
+    self.cemb_dim = self.settings['cemb_dim']
+    self.max_iters = self.settings['max_iters']        
+    self.non_linearity = eval(self.settings['non_linearity'])
+
+    self.layers = nn.ModuleList(CNFLayer(self.vlabel_dim,self.cemb_dim,self.vemb_dim, **kwargs))
+    for i in range(1,self.max_iters):
+      self.layers.append(CNFLayer(2*self.vemb_dim,self.cemb_dim,self.vemb_dim, **kwargs))
+
+  def tie_literals(embs):
+    bs = len(embs)
+    pos_part = embs[:int(bs/2)]
+    neg_part = embs[int(bs/2):]
+    return torch.cat([torch.cat([pos_part,neg_part],dim=1), torch.cat([neg_part,pos_part],dim=1)], dim=0)
+
+
+  def forward(self, G, feat_dict, **kwargs):
+    embs = CNFEncoder.tie_literals(self.layers[0](G,feat_dict))
+    for i in range(1,self.max_iters):      
+      feat_dict['literal'] = embs
+      pre_embs = self.layers[i](G, feat_dict)
+      embs = CNFEncoder.tie_literals(pre_embs)
+
+    return embs
 class CnfAagEncoder(nn.Module):
   def __init__(self, in_size, clause_size, out_size, settings=None, **kwargs):
-    super(CnfAagLayer, self).__init__()
+    super(CnfAagEncoder, self).__init__()
     if settings is None:
       self.settings = CnfSettings()
     else:
@@ -93,7 +126,7 @@ class CnfAagEncoder(nn.Module):
     self.cnf_layer = CNFLayer(self.vlabel_dim,self.cemb_dim,self.vemb_dim, **kwargs)
     self.aag_layer = AAGLayer(2*self.vemb_dim,vemb_dim, **kwargs)
 
-  def forward(self, G, feat_dict):
+  def forward(self, G, feat_dict, **kwargs):
 
 
 

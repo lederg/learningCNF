@@ -91,11 +91,14 @@ class DGLEncoder(nn.Module):
     self.max_iters = self.settings['max_iters']        
     self.non_linearity = eval(self.settings['non_linearity'])
 
-  def tie_literals(embs):
-    bs = len(embs)
-    pos_part = embs[:int(bs/2)]
-    neg_part = embs[int(bs/2):]
-    return torch.cat([torch.cat([pos_part,neg_part],dim=1), torch.cat([neg_part,pos_part],dim=1)], dim=0)
+  def tie_literals(embs):    
+    n, vembs = int(embs.shape[0]/2), embs.shape[1]
+    y = embs.view(n, 2, vembs)
+    pos_part = y.transpose(1,2)[:,:,0]
+    neg_part = y.transpose(1,2)[:,:,1]
+    cp = torch.cat([pos_part,neg_part],dim=1)
+    cn = torch.cat([neg_part,pos_part],dim=1)
+    return torch.stack((cp,cn), dim=1).view(10,8)
 
   def forward(self, G, feat_dict, **kwargs):
     raise NotImplementedError
@@ -121,10 +124,10 @@ class CnfAagEncoder(DGLEncoder):
     super(CnfAagEncoder, self).__init__(settings=settings, **kwargs)
     
     self.cnf_layers = nn.ModuleList(CNFLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, **kwargs))
-    self.aag_layers = nn.ModuleList(AAGLayer(self.vemb_dim, self.vemb_dim, **kwargs))
+    self.aag_layers = nn.ModuleList(AAGLayer(2*self.vemb_dim, self.vemb_dim, **kwargs))
     for i in range(1,self.max_iters):
-      self.cnf_layers.append(CNFLayer(self.vemb_dim, self.cemb_dim, self.vemb_dim, **kwargs))
-      self.aag_layers.append(AAGLayer(self.vemb_dim, self.vemb_dim, **kwargs))
+      self.cnf_layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, **kwargs))
+      self.aag_layers.append(AAGLayer(2*self.vemb_dim, self.vemb_dim, **kwargs))
 
   def forward(self, G, feat_dict, **kwargs):
     embs = DGLEncoder.tie_literals(self.layers[0](G,feat_dict))
@@ -362,4 +365,8 @@ class DGLPolicy(PolicyBase):
 ##    print(should_be)
 #    ##########################################################################
 ###############################################################################
-
+### TEST tie_literals()
+#e = torch.zeros(10,4)
+#for i in range(10):
+#  e[i] = i
+#DGLEncoder.tie_literals(e)

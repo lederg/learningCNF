@@ -515,6 +515,18 @@ class CombinedGraph1Base(object):
             self.removed_old_clauses.append(clause_id)
         else:
             del self.extra_clauses[clause_id]
+            
+    def update_ground_embs(self, ground_embs):
+        """
+        n = num_vars, 2*n = num_lits
+        ground_embs has shape (n x 8)
+        want to update lit_embs, which has shape (2*n x 9)
+        so, for each var, use the 8 dimensional feature as the first 8 entries 
+            of the rows of both literal embs...
+        """
+        n, num_feats = ground_embs.shape[0], ground_embs.shape[1]
+        u = torch.cat((ground_embs, ground_embs),dim=1).view(2*n, num_feats)
+        self.G.nodes['literal'].data['lit_embs'][:,:num_feats] = u
     
 ##############################################################################
 ##### Functions involving QCNF, AAG, Literal/Variable numbering    

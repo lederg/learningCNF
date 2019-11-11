@@ -116,7 +116,6 @@ class EnvInteractor:
     break_env = False
     break_crit = BREAK_CRIT_LOGICAL
 
-    self.logger.info('Step!')    
     action, ent = self.lmodel.select_action(obs, **kwargs)    
     envstr.episode_memory.append(Transition(obs,action,None, None, ent, envstr.env_id, envstr.prev_obs))    
     next_obs = envstr.env.step(self.lmodel.translate_action(action, obs))    

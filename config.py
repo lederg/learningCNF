@@ -226,7 +226,7 @@ def cfg():
 	learning_freq = 4
 	target_update_freq = 3000
 	unit_length = 30 					# number of seconds per "round"
-
+	weight_decay = 0.
 # ES
 	
 	es_population = 50

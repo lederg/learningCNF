@@ -20,7 +20,7 @@ class NodeSync(object):
     self.curr_lr = self.settings['init_lr']
     self.gmodel = PolicyFactory().create_policy(is_global_model=True, init_pyro=True)
     self.gmodel.share_memory()
-    self.optimizer = SharedAdam(filter(lambda p: p.requires_grad, self.gmodel.parameters()), lr=self.curr_lr)    
+    self.optimizer = SharedAdam(filter(lambda p: p.requires_grad, self.gmodel.parameters()), lr=self.curr_lr, weight_decay=self.settings['weight_decay'])
     self._g_steps = 0
     self._g_grad_steps = 0
     self._g_episodes = 0

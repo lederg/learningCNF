@@ -13,6 +13,7 @@ import cProfile
 import tracemalloc
 import psutil
 import logging
+import pickle
 import Pyro4
 from collections import namedtuple, deque
 from namedlist import namedlist
@@ -63,15 +64,15 @@ class EnvTester:
       statedict = self.lmodel.state_dict()
       numpy_into_statedict(statedict,self.init_model)
       self.lmodel.load_state_dict(statedict)
-    if self.settings['log_threshold']:
-      self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
-
-  def test_envs(self, provider, model=None, ed=None, iters=10, **kwargs):
+    
+  def test_envs(self, provider, model=None, ed=None, iters=10, log_name=None, **kwargs):
     self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, logger=self.logger, **kwargs)
     if model is not None:
       self.logger.info('Setting model at test time')
       self.lmodel = model
       self.interactor.lmodel = model
+    if kwargs['log_threshold']:
+      self.lmodel.shelf_file = {}     
     self.logger.info('Testing {} envs..\n'.format(provider.get_total()))
     all_episode_files = provider.items
     totals = 0.
@@ -104,5 +105,8 @@ class EnvTester:
         self.logger.info('Finished {}, Averages (time,steps,reward) are {},{},{}'.format(fname,rc[fname],
           mean_time,mean_steps,mean_reward))      
 
+    if kwargs['log_threshold']:
+      with open(log_name,'wb') as f:
+        pickle.dump(self.lmodel.shelf_file,f)      
     self.interactor.terminate()
     return rc

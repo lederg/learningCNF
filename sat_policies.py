@@ -1203,10 +1203,17 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
       self.logger.info('State is:')
       self.logger.info(obs_batch.state)
       self.logger.info('Logits are: {}'.format(logits))    
+      if log_threshold:
+        if self.shelf_key not in self.shelf_file.keys():        
+          self.shelf_file[self.shelf_key] = []
+        tmp = self.shelf_file[self.shelf_key]
+        tmp.append((obs_batch.state.detach().numpy(),logits.detach().numpy()))
+        self.shelf_file[self.shelf_key] = tmp
+
     if deterministic:
       action = int(torch.argmax(logits.view(-1)))
       if every_tick(20) or log_threshold:
-        self.logger.info('Threshold is {}'.format(action+2))      
+        self.logger.info('Threshold is {}'.format(action+2))
       return action, 0
     self.m = Categorical(logits=logits.view(-1))
     action=int(self.m.sample().detach())    

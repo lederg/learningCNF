@@ -50,8 +50,8 @@ class EnvInteractor:
     self.total_steps = 0
     self.def_step_cost = self.settings['def_step_cost']
     self.process = psutil.Process(os.getpid())    
-    if self.settings['log_threshold']:
-      self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
+    # if self.settings['log_threshold']:
+    #   self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
     if logger is None:
       self.logger = utils.get_logger(self.settings, 'EnvInteractor-{}'.format(self.name), 
                                     'logs/{}_{}.log'.format(log_name(self.settings), self.name))    
@@ -82,7 +82,9 @@ class EnvInteractor:
     # Set up the previous observations to be None followed by the last_obs   
     self.envstr.prev_obs.clear()    
     for i in range(self.rnn_iters):
-      self.envstr.prev_obs.append(None)    
+      self.envstr.prev_obs.append(None)
+    if self.lmodel:
+      self.lmodel.shelf_key=fname
     return self.envstr.last_obs
 
 

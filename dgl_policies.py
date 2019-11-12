@@ -44,6 +44,8 @@ class CNFLayer(nn.Module):
     lembs = self.activation(G.nodes['literal'].data['h'])
                     
     return lembs
+
+
     
 class AAGLayer(nn.Module):
   def __init__(self, in_size, out_size, activation=None, settings=None):
@@ -67,6 +69,7 @@ class AAGLayer(nn.Module):
     
     G['aag_forward'].update_all(fn.copy_src('Wh_af', 'm_af'), fn.sum('m_af', 'h_af'))
     G['aag_backward'].update_all(fn.copy_src('Wh_ab', 'm_ab'), fn.sum('m_ab', 'h_ab'))
+    
     lembs = G.nodes['literal'].data['h_af'] + G.nodes['literal'].data['h_ab']
 
     # normalize by in_degree(v) + out_degree(v) for each literal node v
@@ -91,11 +94,15 @@ class DGLEncoder(nn.Module):
     self.max_iters = self.settings['max_iters']        
     self.non_linearity = eval(self.settings['non_linearity'])
 
-  def tie_literals(embs):
-    bs = len(embs)
-    pos_part = embs[:int(bs/2)]
-    neg_part = embs[int(bs/2):]
-    return torch.cat([torch.cat([pos_part,neg_part],dim=1), torch.cat([neg_part,pos_part],dim=1)], dim=0)
+
+  def tie_literals(embs):    
+    n, vembs = int(embs.shape[0]/2), embs.shape[1]
+    y = embs.view(n, 2, vembs)
+    pos_part = y.transpose(1,2)[:,:,0]
+    neg_part = y.transpose(1,2)[:,:,1]
+    cp = torch.cat([pos_part,neg_part],dim=1)
+    cn = torch.cat([neg_part,pos_part],dim=1)
+    return torch.stack((cp,cn), dim=1).view(2*n, 2*vembs)
 
   def forward(self, G, feat_dict, **kwargs):
     raise NotImplementedError
@@ -104,9 +111,9 @@ class CNFEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
     super(CNFEncoder, self).__init__(settings=settings, **kwargs)
 
-    self.layers = nn.ModuleList(CNFLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, **kwargs))
+    self.layers = nn.ModuleList([CNFLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
     for i in range(1,self.max_iters):
-      self.layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, **kwargs))
+      self.layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
 
   def forward(self, G, feat_dict, **kwargs):
     embs = DGLEncoder.tie_literals(self.layers[0](G,feat_dict))
@@ -117,27 +124,29 @@ class CNFEncoder(DGLEncoder):
     return embs
 
 class CnfAagEncoder(DGLEncoder):
-  def __init__(self, in_size, clause_size, out_size, settings=None, **kwargs):
+  def __init__(self, settings=None, **kwargs):
     super(CnfAagEncoder, self).__init__(settings=settings, **kwargs)
     
-    self.cnf_layers = nn.ModuleList(CNFLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, **kwargs))
-    self.aag_layers = nn.ModuleList(AAGLayer(self.vemb_dim, self.vemb_dim, **kwargs))
+    self.cnf_layers = nn.ModuleList([CNFLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
+    self.aag_layers = nn.ModuleList([AAGLayer(self.vemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
     for i in range(1,self.max_iters):
-      self.cnf_layers.append(CNFLayer(self.vemb_dim, self.cemb_dim, self.vemb_dim, **kwargs))
-      self.aag_layers.append(AAGLayer(self.vemb_dim, self.vemb_dim, **kwargs))
+      self.cnf_layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
+      self.aag_layers.append(AAGLayer(self.vemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
 
   def forward(self, G, feat_dict, **kwargs):
-    embs = DGLEncoder.tie_literals(self.layers[0](G,feat_dict))
+    embs_cnf = self.cnf_layers[0](G,feat_dict)
+    feat_dict['literal'] = embs_cnf
+    pre_embs = self.aag_layers[0](G, feat_dict)
+    embs = DGLEncoder.tie_literals(pre_embs)
     for i in range(1,self.max_iters):      
       feat_dict['literal'] = embs
-      embs_cnf = self.cnf_layers[i](G, feat_dict)
+      embs_cnf = self.cnf_layers[i](G,feat_dict)
       feat_dict['literal'] = embs_cnf
       pre_embs = self.aag_layers[i](G, feat_dict)
       embs = DGLEncoder.tie_literals(pre_embs)
     return embs
 
 ###############################################################################
-
     
 class DGLPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
@@ -172,8 +181,8 @@ class DGLPolicy(PolicyBase):
 
   def forward(self, obs, **kwargs):
     state = obs.state
-    import ipdb
-    ipdb.set_trace()    
+#    import ipdb
+#    ipdb.set_trace()    
     G = obs.ext_data.local_var_()
     ground_embeddings = G.nodes['literal'].data['lit_embs']
 
@@ -312,30 +321,24 @@ class DGLPolicy(PolicyBase):
     return loss, logits
     
 ###############################################################################
-"""Test CNFLayer and AAGLayer"""
+"""Tests"""
 ###############################################################################
 #a = CombinedGraph1Base()
-#a.load_paired_files(aag_fname = './data/words_easy_train/words_0_SAT.qaiger', qcnf_fname = './data/words_easy_train/words_0_SAT.qaiger.qdimacs')
+#a.load_paired_files(aag_fname = './data/words_test_ryan_mini_1/w.qaiger', qcnf_fname = './data/words_test_ryan_mini_1/w.qaiger.qdimacs')
 #feat_dict = {
-#        'literal': a.G.nodes['literal'].data['lit_embs'],   # num_literals x 9 = 104 x 9
-#        'clause' : a.G.nodes['clause'].data['clause_embs']  # num_clauses  x 1 = 109 x 9
+#        'literal': a.G.nodes['literal'].data['lit_embs'],   
+#        'clause' : a.G.nodes['clause'].data['clause_embs'] 
 #}
-#
 #in_size = feat_dict['literal'].shape[1]
-#clause_size = 11 #a.G.number_of_nodes('clause')
-#out_size = 107 #9 #FIXME??
+#clause_size = 11
+#out_size = 7
 #C = CNFLayer(in_size, clause_size, out_size, activation=F.relu)
-#C_f = C(a.G, feat_dict) # shape        in_size x out_size = 
-#print(C_f)
-#print(C_f.shape)
-#
+#C_f = C(a.G, feat_dict)  
 #in_size = C_f.shape[1]
-#out_size = 82 #FIXME??
+#out_size = 5
 #A = AAGLayer(in_size, out_size, activation=F.relu)
-#A_f = A(a.G, C_f)
-#print(A_f)
-#print(A_f.shape)
-
+#feat_dict = {'literal' : C_f}
+#A_f = A(a.G, feat_dict)
 #    ##########################################################################
 #    ## TO GO INSIDE AAGLayer() Forward()
 #    """
@@ -362,4 +365,43 @@ class DGLPolicy(PolicyBase):
 ##    print(should_be)
 #    ##########################################################################
 ###############################################################################
-
+### TEST tie_literals()
+#e = torch.zeros(10,4)
+#for i in range(10):
+#  e[i] = i
+#DGLEncoder.tie_literals(e)
+###############################################################################
+#### Test the Encoders:
+#a = CombinedGraph1Base()
+#a.load_paired_files(aag_fname = './data/words_test_ryan_mini_1/w.qaiger', qcnf_fname = './data/words_test_ryan_mini_1/w.qaiger.qdimacs')
+#a.load_paired_files(aag_fname = None, qcnf_fname = './data/words_test_ryan_mini_1/w.qaiger.qdimacs')
+#### put the following inside DGLEncoder __init__()
+#self.vlabel_dim = 4
+#self.clabel_dim = 1
+#self.vemb_dim = 3
+#self.cemb_dim = 11 #hidden
+#self.max_iters = 2   
+#self.non_linearity = F.relu
+####
+#G = a.G
+#feat_dict = {'literal' : torch.ones(10,4), 'clause': torch.ones(10,1)}
+#e = CnfAagEncoder()
+#v = e(G, feat_dict)
+#import ipdb
+#ipdb.set_trace()
+###############################################################################
+#### MAILBOX testing
+#def reduce_af(nodes):
+#    import ipdb
+#    ipdb.set_trace()
+#    return { 'haf' : torch.sum(nodes.mailbox['m_af'], dim=1) }
+#def reduce_ab(nodes):
+#    import ipdb
+#    ipdb.set_trace()
+#    return { 'hab' : torch.sum(nodes.mailbox['m_ab'], dim=1) }
+#
+#    G['aag_forward'].update_all(fn.copy_src('Wh_af', 'm_af'), reduce_af)
+#    G['aag_backward'].update_all(fn.copy_src('Wh_ab', 'm_ab'), reduce_ab)
+#    import ipdb
+#    ipdb.set_trace()
+###############################################################################

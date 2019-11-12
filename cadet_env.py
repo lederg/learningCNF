@@ -129,8 +129,6 @@ class CadetEnv:
     
     ############################################
     if type(fname) == str:
-#        import ipdb
-#        ipdb.set_trace()
         fname = (None, fname)
     if type(fname) == tuple and len(fname) == 2:
         self.aag_qcnf.load_paired_files(aag_fname = fname[0], qcnf_fname = fname[1])
@@ -338,21 +336,14 @@ class CadetEnv:
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
       
-      G = last_obs.ext_data if last_obs else self.aag_qcnf.G      
-      try:
-          lit_embs = G.nodes['literal'].data['lit_embs']
-      except:
-          lit_embs = []
-      try:
-          clause_embs = G.nodes['clause'].data['clause_embs']
-      except:
-          clause_embs = []
-
       extra_clauses = self.qbf.extra_clauses.copy()
       for k in extra_clauses:
           extra_clauses[k] = [convert_qdimacs_lit(l) for l in extra_clauses[k]]
         
       # update the combined graph
+      G = last_obs.ext_data.G if last_obs else self.aag_qcnf.G
+      lit_embs = G.nodes['literal'].data['lit_embs']
+      clause_embs = G.nodes['clause'].data['clause_embs']
       self.aag_qcnf.create_DGL_graph(
               qcnf_base = self.qbf,
               aag_forward_edges = self.aag_qcnf.aag_forward_edges, 
@@ -366,44 +357,23 @@ class CadetEnv:
       )
     else: # no changed clauses AND last_obs, graph is the same
       cmat, clabels = last_obs.cmat, last_obs.clabels
-      
-      # no action for combined graph
-    ### Get the combined graph G and the literal embeddings
     if last_obs:
       ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
       vmask = last_obs.vmask
       cmask = last_obs.cmask
-      
-      G = self.aag_qcnf.G if env_obs.clause else last_obs.ext_data
-      lit_embs = G.nodes['literal'].data['lit_embs']
     else:      
       ground_embs = self.qbf.get_base_embeddings()
       vmask = None
       cmask = None
-      
-      G = self.aag_qcnf.G
-      lit_embs = G.nodes['literal'].data['lit_embs']
-
     if env_obs.decision:
-      ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True
-      
-      ## FIXME: signed lit ??
-#      lit = vars_to_lits([env_obs.decision[0]],env_obs.decision[1])[0]
-#      lit_embs[lit][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = 1 
+      ground_embs[env_obs.decision[0]][IDX_VAR_POLARITY_POS+1-env_obs.decision[1]] = True 
     if len(env_obs.vars_add):
       ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_add] = True
-      
-#      lit_embs[:,IDX_VAR_DETERMINIZED][vars_to_lits(env_obs.vars_add)] = 1
     if len(env_obs.vars_remove):
       ground_embs[:,IDX_VAR_DETERMINIZED][env_obs.vars_remove] = False
       ground_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][env_obs.vars_remove] = False
-      
-#      lit_embs[:,IDX_VAR_DETERMINIZED][vars_to_lits(env_obs.vars_remove)] = 0
-#      lit_embs[:,IDX_VAR_POLARITY_POS:IDX_VAR_POLARITY_NEG][vars_to_lits(env_obs.vars_remove)] = 0
     if self.use_activities:
       ground_embs[:,IDX_VAR_ACTIVITY] = env_obs.activities
-      
-#      lit_embs[:,IDX_VAR_ACTIVITY] = Vars01_to_Lits01(env_obs.activities)
     if len(env_obs.vars_set):
       x = env_obs.vars_set
       pos_idx = x[:,0][np.where(x[:,1]==1)[0]]
@@ -413,16 +383,11 @@ class CadetEnv:
       not_yet_idx = x[:,0][np.where(x[:,1]==0)[0]]
       ground_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][not_yet_idx] = False 
       
-#      lit_embs[:,IDX_VAR_SET_POS][vars_to_lits(pos_idx,1)] = 1
-#      lit_embs[:,IDX_VAR_SET_NEG][vars_to_lits(neg_idx,-1)] = 1
-#      lit_embs[:,IDX_VAR_SET_POS:IDX_VAR_SET_NEG][vars_to_lits(not_yet_idx)] = 0
-      
-#    import ipdb
-#    ipdb.set_trace()
-
+#    G = self.aag_qcnf.G if (env_obs.clause or not last_obs) else last_obs.ext_data
+    self.aag_qcnf.update_ground_embs(torch.tensor(ground_embs))
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state, cmat, ground_embs, clabels, vmask, cmask, G)
+    return State(state, cmat, ground_embs, clabels, vmask, cmask, self.aag_qcnf)
     
 
 

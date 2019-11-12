@@ -366,6 +366,7 @@ class RandomEpisodeProvider(AbstractEpisodeProvider):
 class UniformEpisodeProviderCombinedGraph(AbstractProvider):
   """
     Provider for PAIRED data (a .qiager file, and a corresponding .qdimacs file)
+    or for .qdimacs data only.
   """
   def __init__(self, directory, **kwargs):
     self.items = self.load_files(directory)
@@ -379,8 +380,6 @@ class UniformEpisodeProviderCombinedGraph(AbstractProvider):
     self.reset()
 
   def sample(self, **kwargs):
-#    import ipdb
-#    ipdb.set_trace()
     indices = np.arange(len(self.items))
     i = np.random.choice(indices, **kwargs)
     item = self.paired_fname(self.items[i])

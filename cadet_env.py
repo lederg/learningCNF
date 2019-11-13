@@ -342,8 +342,8 @@ class CadetEnv:
         
       # update the combined graph
       G = last_obs.ext_data.G if last_obs else self.aag_qcnf.G
-      lit_embs = G.nodes['literal'].data['lit_embs']
-      clause_embs = G.nodes['clause'].data['clause_embs']
+      lit_labels = G.nodes['literal'].data['lit_labels']
+      clause_labels = G.nodes['clause'].data['clause_labels']
       self.aag_qcnf.create_DGL_graph(
               qcnf_base = self.qbf,
               aag_forward_edges = self.aag_qcnf.aag_forward_edges, 
@@ -352,8 +352,8 @@ class CadetEnv:
               qcnf_backward_edges = self.aag_qcnf.qcnf_backward_edges,
               extra_clauses = extra_clauses, # UPDATE: learned/derived clauses
               removed_old_clauses = self.qbf.removed_old_clauses, # UPDATE: removed old clauses
-              lit_embs = lit_embs, 
-              clause_embs = clause_embs
+              lit_labels = lit_labels, 
+              clause_labels = clause_labels
       )
     else: # no changed clauses AND last_obs, graph is the same
       cmat, clabels = last_obs.cmat, last_obs.clabels

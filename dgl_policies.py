@@ -33,7 +33,6 @@ class CNFLayer(nn.Module):
     
   def forward(self, G, feat_dict):
     # the input is a dictionary of node features for each type
-
     Wh_l2c = self.weight['l2c'](feat_dict['literal'])
     G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
     G['l2c'].update_all(fn.copy_src('Wh_l2c', 'm'), fn.mean('m', 'h'))
@@ -195,8 +194,6 @@ class DGLPolicy(PolicyBase):
       if 'do_debug' in kwargs:
         Tracer()()
     
-    import ipdb
-    ipdb.set_trace()        
 
     if self.use_global_state:
       if self.state_bn:
@@ -324,8 +321,8 @@ class DGLPolicy(PolicyBase):
 #a = CombinedGraph1Base()
 #a.load_paired_files(aag_fname = './data/words_test_ryan_mini_1/w.qaiger', qcnf_fname = './data/words_test_ryan_mini_1/w.qaiger.qdimacs')
 #feat_dict = {
-#        'literal': a.G.nodes['literal'].data['lit_embs'],   
-#        'clause' : a.G.nodes['clause'].data['clause_embs'] 
+#        'literal': a.G.nodes['literal'].data['lit_labels'],   
+#        'clause' : a.G.nodes['clause'].data['clause_labels'] 
 #}
 #in_size = feat_dict['literal'].shape[1]
 #clause_size = 11
@@ -367,6 +364,7 @@ class DGLPolicy(PolicyBase):
 #e = torch.zeros(10,4)
 #for i in range(10):
 #  e[i] = i
+#e
 #DGLEncoder.tie_literals(e)
 ###############################################################################
 ### Test the Encoders:

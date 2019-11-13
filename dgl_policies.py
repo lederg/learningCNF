@@ -94,7 +94,6 @@ class DGLEncoder(nn.Module):
     self.max_iters = self.settings['max_iters']        
     self.non_linearity = eval(self.settings['non_linearity'])
 
-
   def tie_literals(embs):    
     n, vembs = int(embs.shape[0]/2), embs.shape[1]
     y = embs.view(n, 2, vembs)
@@ -128,19 +127,21 @@ class CnfAagEncoder(DGLEncoder):
     super(CnfAagEncoder, self).__init__(settings=settings, **kwargs)
     
     self.cnf_layers = nn.ModuleList([CNFLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
-    self.aag_layers = nn.ModuleList([AAGLayer(self.vemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
+    self.aag_layers = nn.ModuleList([AAGLayer(2*self.vemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
     for i in range(1,self.max_iters):
       self.cnf_layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
-      self.aag_layers.append(AAGLayer(self.vemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
+      self.aag_layers.append(AAGLayer(2*self.vemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
 
   def forward(self, G, feat_dict, **kwargs):
-    embs_cnf = self.cnf_layers[0](G,feat_dict)
+    pre_embs_cnf = self.cnf_layers[0](G,feat_dict)
+    embs_cnf = DGLEncoder.tie_literals(pre_embs_cnf)
     feat_dict['literal'] = embs_cnf
     pre_embs = self.aag_layers[0](G, feat_dict)
     embs = DGLEncoder.tie_literals(pre_embs)
     for i in range(1,self.max_iters):      
       feat_dict['literal'] = embs
-      embs_cnf = self.cnf_layers[i](G,feat_dict)
+      pre_embs_cnf = self.cnf_layers[i](G,feat_dict)
+      embs_cnf = DGLEncoder.tie_literals(pre_embs_cnf)
       feat_dict['literal'] = embs_cnf
       pre_embs = self.aag_layers[i](G, feat_dict)
       embs = DGLEncoder.tie_literals(pre_embs)
@@ -368,10 +369,9 @@ class DGLPolicy(PolicyBase):
 #  e[i] = i
 #DGLEncoder.tie_literals(e)
 ###############################################################################
-#### Test the Encoders:
+### Test the Encoders:
 #a = CombinedGraph1Base()
 #a.load_paired_files(aag_fname = './data/words_test_ryan_mini_1/w.qaiger', qcnf_fname = './data/words_test_ryan_mini_1/w.qaiger.qdimacs')
-#a.load_paired_files(aag_fname = None, qcnf_fname = './data/words_test_ryan_mini_1/w.qaiger.qdimacs')
 #### put the following inside DGLEncoder __init__()
 #self.vlabel_dim = 4
 #self.clabel_dim = 1

@@ -33,6 +33,7 @@ class CNFLayer(nn.Module):
     
   def forward(self, G, feat_dict):
     # the input is a dictionary of node features for each type
+
     Wh_l2c = self.weight['l2c'](feat_dict['literal'])
     G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
     G['l2c'].update_all(fn.copy_src('Wh_l2c', 'm'), fn.mean('m', 'h'))
@@ -114,7 +115,7 @@ class CNFEncoder(DGLEncoder):
     for i in range(1,self.max_iters):
       self.layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
 
-  def forward(self, G, feat_dict, **kwargs):
+  def forward(self, G, feat_dict, **kwargs):    
     embs = DGLEncoder.tie_literals(self.layers[0](G,feat_dict))
     for i in range(1,self.max_iters):      
       feat_dict['literal'] = embs
@@ -182,13 +183,10 @@ class DGLPolicy(PolicyBase):
 
   def forward(self, obs, **kwargs):
     state = obs.state
-    import ipdb
-    ipdb.set_trace()    
-    G = obs.ext_data.local_var()
+    G = obs.ext_data[0].G.local_var()
     feat_dict = {'literal': G.nodes['literal'].data['lit_embs'], 'clause': G.nodes['clause'].data['clause_embs']}
 
-    aux_losses = []
-    size = ground_embeddings.size()
+    aux_losses = []    
     self.batch_size=obs.state.shape[0]
     if 'vs' in kwargs.keys():
       vs = kwargs['vs']   
@@ -197,6 +195,8 @@ class DGLPolicy(PolicyBase):
       if 'do_debug' in kwargs:
         Tracer()()
     
+    import ipdb
+    ipdb.set_trace()        
 
     if self.use_global_state:
       if self.state_bn:

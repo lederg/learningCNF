@@ -185,7 +185,7 @@ class DGLPolicy(PolicyBase):
 #    import ipdb
 #    ipdb.set_trace()    
     G = obs.ext_data.local_var_()
-    ground_embeddings = G.nodes['literal'].data['lit_embs']
+    ground_embeddings = G.nodes['literal'].data['lit_labels']
 
     aux_losses = []
     size = ground_embeddings.size()
@@ -327,8 +327,8 @@ class DGLPolicy(PolicyBase):
 #a = CombinedGraph1Base()
 #a.load_paired_files(aag_fname = './data/words_test_ryan_mini_1/w.qaiger', qcnf_fname = './data/words_test_ryan_mini_1/w.qaiger.qdimacs')
 #feat_dict = {
-#        'literal': a.G.nodes['literal'].data['lit_embs'],   
-#        'clause' : a.G.nodes['clause'].data['clause_embs'] 
+#        'literal': a.G.nodes['literal'].data['lit_labels'],   
+#        'clause' : a.G.nodes['clause'].data['clause_labels'] 
 #}
 #in_size = feat_dict['literal'].shape[1]
 #clause_size = 11
@@ -370,6 +370,7 @@ class DGLPolicy(PolicyBase):
 #e = torch.zeros(10,4)
 #for i in range(10):
 #  e[i] = i
+#e
 #DGLEncoder.tie_literals(e)
 ###############################################################################
 ### Test the Encoders:

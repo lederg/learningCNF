@@ -379,7 +379,7 @@ class CombinedGraph1Base(object):
             aag_forward_edges = [], aag_backward_edges = [],
             qcnf_forward_edges = [], qcnf_backward_edges = [],
             extra_clauses = {}, removed_old_clauses = [], 
-            lit_embs = [], clause_embs = []
+            lit_labels = [], clause_labels = []
         ):
         """
         Create the combined AAG-QCNF graph.
@@ -401,10 +401,10 @@ class CombinedGraph1Base(object):
             aag_forward_edges, aag_backward_edges = self.initial_aag_edges()
         if not qcnf_forward_edges or not qcnf_backward_edges:
             qcnf_forward_edges, qcnf_backward_edges = self.initial_qcnf_edges()
-        if type(lit_embs) == list and lit_embs == []: ##FIXME
-            lit_embs = self.initial_lit_features()
-        if type(clause_embs) == list and clause_embs == []: ##FIXME
-            clause_embs =  self.initial_clause_features()
+        if type(lit_labels) == list and lit_labels == []: ##FIXME
+            lit_labels = self.initial_lit_features()
+        if type(clause_labels) == list and clause_labels == []: ##FIXME
+            clause_labels =  self.initial_clause_features()
             
         ## add qcnf edges for each clause in extra_clauses
         for cl_num in extra_clauses:
@@ -413,8 +413,8 @@ class CombinedGraph1Base(object):
                 qcnf_backward_edges.append( (cl_num,lit) )
         ## change clause embeddings : 1 for extra clauses        
         if extra_clauses:
-            clause_embs = torch.zeros([self.num_clauses(extra_clauses), self.CLAUSE_FEATURE_DIM])
-            clause_embs[[cl_num for cl_num in extra_clauses.keys()]] = 1
+            clause_labels = torch.zeros([self.num_clauses(extra_clauses), self.CLAUSE_FEATURE_DIM])
+            clause_labels[[cl_num for cl_num in extra_clauses.keys()]] = 1
 
         ## remove qcnf edges for each clause in remove_old_clauses
         for cl_num in removed_old_clauses:
@@ -438,8 +438,8 @@ class CombinedGraph1Base(object):
                  'clause': self.num_clauses(extra_clauses)}
         ) 
 
-        G.nodes['literal'].data['lit_embs'] = lit_embs
-        G.nodes['clause'].data['clause_embs'] = clause_embs
+        G.nodes['literal'].data['lit_labels'] = lit_labels
+        G.nodes['clause'].data['clause_labels'] = clause_labels
         self.G = G
         
     def initial_aag_edges(self):
@@ -520,13 +520,13 @@ class CombinedGraph1Base(object):
         """
         n = num_vars, 2*n = num_lits
         ground_embs has shape (n x 8)
-        want to update lit_embs, which has shape (2*n x 9)
+        want to update lit_labels, which has shape (2*n x 9)
         so, for each var, use the 8 dimensional feature as the first 8 entries 
-            of the rows of both literal embs...
+            of the rows of both literal labels...
         """
         n, num_feats = ground_embs.shape[0], ground_embs.shape[1]
         u = torch.cat((ground_embs, ground_embs),dim=1).view(2*n, num_feats)
-        self.G.nodes['literal'].data['lit_embs'][:,:num_feats] = u
+        self.G.nodes['literal'].data['lit_labels'][:,:num_feats] = u
     
 ##############################################################################
 ##### Functions involving QCNF, AAG, Literal/Variable numbering    

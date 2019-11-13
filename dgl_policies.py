@@ -19,7 +19,7 @@ from rl_utils import *
 
 
 class CNFLayer(nn.Module):
-  def __init__(self, in_size, clause_size, out_size, activation=None, settings=None):
+  def __init__(self, in_size, clause_size, out_size, activation=None, settings=None, **kwargs):
     super(CNFLayer, self).__init__()
     self.ntypes = ['literal', 'clause']
     self.etypes = ['l2c', 'c2l']
@@ -151,7 +151,7 @@ class CnfAagEncoder(DGLEncoder):
 class DGLPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
     super(DGLPolicy, self).__init__(**kwargs)
-    self.final_embedding_dim = 2*self.max_iters*self.vemb_dim+self.vlabel_dim
+    self.final_embedding_dim = 2*self.vemb_dim+self.vlabel_dim
     self.hidden_dim = 50
     if encoder:
       print('Bootstraping Policy from existing encoder')
@@ -181,21 +181,18 @@ class DGLPolicy(PolicyBase):
 
   def forward(self, obs, **kwargs):
     state = obs.state
-#    import ipdb
-#    ipdb.set_trace()    
-    G = obs.ext_data.local_var_()
-    ground_embeddings = G.nodes['literal'].data['lit_embs']
+    import ipdb
+    ipdb.set_trace()    
+    G = obs.ext_data.local_var()
+    feat_dict = {'literal': G.nodes['literal'].data['lit_embs'], 'clause': G.nodes['clause'].data['clause_embs']}
 
     aux_losses = []
     size = ground_embeddings.size()
-    self.batch_size=size[0]
+    self.batch_size=obs.state.shape[0]
     if 'vs' in kwargs.keys():
       vs = kwargs['vs']   
     else:
-      pos_vars, neg_vars = self.encoder(ground_embeddings.view(-1,self.vlabel_dim), clabels.view(-1,self.clabel_dim), cmat_pos=cmat_pos, cmat_neg=cmat_neg, **kwargs)
-      vs_pos = pos_vars.view(self.batch_size,-1,self.final_embedding_dim)
-      vs_neg = neg_vars.view(self.batch_size,-1,self.final_embedding_dim)
-      vs = torch.cat([vs_pos,vs_neg])
+      vs = self.encoder(G, feat_dict, **kwargs)
       if 'do_debug' in kwargs:
         Tracer()()
     

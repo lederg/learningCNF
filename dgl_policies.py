@@ -115,12 +115,13 @@ class CNFEncoder(DGLEncoder):
       self.layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
 
   def forward(self, G, feat_dict, **kwargs):    
+    vlabels = feat_dict['literal']
     embs = DGLEncoder.tie_literals(self.layers[0](G,feat_dict))
     for i in range(1,self.max_iters):      
       feat_dict['literal'] = embs
       pre_embs = self.layers[i](G, feat_dict)
       embs = DGLEncoder.tie_literals(pre_embs)
-    return embs
+    return torch.cat([embs,vlabels],dim=1)
 
 class CnfAagEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
@@ -182,25 +183,29 @@ class DGLPolicy(PolicyBase):
 
   def forward(self, obs, **kwargs):
     state = obs.state
-    G = obs.ext_data[0].G.local_var()
-    feat_dict = {'literal': G.nodes['literal'].data['lit_embs'], 'clause': G.nodes['clause'].data['clause_embs']}
+    G = obs.ext_data.G.local_var()
+    feat_dict = {'literal': G.nodes['literal'].data['lit_labels'], 'clause': G.nodes['clause'].data['clause_labels']}
 
     aux_losses = []    
     self.batch_size=obs.state.shape[0]
+    if self.batch_size == 1:
+      max_vars = feat_dict['literal'].shape[0]
     if 'vs' in kwargs.keys():
       vs = kwargs['vs']   
     else:
       vs = self.encoder(G, feat_dict, **kwargs)
       if 'do_debug' in kwargs:
         Tracer()()
-    
 
     if self.use_global_state:
       if self.state_bn:
         state = self.state_vbn(state)
-      a = state.unsqueeze(0).expand(2,*state.size()).contiguous().view(2*self.batch_size,1,self.state_dim)
-      reshaped_state = a.expand(2*self.batch_size,size[1],self.state_dim) # add the maxvars dimention
-      inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
+      a = state.expand(self.batch_size*max_vars,self.state_dim)
+      reshaped_state = a.expand(self.batch_size*max_vars,self.state_dim) # add the maxvars dimention
+      inputs = torch.cat([reshaped_state, vs],dim=1).view(-1,self.state_dim+self.final_embedding_dim)
+      # a = state.unsqueeze(0).expand(,*state.size()).contiguous().view(self.batch_size,1,self.state_dim)
+      # reshaped_state = a.expand(self.batch_size,max_vars,self.state_dim) # add the maxvars dimention
+      # inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
     else:
       inputs = vs.view(-1,self.final_embedding_dim)
 
@@ -244,9 +249,9 @@ class DGLPolicy(PolicyBase):
   def combine_actions(self, actions, **kwargs):
     return self.settings.LongTensor(actions)
 
-  def select_action(self, obs_batch, **kwargs):
-    [logits], *_ = self.forward(collate_observations([obs_batch]))
-    allowed_actions = self.get_allowed_actions(obs_batch)[0]
+  def select_action(self, obs, **kwargs):
+    [logits], *_ = self.forward(obs)
+    allowed_actions = self.get_allowed_actions(obs)[0]
     allowed_idx = self.settings.cudaize_var(torch.from_numpy(np.where(allowed_actions.numpy())[0]))
     l = logits[allowed_idx]
     probs = F.softmax(l.contiguous().view(1,-1),dim=1)
@@ -257,6 +262,8 @@ class DGLPolicy(PolicyBase):
     return action, 0
 
   def compute_loss(self, transition_data, **kwargs):
+    import ipdb
+    ipdb.set_trace()        
     _, _, _, rewards, *_ = zip(*transition_data)
     collated_batch = collate_transitions(transition_data,settings=self.settings)
     collated_batch.state = cudaize_obs(collated_batch.state)

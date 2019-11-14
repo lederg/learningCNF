@@ -36,6 +36,7 @@ def batched_combined_graph(L):
                 {'literal': num_lits[len(num_lits)-1],
                  'clause': num_clauses[len(num_clauses)-1]}
     )
+    G.nodes['literal'].data['lit_labels'] = lit_labels
     return G
         
 def combine_sparse_adj(A, B, shift0, shift1, size0, size1):

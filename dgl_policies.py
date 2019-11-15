@@ -16,6 +16,7 @@ from qbf_model import *
 from settings import *
 from policy_base import *
 from rl_utils import *
+from batch_dgl import batched_combined_graph
 
 
 class CNFLayer(nn.Module):
@@ -181,15 +182,19 @@ class DGLPolicy(PolicyBase):
 
   # cmat_net and cmat_pos are already "batched" into a single matrix
 
-  def forward(self, obs, **kwargs):
-    state = obs.state
-    G = obs.ext_data.G.local_var()
-    feat_dict = {'literal': G.nodes['literal'].data['lit_labels'], 'clause': G.nodes['clause'].data['clause_labels']}
-
-    aux_losses = []    
+  def forward(self, obs, G, **kwargs):
+    state = obs.state 
     self.batch_size=obs.state.shape[0]
+    if self.batch_size>1:
+      import ipdb
+      ipdb.set_trace()        
+
+    feat_dict = {'literal': G.nodes['literal'].data['lit_labels'], 'clause': torch.zeros(G.number_of_nodes('clause'),1)}
+    # feat_dict = {'literal': G.nodes['literal'].data['lit_labels'], 'clause': G.nodes['clause'].data['clause_labels']}
+    aux_losses = []    
     if self.batch_size == 1:
       max_vars = feat_dict['literal'].shape[0]
+    
     if 'vs' in kwargs.keys():
       vs = kwargs['vs']   
     else:
@@ -250,7 +255,7 @@ class DGLPolicy(PolicyBase):
     return self.settings.LongTensor(actions)
 
   def select_action(self, obs, **kwargs):
-    [logits], *_ = self.forward(obs)
+    [logits], *_ = self.forward(obs, obs.ext_data.G.local_var())
     allowed_actions = self.get_allowed_actions(obs)[0]
     allowed_idx = self.settings.cudaize_var(torch.from_numpy(np.where(allowed_actions.numpy())[0]))
     l = logits[allowed_idx]
@@ -262,12 +267,17 @@ class DGLPolicy(PolicyBase):
     return action, 0
 
   def compute_loss(self, transition_data, **kwargs):
-    import ipdb
-    ipdb.set_trace()        
-    _, _, _, rewards, *_ = zip(*transition_data)
+    _, _, _, rewards, *_ = zip(*transition_data)    
+    t1 = time.time()
     collated_batch = collate_transitions(transition_data,settings=self.settings)
+    print('batching 1 took {} seconds'.format(time.time()-t1))
     collated_batch.state = cudaize_obs(collated_batch.state)
-    logits, values, _, aux_losses = self.forward(collated_batch.state, prev_obs=collated_batch.prev_obs)
+    t1 = time.time()
+    print('Batching {} graphs. Here is the first:'.format(len(transition_data)))
+    print(collated_batch.state.ext_data[0].G)
+    G = batched_combined_graph([x.G for x in collated_batch.state.ext_data])
+    print('batching 2 took {} seconds'.format(time.time()-t1))
+    logits, values, _, aux_losses = self.forward(collated_batch.state, G, prev_obs=collated_batch.prev_obs)
     allowed_actions = Variable(self.get_allowed_actions(collated_batch.state))
     if self.settings['cuda']:
       allowed_actions = allowed_actions.cuda()

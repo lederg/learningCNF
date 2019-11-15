@@ -21,7 +21,7 @@ def cfg():
 	vemb_dim = 16
 	cemb_dim = 64
 	ground_dim = 8  # deprecated
-	vlabel_dim = 8
+	vlabel_dim = 9
 	clabel_dim = 1
 	max_variables = 200 
 	max_clauses = 600

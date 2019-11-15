@@ -4,6 +4,7 @@ Batch a list of AAG-CNF graphs
 import torch
 import dgl
 import networkx
+from qbf_data import CombinedGraph1Base
 
 def batched_combined_graph(L):
     """L is a list of at least 1 DGL Heterograph"""

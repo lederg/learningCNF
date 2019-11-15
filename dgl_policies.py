@@ -178,22 +178,19 @@ class DGLPolicy(PolicyBase):
 
   
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
-  # ground_embeddings are batch * max_vars * ground_embedding
+  # ground_embeddings are batch * num_lits * ground_embedding
 
   # cmat_net and cmat_pos are already "batched" into a single matrix
 
   def forward(self, obs, G, **kwargs):
     state = obs.state 
     self.batch_size=obs.state.shape[0]
-    if self.batch_size>1:
-      import ipdb
-      ipdb.set_trace()        
 
     feat_dict = {'literal': G.nodes['literal'].data['lit_labels'], 'clause': torch.zeros(G.number_of_nodes('clause'),1)}
     # feat_dict = {'literal': G.nodes['literal'].data['lit_labels'], 'clause': G.nodes['clause'].data['clause_labels']}
     aux_losses = []    
-    if self.batch_size == 1:
-      max_vars = feat_dict['literal'].shape[0]
+    
+    num_lits = int(feat_dict['literal'].shape[0] / self.batch_size)
     
     if 'vs' in kwargs.keys():
       vs = kwargs['vs']   
@@ -205,12 +202,8 @@ class DGLPolicy(PolicyBase):
     if self.use_global_state:
       if self.state_bn:
         state = self.state_vbn(state)
-      a = state.expand(self.batch_size*max_vars,self.state_dim)
-      reshaped_state = a.expand(self.batch_size*max_vars,self.state_dim) # add the maxvars dimention
+      reshaped_state = state.unsqueeze(1).expand(state.shape[0],num_lits,self.state_dim).contiguous().view(-1,self.state_dim)
       inputs = torch.cat([reshaped_state, vs],dim=1).view(-1,self.state_dim+self.final_embedding_dim)
-      # a = state.unsqueeze(0).expand(,*state.size()).contiguous().view(self.batch_size,1,self.state_dim)
-      # reshaped_state = a.expand(self.batch_size,max_vars,self.state_dim) # add the maxvars dimention
-      # inputs = torch.cat([reshaped_state, vs],dim=2).view(-1,self.state_dim+self.final_embedding_dim)
     else:
       inputs = vs.view(-1,self.final_embedding_dim)
 
@@ -218,23 +211,9 @@ class DGLPolicy(PolicyBase):
       outputs = self.action_score(self.activation(self.linear2(self.activation(self.linear1(inputs)))))
     else:
       outputs = self.action_score(self.activation(self.linear1(inputs)))
-    # Tracer()()
-    outputs = outputs.view(2,self.batch_size,-1)
-    outputs = outputs.transpose(2,0).transpose(1,0)     # batch x numvars x pos-neg
-    outputs = outputs.contiguous().view(self.batch_size,-1)
-    if self.settings['ac_baseline'] and self.batch_size > 1:
-      embs = vs.view(2,self.batch_size,-1,self.final_embedding_dim).transpose(0,1).contiguous().view(self.batch_size,-1,self.final_embedding_dim)
-      mask = torch.cat([obs.vmask]*2,dim=1)
-      graph_embedding, value_aux_loss = self.value_attn(state,embs,attn_mask=mask)
-      aux_losses.append(value_aux_loss)
-      if self.settings['use_state_in_vn']:
-        val_inp = torch.cat([state,graph_embedding.view(self.batch_size,-1)],dim=1)
-      else:
-        val_inp = graph_embedding.view(self.batch_size,-1)
-      value = self.value_score2(self.activation(self.value_score1(val_inp)))
-    else:
-      value = None
-    return outputs, value, vs, aux_losses
+    outputs = outputs.view(self.batch_size,-1)
+
+    return outputs, vs
 
   def get_allowed_actions(self, obs, **kwargs):
     rc = cadet_utils.get_allowed_actions(obs,**kwargs)
@@ -277,11 +256,10 @@ class DGLPolicy(PolicyBase):
     print(collated_batch.state.ext_data[0].G)
     G = batched_combined_graph([x.G for x in collated_batch.state.ext_data])
     print('batching 2 took {} seconds'.format(time.time()-t1))
-    logits, values, _, aux_losses = self.forward(collated_batch.state, G, prev_obs=collated_batch.prev_obs)
-    allowed_actions = Variable(self.get_allowed_actions(collated_batch.state))
+    logits, *_ = self.forward(collated_batch.state, G, prev_obs=collated_batch.prev_obs)
+    allowed_actions = self.get_allowed_actions(collated_batch.state)
     if self.settings['cuda']:
-      allowed_actions = allowed_actions.cuda()
-    # unpacked_logits = unpack_logits(logits, collated_batch.state.pack_indices[1])
+      allowed_actions = allowed_actions.cuda()    
     effective_bs = len(logits)    
 
     if self.settings['masked_softmax']:
@@ -298,34 +276,19 @@ class DGLPolicy(PolicyBase):
       # print('Disallowed loss is {}'.format(disallowed_loss))
 
     returns = self.settings.FloatTensor(rewards)
-    if self.settings['ac_baseline']:
-      adv_t = returns - values.squeeze().data      
-      value_loss = mse_loss(values.squeeze(), Variable(returns))    
-      print('Value loss is {}'.format(value_loss.data.numpy()))
-      print('Value Auxilliary loss is {}'.format(sum(aux_losses).data.numpy()))
-      if i>0 and i % 60 == 0:
-        vecs = {'returns': returns.numpy(), 'values': values.squeeze().data.numpy()}        
-        pprint_vectors(vecs)
-    else:
-      adv_t = returns
-      value_loss = 0.
     actions = collated_batch.action    
     try:
-      logprobs = all_logprobs.gather(1,Variable(actions).view(-1,1)).squeeze()
+      logprobs = all_logprobs.gather(1,actions.view(-1,1)).squeeze()
     except:
       Tracer()()
     entropies = (-probs*all_logprobs).sum(1)    
-    adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + float(np.finfo(np.float32).eps))
-    # Tracer()()
-    if self.settings['normalize_episodes']:
-      episodes_weights = normalize_weights(collated_batch.formula.cpu().numpy())
-      adv_t = adv_t*self.settings.FloatTensor(episodes_weights)    
+    adv_t = (returns - returns.mean()) / (returns.std() + float(np.finfo(np.float32).eps))
     if self.settings['use_sum']:
-      pg_loss = (-Variable(adv_t)*logprobs).sum()
+      pg_loss = (-adv_t*logprobs).sum()
     else:
-      pg_loss = (-Variable(adv_t)*logprobs).mean()
-    total_aux_loss = sum(aux_losses) if aux_losses else 0.    
-    loss = pg_loss + self.lambda_value*value_loss + self.lambda_aux*total_aux_loss
+      pg_loss = (-adv_t*logprobs).mean()
+    
+    loss = pg_loss
 
     if self.use_global_state and self.state_bn:
       self.state_vbn.recompute_moments(collated_batch.state.state.detach())

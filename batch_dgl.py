@@ -5,77 +5,83 @@ import torch
 import dgl
 import networkx
 from qbf_data import CombinedGraph1Base
+import time
+
 
 def batched_combined_graph(L):
     """L is a list of at least 1 DGL Heterograph"""
+    l2c_indices_0 = []
+    l2c_indices_1 = []
+    aagf_indices_0 = []
+    aagf_indices_1 = []
     
-    num_lits = [0]
-    num_clauses = [0]
+    lit_labels = torch.empty(size=[0, L[0].nodes['literal'].data['lit_labels'].shape[1]])
+    clause_labels = torch.empty(size=[0, L[0].nodes['clause'].data['clause_labels'].shape[1]])
+    
+    num_lits, shift_lits = 0, 0
+    num_clauses, shift_clauses = 0, 0
+    
+#    t2 = time.time()
     for j, G in enumerate(L):
-        num_lits.append(G.number_of_nodes('literal') + num_lits[j])
-        num_clauses.append(G.number_of_nodes('clause') + num_clauses[j])
-    
-    l2c_adj = L[0]['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-    aagf_adj = L[0]['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-    lit_labels = L[0].nodes['literal'].data['lit_labels']
-    clause_labels = L[0].nodes['clause'].data['clause_labels']
-    
-    if len(L) > 1:
-        for j, G in enumerate(L[1:]):
-            curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-            curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-            curr_lit_labels = G.nodes['literal'].data['lit_labels']
-            curr_clause_labels = G.nodes['clause'].data['clause_labels']
-            
-            l2c_adj = combine_sparse_adj(l2c_adj, curr_l2c, num_lits[j+1], num_clauses[j+1], num_lits[j+2], num_clauses[j+2]) #FIXME: take transpose for DGL version 0.5
-            aagf_adj = combine_sparse_adj(aagf_adj, curr_aagf, num_lits[j+1], num_lits[j+1], num_lits[j+2], num_lits[j+2])
-            lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
-            clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
-            
+        shift_lits = num_lits
+        shift_clauses = num_clauses
+        num_lits += G.number_of_nodes('literal')
+        num_clauses += G.number_of_nodes('clause')
+        
+        curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
+        curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
+        curr_lit_labels = G.nodes['literal'].data['lit_labels']
+        curr_clause_labels = G.nodes['clause'].data['clause_labels']
+        
+#        if j == 2:
+#            import ipdb
+#            ipdb.set_trace()
+        
+        l2c_indices_0 += (curr_l2c._indices()[0] + shift_lits).tolist()
+        l2c_indices_1 += (curr_l2c._indices()[1] + shift_clauses).tolist()
+        
+        aagf_indices_0 += (curr_aagf._indices()[0] + shift_lits).tolist()
+        aagf_indices_1 += (curr_aagf._indices()[1] + shift_lits).tolist()
+        
+        lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
+        clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
+
+#    print('LOOP took {} seconds'.format(time.time()-t2))     
+
     G = dgl.heterograph(
-                {('literal', 'aag_forward', 'literal') : format_edges(aagf_adj),
-                 ('literal', 'aag_backward', 'literal') : format_edges(aagf_adj.t()),
-                 ('literal', 'l2c', 'clause') : format_edges(l2c_adj),
-                 ('clause', 'c2l', 'literal') : format_edges(l2c_adj.t())},
-                {'literal': num_lits[len(num_lits)-1],
-                 'clause': num_clauses[len(num_clauses)-1]}
+                {('literal', 'aag_forward', 'literal') : (aagf_indices_0, aagf_indices_1),
+                 ('literal', 'aag_backward', 'literal') : (aagf_indices_1, aagf_indices_0),
+                 ('literal', 'l2c', 'clause') : (l2c_indices_0, l2c_indices_1),
+                 ('clause', 'c2l', 'literal') : (l2c_indices_1, l2c_indices_0)},
+                {'literal': num_lits,
+                 'clause': num_clauses}
     )
     G.nodes['literal'].data['lit_labels'] = lit_labels
     G.nodes['clause'].data['clause_labels'] = clause_labels
     return G
-        
-def combine_sparse_adj(A, B, shift0, shift1, size0, size1):
-    """
-    A,B are torch.sparse_coo matrices
-    add SHIFT0 to the dim-0 indices of B
-    add SHIFT1 to the dim-1 indices of B
-    Make A,B have shape [SIZE0, SIZE1]
-    Return A + B to create a new sparse matrix of shape [SIZE0, SIZE1]
-    """
-    B0_indices = B._indices()[0] + shift0
-    B1_indices = B._indices()[1] + shift1
-    i = torch.cat([B0_indices, B1_indices], dim=0).view(2,-1)
-    v = B._values()
-    s = torch.Size([size0, size1])
-    B_shifted = torch.sparse.FloatTensor(i, v, s)
-    i = A._indices()
-    v = A._values()
-    A_stretched = torch.sparse.FloatTensor(i, v, s)
-    return A_stretched + B_shifted
-
-def format_edges(spm):
-    return (spm._indices()[0].tolist(), spm._indices()[1].tolist())
 
 ###############################################################################
     ### TEST
 ###############################################################################
-a = CombinedGraph1Base()
-a.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/a.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/a.qaiger.qdimacs')
-b = CombinedGraph1Base()
-b.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/b.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/b.qaiger.qdimacs')
-c = CombinedGraph1Base()
-c.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/c.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/c.qaiger.qdimacs')
+#a = CombinedGraph1Base()
+#a.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/a.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/a.qaiger.qdimacs')
+#b = CombinedGraph1Base()
+#b.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/b.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/b.qaiger.qdimacs')
+#c = CombinedGraph1Base()
+#c.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/c.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/c.qaiger.qdimacs')
 #A, B, C = a.G, b.G, c.G
 #G = batched_combined_graph([A, B, C])
-A, B = a.G, b.G
-G = batched_combined_graph([A, B])
+##A, B = a.G, b.G
+##G = batched_combined_graph2([A, B])
+#print("*** A:")
+#print(A['l2c'].adjacency_matrix())
+#print("*** B:")
+#print(B['l2c'].adjacency_matrix())
+#print("*** C:")
+#print(C['l2c'].adjacency_matrix())
+#print("*** G:")
+#print(G['l2c'].adjacency_matrix())
+    
+#t1 = time.time()
+#H = batched_combined_graph2([x.G for x in collated_batch.state.ext_data])
+#print('batching 3 took {} seconds'.format(time.time()-t1))

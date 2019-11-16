@@ -77,7 +77,7 @@ def batched_combined_graph(L):
 #print(C['l2c'].adjacency_matrix())
 #print("*** G:")
 #print(G['l2c'].adjacency_matrix())
-    
+###############################################################################
 #t1 = time.time()
 #H = batched_combined_graph2([x.G for x in collated_batch.state.ext_data])
 #print('batching 3 took {} seconds'.format(time.time()-t1))

@@ -21,7 +21,6 @@ def batched_combined_graph(L):
     num_lits, shift_lits = 0, 0
     num_clauses, shift_clauses = 0, 0
     
-#    t2 = time.time()
     for j, G in enumerate(L):
         shift_lits = num_lits
         shift_clauses = num_clauses
@@ -30,19 +29,15 @@ def batched_combined_graph(L):
         
         curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
         curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        curr_lit_labels = G.nodes['literal'].data['lit_labels']
-        curr_clause_labels = G.nodes['clause'].data['clause_labels']
-        
         l2c_indices_0 += (curr_l2c._indices()[0] + shift_lits).tolist()
         l2c_indices_1 += (curr_l2c._indices()[1] + shift_clauses).tolist()
-        
         aagf_indices_0 += (curr_aagf._indices()[0] + shift_lits).tolist()
         aagf_indices_1 += (curr_aagf._indices()[1] + shift_lits).tolist()
         
+        curr_lit_labels = G.nodes['literal'].data['lit_labels']
+        curr_clause_labels = G.nodes['clause'].data['clause_labels']
         lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
         clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
-
-#    print('LOOP took {} seconds'.format(time.time()-t2))     
 
     G = dgl.heterograph(
                 {('literal', 'aag_forward', 'literal') : (aagf_indices_0, aagf_indices_1),

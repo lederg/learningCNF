@@ -18,16 +18,19 @@ def batched_combined_graph(L):
     l2c_adj = L[0]['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
     aagf_adj = L[0]['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
     lit_labels = L[0].nodes['literal'].data['lit_labels']
+    clause_labels = L[0].nodes['clause'].data['clause_labels']
     
     if len(L) > 1:
         for j, G in enumerate(L[1:]):
             curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
             curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
             curr_lit_labels = G.nodes['literal'].data['lit_labels']
+            curr_clause_labels = G.nodes['clause'].data['clause_labels']
             
             l2c_adj = combine_sparse_adj(l2c_adj, curr_l2c, num_lits[j+1], num_clauses[j+1], num_lits[j+2], num_clauses[j+2]) #FIXME: take transpose for DGL version 0.5
             aagf_adj = combine_sparse_adj(aagf_adj, curr_aagf, num_lits[j+1], num_lits[j+1], num_lits[j+2], num_lits[j+2])
             lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
+            clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
             
     G = dgl.heterograph(
                 {('literal', 'aag_forward', 'literal') : format_edges(aagf_adj),
@@ -38,6 +41,7 @@ def batched_combined_graph(L):
                  'clause': num_clauses[len(num_clauses)-1]}
     )
     G.nodes['literal'].data['lit_labels'] = lit_labels
+    G.nodes['clause'].data['clause_labels'] = clause_labels
     return G
         
 def combine_sparse_adj(A, B, shift0, shift1, size0, size1):

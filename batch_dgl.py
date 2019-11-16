@@ -33,10 +33,6 @@ def batched_combined_graph(L):
         curr_lit_labels = G.nodes['literal'].data['lit_labels']
         curr_clause_labels = G.nodes['clause'].data['clause_labels']
         
-#        if j == 2:
-#            import ipdb
-#            ipdb.set_trace()
-        
         l2c_indices_0 += (curr_l2c._indices()[0] + shift_lits).tolist()
         l2c_indices_1 += (curr_l2c._indices()[1] + shift_clauses).tolist()
         

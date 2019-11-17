@@ -10,10 +10,10 @@ import time
 
 def batched_combined_graph(L):
     """L is a list of at least 1 DGL Heterograph"""
-    l2c_indices_0 = []
-    l2c_indices_1 = []
-    aagf_indices_0 = []
-    aagf_indices_1 = []
+    l2c_indices_0 = torch.empty(0, dtype=torch.long)
+    l2c_indices_1 = torch.empty(0, dtype=torch.long)
+    aagf_indices_0 = torch.empty(0, dtype=torch.long)
+    aagf_indices_1 = torch.empty(0, dtype=torch.long)
     
     lit_labels = torch.empty(size=[0, L[0].nodes['literal'].data['lit_labels'].shape[1]])
     clause_labels = torch.empty(size=[0, L[0].nodes['clause'].data['clause_labels'].shape[1]])
@@ -29,10 +29,11 @@ def batched_combined_graph(L):
         
         curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
         curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        l2c_indices_0 += (curr_l2c._indices()[0] + shift_lits).tolist()
-        l2c_indices_1 += (curr_l2c._indices()[1] + shift_clauses).tolist()
-        aagf_indices_0 += (curr_aagf._indices()[0] + shift_lits).tolist()
-        aagf_indices_1 += (curr_aagf._indices()[1] + shift_lits).tolist()
+        
+        l2c_indices_0 = torch.cat((l2c_indices_0, curr_l2c._indices()[0] + shift_lits))
+        l2c_indices_1 = torch.cat((l2c_indices_1, curr_l2c._indices()[1] + shift_clauses))
+        aagf_indices_0 = torch.cat((aagf_indices_0, curr_aagf._indices()[0] + shift_lits))
+        aagf_indices_1 = torch.cat((aagf_indices_1, curr_aagf._indices()[1] + shift_lits))
         
         curr_lit_labels = G.nodes['literal'].data['lit_labels']
         curr_clause_labels = G.nodes['clause'].data['clause_labels']
@@ -61,9 +62,9 @@ def batched_combined_graph(L):
 #c = CombinedGraph1Base()
 #c.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/c.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/c.qaiger.qdimacs')
 #A, B, C = a.G, b.G, c.G
-#G = batched_combined_graph([A, B, C])
+#G = batched_combined_graph2([A, B, C])
 ##A, B = a.G, b.G
-##G = batched_combined_graph2([A, B])
+##G = batched_combined_graph([A, B])
 #print("*** A:")
 #print(A['l2c'].adjacency_matrix())
 #print("*** B:")

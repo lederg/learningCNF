@@ -7,7 +7,7 @@ import networkx
 from qbf_data import CombinedGraph1Base
 import time
 
-def batched_combined_graph5(L):
+def batched_combined_graph(L):
     """L is a list of at least 1 DGL Heterograph"""
     l2c_indices_0 = torch.empty(0, dtype=torch.long)
     l2c_indices_1 = torch.empty(0, dtype=torch.long)
@@ -51,202 +51,6 @@ def batched_combined_graph5(L):
     G.nodes['clause'].data['clause_labels'] = clause_labels
     return G
 
-def batched_combined_graph4(L):
-    """L is a list of at least 1 DGL Heterograph"""
-    l2c_indices_0 = torch.empty(0, dtype=torch.int64)
-    l2c_indices_1 = torch.empty(0, dtype=torch.int64)
-    aagf_indices_0 = torch.empty(0, dtype=torch.int64)
-    aagf_indices_1 = torch.empty(0, dtype=torch.int64)
-    
-    lit_labels = torch.empty(size=[0, L[0].nodes['literal'].data['lit_labels'].shape[1]])
-    clause_labels = torch.empty(size=[0, L[0].nodes['clause'].data['clause_labels'].shape[1]])
-    
-    num_lits, shift_lits = 0, 0
-    num_clauses, shift_clauses = 0, 0
-    
-    for j, G in enumerate(L):
-        shift_lits = num_lits
-        shift_clauses = num_clauses
-        num_lits += G.number_of_nodes('literal')
-        num_clauses += G.number_of_nodes('clause')
-        
-#        curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-#        curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        
-        l2c_indices_0 = torch.cat((l2c_indices_0, torch.zeros(G.number_of_nodes('literal'), dtype=torch.int64) + shift_lits))
-        l2c_indices_1 = torch.cat((l2c_indices_1, torch.zeros(G.number_of_nodes('clause'), dtype=torch.int64) + shift_clauses))
-        aagf_indices_0 = torch.cat((aagf_indices_0, torch.zeros(G.number_of_nodes('literal'), dtype=torch.int64) + shift_lits))
-        aagf_indices_1 = torch.cat((aagf_indices_1, torch.zeros(G.number_of_nodes('literal'), dtype=torch.int64) + shift_lits))
-        
-        curr_lit_labels = G.nodes['literal'].data['lit_labels']
-        curr_clause_labels = G.nodes['clause'].data['clause_labels']
-        lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
-        clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
-    
-    l2c_indices_0 = []
-    l2c_indices_1 = []
-    aagf_indices_0 = []
-    aagf_indices_1 = []
-    
-    G = dgl.heterograph(
-                {('literal', 'aag_forward', 'literal') : (aagf_indices_0, aagf_indices_1),
-                 ('literal', 'aag_backward', 'literal') : (aagf_indices_1, aagf_indices_0),
-                 ('literal', 'l2c', 'clause') : (l2c_indices_0, l2c_indices_1),
-                 ('clause', 'c2l', 'literal') : (l2c_indices_1, l2c_indices_0)},
-                {'literal': num_lits,
-                 'clause': num_clauses}
-    )
-    G.nodes['literal'].data['lit_labels'] = lit_labels
-    G.nodes['clause'].data['clause_labels'] = clause_labels
-    return G
-
-def batched_combined_graph3(L):
-    """L is a list of at least 1 DGL Heterograph"""
-    l2c_indices_0 = torch.empty(0, dtype=torch.long)
-    l2c_indices_1 = torch.empty(0, dtype=torch.long)
-    aagf_indices_0 = torch.empty(0, dtype=torch.long)
-    aagf_indices_1 = torch.empty(0, dtype=torch.long)
-    
-    lit_labels = torch.empty(size=[0, L[0].nodes['literal'].data['lit_labels'].shape[1]])
-    clause_labels = torch.empty(size=[0, L[0].nodes['clause'].data['clause_labels'].shape[1]])
-    
-    num_lits, shift_lits = 0, 0
-    num_clauses, shift_clauses = 0, 0
-    
-    for j, G in enumerate(L):
-        shift_lits = num_lits
-        shift_clauses = num_clauses
-        num_lits += G.number_of_nodes('literal')
-        num_clauses += G.number_of_nodes('clause')
-        
-        curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        
-#        l2c_indices_0 = torch.cat((l2c_indices_0, curr_l2c._indices()[0] + shift_lits))
-#        l2c_indices_1 = torch.cat((l2c_indices_1, curr_l2c._indices()[1] + shift_clauses))
-#        aagf_indices_0 = torch.cat((aagf_indices_0, curr_aagf._indices()[0] + shift_lits))
-#        aagf_indices_1 = torch.cat((aagf_indices_1, curr_aagf._indices()[1] + shift_lits))
-        
-        curr_lit_labels = G.nodes['literal'].data['lit_labels']
-        curr_clause_labels = G.nodes['clause'].data['clause_labels']
-        lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
-        clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
-
-#    import ipdb
-#    ipdb.set_trace()
-#    l2c_indices_0 = torch.zeros(num_lits, dtype=torch.int64)
-#    l2c_indices_1 = torch.zeros(num_clauses, dtype=torch.int64)
-#    aagf_indices_0 = torch.zeros(num_lits, dtype=torch.int64)
-#    aagf_indices_1 = torch.zeros(num_lits, dtype=torch.int64)
-    l2c_indices_0 = []
-    l2c_indices_1 = []
-    aagf_indices_0 = []
-    aagf_indices_1 = []
-    
-    G = dgl.heterograph(
-                {('literal', 'aag_forward', 'literal') : (aagf_indices_0, aagf_indices_1),
-                 ('literal', 'aag_backward', 'literal') : (aagf_indices_1, aagf_indices_0),
-                 ('literal', 'l2c', 'clause') : (l2c_indices_0, l2c_indices_1),
-                 ('clause', 'c2l', 'literal') : (l2c_indices_1, l2c_indices_0)},
-                {'literal': num_lits,
-                 'clause': num_clauses}
-    )
-    G.nodes['literal'].data['lit_labels'] = lit_labels
-    G.nodes['clause'].data['clause_labels'] = clause_labels
-    return G
-
-
-def batched_combined_graph2(L):
-    """L is a list of at least 1 DGL Heterograph"""
-    l2c_indices_0 = torch.empty(0, dtype=torch.long)
-    l2c_indices_1 = torch.empty(0, dtype=torch.long)
-    aagf_indices_0 = torch.empty(0, dtype=torch.long)
-    aagf_indices_1 = torch.empty(0, dtype=torch.long)
-    
-    lit_labels = torch.empty(size=[0, L[0].nodes['literal'].data['lit_labels'].shape[1]])
-    clause_labels = torch.empty(size=[0, L[0].nodes['clause'].data['clause_labels'].shape[1]])
-    
-    num_lits, shift_lits = 0, 0
-    num_clauses, shift_clauses = 0, 0
-    
-    for j, G in enumerate(L):
-        shift_lits = num_lits
-        shift_clauses = num_clauses
-        num_lits += G.number_of_nodes('literal')
-        num_clauses += G.number_of_nodes('clause')
-        
-        curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        
-        l2c_indices_0 = torch.cat((l2c_indices_0, curr_l2c._indices()[0] + shift_lits))
-        l2c_indices_1 = torch.cat((l2c_indices_1, curr_l2c._indices()[1] + shift_clauses))
-        aagf_indices_0 = torch.cat((aagf_indices_0, curr_aagf._indices()[0] + shift_lits))
-        aagf_indices_1 = torch.cat((aagf_indices_1, curr_aagf._indices()[1] + shift_lits))
-        
-        ## FIXME
-#        curr_lit_labels = G.nodes['literal'].data['lit_labels']
-#        curr_clause_labels = G.nodes['clause'].data['clause_labels']
-#        lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
-#        clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
-    lit_labels = torch.zeros(size=[num_lits,9])
-    clause_labels = torch.zeros(size=[num_clauses,9])
-
-    G = dgl.heterograph(
-                {('literal', 'aag_forward', 'literal') : (aagf_indices_0, aagf_indices_1),
-                 ('literal', 'aag_backward', 'literal') : (aagf_indices_1, aagf_indices_0),
-                 ('literal', 'l2c', 'clause') : (l2c_indices_0, l2c_indices_1),
-                 ('clause', 'c2l', 'literal') : (l2c_indices_1, l2c_indices_0)},
-                {'literal': num_lits,
-                 'clause': num_clauses}
-    )
-    G.nodes['literal'].data['lit_labels'] = lit_labels
-    G.nodes['clause'].data['clause_labels'] = clause_labels
-    return G
-
-def batched_combined_graph(L):
-    """L is a list of at least 1 DGL Heterograph"""
-    l2c_indices_0 = torch.empty(0, dtype=torch.long)
-    l2c_indices_1 = torch.empty(0, dtype=torch.long)
-    aagf_indices_0 = torch.empty(0, dtype=torch.long)
-    aagf_indices_1 = torch.empty(0, dtype=torch.long)
-    
-    lit_labels = torch.empty(size=[0, L[0].nodes['literal'].data['lit_labels'].shape[1]])
-    clause_labels = torch.empty(size=[0, L[0].nodes['clause'].data['clause_labels'].shape[1]])
-    
-    num_lits, shift_lits = 0, 0
-    num_clauses, shift_clauses = 0, 0
-    
-    for j, G in enumerate(L):
-        shift_lits = num_lits
-        shift_clauses = num_clauses
-        num_lits += G.number_of_nodes('literal')
-        num_clauses += G.number_of_nodes('clause')
-        
-        curr_l2c = G['l2c'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        curr_aagf = G['aag_forward'].adjacency_matrix().t() #FIXME: remove the .t() for DGL version 0.5
-        
-        l2c_indices_0 = torch.cat((l2c_indices_0, curr_l2c._indices()[0] + shift_lits))
-        l2c_indices_1 = torch.cat((l2c_indices_1, curr_l2c._indices()[1] + shift_clauses))
-        aagf_indices_0 = torch.cat((aagf_indices_0, curr_aagf._indices()[0] + shift_lits))
-        aagf_indices_1 = torch.cat((aagf_indices_1, curr_aagf._indices()[1] + shift_lits))
-        
-        curr_lit_labels = G.nodes['literal'].data['lit_labels']
-        curr_clause_labels = G.nodes['clause'].data['clause_labels']
-        lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
-        clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
-
-    G = dgl.heterograph(
-                {('literal', 'aag_forward', 'literal') : (aagf_indices_0, aagf_indices_1),
-                 ('literal', 'aag_backward', 'literal') : (aagf_indices_1, aagf_indices_0),
-                 ('literal', 'l2c', 'clause') : (l2c_indices_0, l2c_indices_1),
-                 ('clause', 'c2l', 'literal') : (l2c_indices_1, l2c_indices_0)},
-                {'literal': num_lits,
-                 'clause': num_clauses}
-    )
-    G.nodes['literal'].data['lit_labels'] = lit_labels
-    G.nodes['clause'].data['clause_labels'] = clause_labels
-    return G
-
 ###############################################################################
     ### TEST
 ###############################################################################
@@ -257,7 +61,7 @@ def batched_combined_graph(L):
 #c = CombinedGraph1Base()
 #c.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/c.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/c.qaiger.qdimacs')
 #A, B, C = a.G, b.G, c.G
-#G = batched_combined_graph5([A, B, C])
+#G = batched_combined_graph([A, B, C])
 ##A, B = a.G, b.G
 ##G = batched_combined_graph([A, B])
 #print("*** A:")

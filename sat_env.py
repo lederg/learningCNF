@@ -295,8 +295,6 @@ class SatEnvServer(mp.Process):
     self.env.current_step += 1
     # print('clabels shape: {}'.format(cl_label_arr.shape))
     state = self.env.get_global_state()
-    print('State:')
-    print(state)
     # print('reward is {}'.format(self.env.get_reward()))
     msg = self.env.EnvObservation(state, None, None, adj_matrix, vlabels, cl_label_arr, None, False)
     if not self.disable_gnn:      
@@ -324,7 +322,7 @@ class SatEnvServer(mp.Process):
     self.queue_out.put((ack,tuple(msg)))
     self.cmd, rc = self.queue_in.get()
     if self.cmd == EnvCommands.CMD_STEP:
-      # We got back an array of decisions
+      # We got back an action
       return rc
     elif self.cmd == EnvCommands.CMD_RESET:
       # We were asked to abort the current episode. Notify the solver and continue as usual

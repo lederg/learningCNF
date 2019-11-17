@@ -13,10 +13,8 @@ def batched_combined_graph(L):
     l2c_indices_1 = torch.empty(0, dtype=torch.long)
     aagf_indices_0 = torch.empty(0, dtype=torch.long)
     aagf_indices_1 = torch.empty(0, dtype=torch.long)
-    
     lit_labels = torch.empty(size=[0, L[0].nodes['literal'].data['lit_labels'].shape[1]])
     clause_labels = torch.empty(size=[0, L[0].nodes['clause'].data['clause_labels'].shape[1]])
-    
     num_lits, shift_lits = 0, 0
     num_clauses, shift_clauses = 0, 0
     
@@ -28,7 +26,6 @@ def batched_combined_graph(L):
         
         curr_l2c = G.edges(etype='l2c') 
         curr_aagf = G.edges(etype='aag_forward')
-        
         l2c_indices_0 = torch.cat((l2c_indices_0, curr_l2c[0] + shift_lits))
         l2c_indices_1 = torch.cat((l2c_indices_1, curr_l2c[1] + shift_clauses))
         aagf_indices_0 = torch.cat((aagf_indices_0, curr_aagf[0] + shift_lits))

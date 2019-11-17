@@ -1183,19 +1183,18 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
   # This is going to MUTATE the obs object. Specifically, it deletes the reference to obs.clabels in order to save
   # memory before we save the observation in the batch trace.
 
-  def translate_action(self, action, obs, **kwargs):    
-    threshold = action
-    threshold += self.threshold_base    # [2,3,...]
-    # print('Threshold is {}'.format(threshold))
-    rc = obs.clabels[:,CLABEL_LBD] < float(threshold)
-    a = rc.detach()
-    num_learned = obs.ext_data
-    locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
-    final_action = torch.max(a.long(),locked).view(-1)
-    obs.clabels = None
+  def translate_action(self, action, obs, **kwargs):        
+    return action + self.threshold_base    # [2,3,...]
+    # # print('Threshold is {}'.format(threshold))
+    # rc = obs.clabels[:,CLABEL_LBD] < float(threshold)
+    # a = rc.detach()
+    # num_learned = obs.ext_data
+    # locked = obs.clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
+    # final_action = torch.max(a.long(),locked).view(-1)
+    # obs.clabels = None
     # break_every_tick(5)
 
-    return final_action
+    # return final_action
 
   def select_action(self, obs_batch, deterministic=False, log_threshold=False, **kwargs):    
     logits = self.forward(obs_batch, **kwargs)

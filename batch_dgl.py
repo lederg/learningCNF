@@ -6,15 +6,15 @@ import dgl
 import networkx
 from qbf_data import CombinedGraph1Base
 import time
-
+    
 def batched_combined_graph(L):
     """L is a list of at least 1 DGL Heterograph"""
-    l2c_indices_0 = torch.empty(0, dtype=torch.long)
-    l2c_indices_1 = torch.empty(0, dtype=torch.long)
-    aagf_indices_0 = torch.empty(0, dtype=torch.long)
-    aagf_indices_1 = torch.empty(0, dtype=torch.long)
-    lit_labels = torch.empty(size=[0, L[0].nodes['literal'].data['lit_labels'].shape[1]])
-    clause_labels = torch.empty(size=[0, L[0].nodes['clause'].data['clause_labels'].shape[1]])
+    l2c_indices_0 = []
+    l2c_indices_1 = []
+    aagf_indices_0 = []
+    aagf_indices_1 = []
+    lit_labels = []
+    clause_labels = []
     num_lits, shift_lits = 0, 0
     num_clauses, shift_clauses = 0, 0
     
@@ -26,15 +26,20 @@ def batched_combined_graph(L):
         
         curr_l2c = G.edges(etype='l2c') 
         curr_aagf = G.edges(etype='aag_forward')
-        l2c_indices_0 = torch.cat((l2c_indices_0, curr_l2c[0] + shift_lits))
-        l2c_indices_1 = torch.cat((l2c_indices_1, curr_l2c[1] + shift_clauses))
-        aagf_indices_0 = torch.cat((aagf_indices_0, curr_aagf[0] + shift_lits))
-        aagf_indices_1 = torch.cat((aagf_indices_1, curr_aagf[1] + shift_lits))
+        l2c_indices_0.append(curr_l2c[0] + shift_lits)
+        l2c_indices_1.append(curr_l2c[1] + shift_clauses)
+        aagf_indices_0.append(curr_aagf[0] + shift_lits)
+        aagf_indices_1.append(curr_aagf[1] + shift_lits)
         
-        curr_lit_labels = G.nodes['literal'].data['lit_labels']
-        curr_clause_labels = G.nodes['clause'].data['clause_labels']
-        lit_labels = torch.cat([lit_labels, curr_lit_labels], dim=0)
-        clause_labels = torch.cat([clause_labels, curr_clause_labels], dim=0)
+        lit_labels.append(G.nodes['literal'].data['lit_labels'])
+        clause_labels.append(G.nodes['clause'].data['clause_labels'])
+
+    l2c_indices_0 = torch.cat(l2c_indices_0)
+    l2c_indices_1 = torch.cat(l2c_indices_1)
+    aagf_indices_0 = torch.cat(aagf_indices_0)
+    aagf_indices_1 = torch.cat(aagf_indices_1)
+    lit_labels = torch.cat(lit_labels, dim=0)
+    clause_labels = torch.cat(clause_labels, dim=0)
 
     G = dgl.heterograph(
                 {('literal', 'aag_forward', 'literal') : (aagf_indices_0, aagf_indices_1),
@@ -58,7 +63,7 @@ def batched_combined_graph(L):
 #c = CombinedGraph1Base()
 #c.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/c.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/c.qaiger.qdimacs')
 #A, B, C = a.G, b.G, c.G
-#G = batched_combined_graph([A, B, C])
+#G = batched_combined_graph2([A, B, C])
 ##A, B = a.G, b.G
 ##G = batched_combined_graph([A, B])
 #print("*** A:")
@@ -72,4 +77,4 @@ def batched_combined_graph(L):
 ###############################################################################
 #t1 = time.time()
 #H = batched_combined_graph2([x.G for x in collated_batch.state.ext_data])
-#print('batching 3 took {} seconds'.format(time.time()-t1))
+#print('batching 2 took {} seconds'.format(time.time()-t1))

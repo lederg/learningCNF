@@ -1184,6 +1184,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
   # memory before we save the observation in the batch trace.
 
   def translate_action(self, action, obs, **kwargs):        
+    obs.clabels = None
     return [action + self.threshold_base]    # [2,3,...]
     # # print('Threshold is {}'.format(threshold))
     # rc = obs.clabels[:,CLABEL_LBD] < float(threshold)

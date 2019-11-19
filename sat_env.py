@@ -116,8 +116,8 @@ class SatActiveEnv:
       return utility
     else:
       try:
-        clabels = self.get_clabels(learned=True)
         # We do not really use clabels right now
+        # clabels = self.get_clabels(learned=True)
         clabels = np.zeros(clabels.shape)
         return self.server.callback(vlabels, clabels, adj_matrix)
       except Exception as e:

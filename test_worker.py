@@ -14,7 +14,6 @@ class TestWorker(FunctionalWorkerBase):
     policy = PolicyFactory().create_policy()
     policy.load_state_dict(statedict)
     policy.eval()
-    tester = EnvTester(self.settings,self.index,model=policy)
-    rc = tester.test_envs(OnePassProvider(fnames),model=policy, iters=1, deterministic=True)
-
+    tester = EnvTester(self.settings,self.index)
+    rc = tester.test_envs(OnePassProvider(fnames), policy, iters=1, deterministic=True)
     return (step, rc)

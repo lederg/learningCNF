@@ -108,7 +108,7 @@ class SatActiveEnv:
     else: 
       # adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
       # vlabels = self.get_vlabels()
-      assert(True, "So you want to use a GNN? Lovely. Fix me.")
+      assert True, "So you want to use a GNN? Lovely. Fix me."
     if not self.server:
       log.info('Running a test version of SatEnv')
       utility = cl_label_arr[:,3] # just return the lbd
@@ -118,10 +118,11 @@ class SatActiveEnv:
       try:
         # We do not really use clabels right now
         # clabels = self.get_clabels(learned=True)
-        clabels = np.zeros(clabels.shape)
+        clabels = np.zeros((1,self.settings['clabel_dim']))
         return self.server.callback(vlabels, clabels, adj_matrix)
       except Exception as e:
-        print('Gah, an exception: {}'.format(e))
+        print('SatEnv: Gah, an exception: {}'.format(e))
+        raise e
 
 class SatEnvProxy(EnvBase):
   def __init__(self, queue_in, queue_out, server_pid, settings=None):

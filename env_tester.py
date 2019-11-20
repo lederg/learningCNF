@@ -13,6 +13,7 @@ import cProfile
 import tracemalloc
 import psutil
 import logging
+import pickle
 import Pyro4
 from collections import namedtuple, deque
 from namedlist import namedlist
@@ -42,36 +43,18 @@ class EnvTester:
   def Rewards(rc):
     return np.array([x.reward for [x] in rc.values()]).squeeze()  
 
-  def __init__(self, settings, name, hook_obj=None, ed=None, model=None, init_model=None, **kwargs):
+  def __init__(self, settings, name, **kwargs):
     super(EnvTester, self).__init__()
     self.name = name
     self.settings = settings
-    self.init_model = init_model   
-    self.hook_obj = hook_obj
     self.logger = utils.get_logger(self.settings, 'EnvTester-{}'.format(self.name), 
                                     'logs/{}_{}.log'.format(log_name(self.settings), self.name))    
-    if model is None:
-      self.lmodel = PolicyFactory().create_policy(**kwargs)
-    else:
-      self.lmodel = model
-    self.lmodel.logger = self.logger    # override logger object with process-specific one
-    if self.init_model is None:
-      if self.hook_obj is not None:
-        self.hook_obj.global_to_local(include_all=True)
-    else:
-      self.logger.info('Loading model at runtime!')
-      statedict = self.lmodel.state_dict()
-      numpy_into_statedict(statedict,self.init_model)
-      self.lmodel.load_state_dict(statedict)
-    if self.settings['log_threshold']:
-      self.lmodel.shelf_file = shelve.open('thres_proc_{}.shelf'.format(self.name))      
-
-  def test_envs(self, provider, model=None, ed=None, iters=10, **kwargs):
-    self.interactor = EnvInteractor(self.settings, self.lmodel, self.name, logger=self.logger, **kwargs)
-    if model is not None:
-      self.logger.info('Setting model at test time')
-      self.lmodel = model
-      self.interactor.lmodel = model
+    
+  def test_envs(self, provider, model, iters=10, log_name=None, **kwargs):
+    self.lmodel = model
+    self.interactor = EnvInteractor(self.settings, model, self.name, logger=self.logger, **kwargs)
+    if kwargs.get('log_threshold',False):
+      self.lmodel.shelf_file = {}     
     self.logger.info('Testing {} envs..\n'.format(provider.get_total()))
     all_episode_files = provider.items
     totals = 0.
@@ -104,5 +87,8 @@ class EnvTester:
         self.logger.info('Finished {}, Averages (time,steps,reward) are {},{},{}'.format(fname,rc[fname],
           mean_time,mean_steps,mean_reward))      
 
+    if kwargs.get('log_threshold',False):
+      with open(log_name,'wb') as f:
+        pickle.dump(self.lmodel.shelf_file,f)      
     self.interactor.terminate()
     return rc

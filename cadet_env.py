@@ -328,6 +328,9 @@ class CadetEnv:
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
+    # import ipdb
+    # ipdb.set_trace()
+    
     if not env_obs:
       return None
       

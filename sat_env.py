@@ -60,8 +60,8 @@ class SatActiveEnv:
 
   def start_solver(self, fname=None):
     
-    def thunk(cl_label_arr, rows_arr, cols_arr, data_arr):      
-      return self.__callback(cl_label_arr, rows_arr, cols_arr, data_arr, DEF_STEP_REWARD)
+    def thunk():      
+      return self.__callback()
 
     gc_oracle = {"callback": thunk, "policy": self.oracletype}
     if self.solver is None:
@@ -100,14 +100,15 @@ class SatActiveEnv:
   def get_reward(self):
     return self.solver.reward()
 
-  def __callback(self, cl_label_arr, rows_arr, cols_arr, data_arr, reward):
+  def __callback(self):
     self.current_step += 1
     if self.disable_gnn:
       adj_matrix = None
       vlabels = None
     else: 
-      adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
-      vlabels = self.get_vlabels()
+      # adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
+      # vlabels = self.get_vlabels()
+      assert True, "So you want to use a GNN? Lovely. Fix me."
     if not self.server:
       log.info('Running a test version of SatEnv')
       utility = cl_label_arr[:,3] # just return the lbd
@@ -115,9 +116,13 @@ class SatActiveEnv:
       return utility
     else:
       try:
-        return self.server.callback(vlabels, cl_label_arr, adj_matrix, reward)
+        # We do not really use clabels right now
+        # clabels = self.get_clabels(learned=True)
+        clabels = np.zeros((1,self.settings['clabel_dim']))
+        return self.server.callback(vlabels, clabels, adj_matrix)
       except Exception as e:
-        print('Gah, an exception: {}'.format(e))
+        print('SatEnv: Gah, an exception: {}'.format(e))
+        raise e
 
 class SatEnvProxy(EnvBase):
   def __init__(self, queue_in, queue_out, server_pid, settings=None):
@@ -197,7 +202,7 @@ class SatEnvProxy(EnvBase):
     clabels = Variable(all_clabels)
     vmask = last_obs.vmask if last_obs else None
     cmask = last_obs.cmask if last_obs else None
-    state = self.settings.FloatTensor(np.concatenate([np.concatenate(env_obs.state[:-1]),env_obs.state[-1].reshape(-1)])).unsqueeze(0)
+    state = self.settings.FloatTensor(env_obs.state).unsqueeze(0)
     num_orig_clauses = len(self.orig_clabels)
     num_learned_clauses = len(env_obs.clabels)
 
@@ -290,7 +295,7 @@ class SatEnvServer(mp.Process):
         break
 
 
-  def callback(self, vlabels, cl_label_arr, adj_matrix, reward):
+  def callback(self, vlabels, cl_label_arr, adj_matrix):
     self.env.current_step += 1
     # print('clabels shape: {}'.format(cl_label_arr.shape))
     state = self.env.get_global_state()
@@ -321,7 +326,7 @@ class SatEnvServer(mp.Process):
     self.queue_out.put((ack,tuple(msg)))
     self.cmd, rc = self.queue_in.get()
     if self.cmd == EnvCommands.CMD_STEP:
-      # We got back an array of decisions
+      # We got back an action
       return rc
     elif self.cmd == EnvCommands.CMD_RESET:
       # We were asked to abort the current episode. Notify the solver and continue as usual

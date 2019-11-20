@@ -2,7 +2,7 @@ import os
 import os.path
 import torch
 # from torch.distributions import Categorical
-import ipdb
+from IPython.core.debugger import Tracer
 import pdb
 import random
 import time
@@ -76,7 +76,7 @@ def collect_random_main():
   while provider.get_next():
     i = 0
     for params in grid_params:
-      # ipdb.set_trace()
+      # Tracer()()
       z = params['sat_random_p']
       policy.pval.fill_(z)
       fname = '{}_p_{}'.format(provider.get_next(),z)

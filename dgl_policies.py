@@ -247,15 +247,9 @@ class DGLPolicy(PolicyBase):
 
   def compute_loss(self, transition_data, **kwargs):
     _, _, _, rewards, *_ = zip(*transition_data)    
-    t1 = time.time()
     collated_batch = collate_transitions(transition_data,settings=self.settings)
-    print('batching 0 took {} seconds'.format(time.time()-t1))
     collated_batch.state = cudaize_obs(collated_batch.state)
-    t1 = time.time()
-    print('Batching {} graphs. Here is the first:'.format(len(transition_data)))
-    print(collated_batch.state.ext_data[0].G)
     G = batched_combined_graph([x.G for x in collated_batch.state.ext_data])
-    print('batching 1 took {} seconds'.format(time.time()-t1))
     logits, *_ = self.forward(collated_batch.state, G, prev_obs=collated_batch.prev_obs)
     allowed_actions = self.get_allowed_actions(collated_batch.state)
     if self.settings['cuda']:

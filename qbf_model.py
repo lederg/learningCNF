@@ -339,7 +339,6 @@ class QbfNewEncoder(nn.Module):
         neg_vars = vlabels
         vmat_pos = cmat_pos.t()
         vmat_neg = cmat_neg.t()
-        
         for t, p in enumerate(self.W_L_params):
             # results is everything we computed so far, its precisely the correct input to W_L_t
             av = (torch.mm(cmat_pos,pos_vars)+torch.mm(cmat_neg,neg_vars)).t()

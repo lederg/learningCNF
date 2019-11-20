@@ -7,6 +7,7 @@ import time
 from settings import *
 from qbf_data import *
 from cadet_utils import *
+from envbase import *
 
 DEF_GREEDY_ALPHA = 0.01
 MAX_EPISODE_LENGTH = 200
@@ -23,7 +24,7 @@ def require_init(f, *args, **kwargs):
 
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     
-class CadetEnv:
+class CadetEnv(EnvBase):
   def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, slim_state=False,
                 use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, 
                 use_vsids_rewards = False, def_step_cost = -1e-4, cadet_completion_reward=1., logger=None, settings=None, **kwargs):
@@ -328,6 +329,9 @@ class CadetEnv:
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
+    # import ipdb
+    # ipdb.set_trace()
+    
     if not env_obs:
       return None
       

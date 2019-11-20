@@ -6,6 +6,7 @@ import time
 import pickle
 import itertools
 import logging
+import random
 from collections import namedtuple
 from namedlist import namedlist
 from IPython.core.debugger import Tracer
@@ -220,7 +221,7 @@ class UniformEpisodeProvider(AbstractEpisodeProvider):
     self.current = self.sample()
 
   def sample(self, **kwargs):
-    return np.random.choice(self.items, **kwargs)
+    return random.choice(self.items, **kwargs)
 
   def reset(self, **kwargs):
     self.current = self.sample(**kwargs)

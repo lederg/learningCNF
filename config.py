@@ -202,6 +202,8 @@ def cfg():
 	sat_reduce_base = 2000
 	sat_rb_min = 1000
 	sat_rb_max = 4000	
+	sat_discrete_threshold_base = 2				# LBD thresholds start from this in SatDiscreteThresholdPolicy/SatFreeDiscretePolicy
+	sat_num_free_actions = 29 						# Number of lbd thresholds in SatFreeDiscretePolicy
 	minimum_episodes = 2
 	do_lbd = False
 	sat_random_p = 0.5
@@ -224,7 +226,7 @@ def cfg():
 	learning_freq = 4
 	target_update_freq = 3000
 	unit_length = 30 					# number of seconds per "round"
-
+	weight_decay = 0.
 # ES
 	
 	es_population = 50

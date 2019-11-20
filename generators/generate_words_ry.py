@@ -22,7 +22,7 @@ cmp_ops = [SignedBVExpr.__eq__, SignedBVExpr.__ne__,
            SignedBVExpr.__lt__, SignedBVExpr.__le__, SignedBVExpr.__gt__, SignedBVExpr.__ge__]
 
 ###############################################################################
-### Store the arithmetic expression as a string
+### Arithmetic expression as a string
 ###############################################################################
 ops_string = {SignedBVExpr.__add__: "+", SignedBVExpr.__sub__: "-",
                  SignedBVExpr.__and__: "and", SignedBVExpr.__or__: "or", 
@@ -46,7 +46,22 @@ def expr_string(op, left_s, right_s):
         return op_s + "(" + left_s + ")"
     else:
         raise Exception("fix expr_string()")
-        
+###############################################################################
+### Arithmetic expression as a graph
+###############################################################################
+nodes = {"variables": [], "constants": [], "intermediates": 0}
+f_edges = {"+": [], "-": [], "and": [], "or": [], "xor": [], "invert": [], "abs": [],
+         "neg": [], "=": [], "!=": [], "<": [], "<=": [], ">": [], ">=": []}
+b_edges = {"+": [], "-": [], "and": [], "or": [], "xor": [], "invert": [], "abs": [],
+         "neg": [], "=": [], "!=": [], "<": [], "<=": [], ">": [], ">=": []}
+
+#edges = {SignedBVExpr.__add__: [], SignedBVExpr.__sub__: [],
+#                 SignedBVExpr.__and__: [], SignedBVExpr.__or__: [], 
+#                 SignedBVExpr.__xor__: [], SignedBVExpr.__invert__: [], 
+#                 SignedBVExpr.__abs__: [], SignedBVExpr.__neg__: [],
+#                 SignedBVExpr.__eq__: [], SignedBVExpr.__ne__: [],
+#                 SignedBVExpr.__lt__: [], SignedBVExpr.__le__: [], 
+#                 SignedBVExpr.__gt__: [], SignedBVExpr.__ge__: []}       
 ###############################################################################
 
 variables = None
@@ -70,18 +85,28 @@ def leaf_expr(size):  # constant or variable
     if randint(0, 1) == 0:
         leaf = variable() 
         leaf_s = list(leaf.aigbv.inputs)[0]
+        nodes["variables"] += [leaf_s]
         #leaf_s = "[" + list(leaf.aigbv.inputs)[0] + ", " + list(leaf.aigbv.outputs)[0] + "]"
     else:
+#        import ipdb
+#        ipdb.set_trace()
         leaf = constant_expr()
-        leaf_s = list(leaf.aigbv.outputs)[0]
+        leaf_s = list(leaf.aigbv.outputs)[0][:8]
+        nodes["constants"] += [leaf_s]
+        #leaf_s = list(leaf.aigbv.outputs)[0]
     #leaf = variable() if randint(0, 1) == 0 else constant_expr()
-    return leaf, leaf_s
+    return leaf, leaf_s, leaf_s
 
 def unary_expr(size):
     assert size > 1
-    arg, arg_s = random_expr(size - 1)
+    arg, arg_s, arg_n = random_expr(size - 1)
     op = unary_ops[randint(0, len(unary_ops) - 1)]
-    return op(arg), expr_string(op, arg_s, None)
+    
+    curr_int_node = nodes["intermediates"]
+    nodes["intermediates"] += 1
+    f_edges[ops_string[op]] += [(arg_n, curr_int_node)]
+    b_edges[ops_string[op]] += [(curr_int_node, arg_n)]
+    return op(arg), expr_string(op, arg_s, None), curr_int_node
 
 
 def arithmetic_expr(size):
@@ -89,9 +114,14 @@ def arithmetic_expr(size):
     op = arith_ops[randint(0, len(arith_ops)-1)]
     # arg_num = len(inspect.getargspec(operator)[0])  # arity of the function
     split = randint(1, size - 2)  # at least one operation on either side
-    left, left_s = random_expr(split)
-    right, right_s = random_expr(size - split - 1)
-    return op(left, right), expr_string(op, left_s, right_s)
+    left, left_s, left_n = random_expr(split)
+    right, right_s, right_n = random_expr(size - split - 1)
+    
+    curr_int_node = nodes["intermediates"]
+    nodes["intermediates"] += 1
+    f_edges[ops_string[op]] += [(left_n, curr_int_node), (right_n, curr_int_node)]
+    b_edges[ops_string[op]] += [(curr_int_node, left_n), (curr_int_node, right_n)]
+    return op(left, right), expr_string(op, left_s, right_s), curr_int_node
 
 
 def random_expr(size):
@@ -109,9 +139,14 @@ def bitwise_expr(size):
     assert size > 2
     op = bitwise_ops[randint(0, len(bitwise_ops)-1)]
     split = randint(1, size - 2)  # at least one operation on either side
-    left, left_s = random_expr(split)
-    right, right_s = random_expr(size - split - 1)
-    return op(left, right), expr_string(op, left_s, right_s)
+    left, left_s, left_n = random_expr(split)
+    right, right_s, right_n = random_expr(size - split - 1)
+    
+    curr_int_node = nodes["intermediates"]
+    nodes["intermediates"] += 1
+    f_edges[ops_string[op]] += [(left_n, curr_int_node), (right_n, curr_int_node)]
+    b_edges[ops_string[op]] += [(curr_int_node, left_n), (curr_int_node, right_n)]
+    return op(left, right), expr_string(op, left_s, right_s), curr_int_node
 
 def random_bool_expr(size):
     global variables
@@ -122,18 +157,22 @@ def random_bool_expr(size):
 #    ipdb.set_trace()
     op = cmp_ops[randint(0, len(cmp_ops)-1)]
     split = randint(1, size - 2)  # at least one operation on either side
-    left, left_s = random_expr(split)
-    right, right_s = random_expr(size - split - 1)
+    left, left_s, left_n = random_expr(split)
+    right, right_s, right_n = random_expr(size - split - 1)
     
-    return op(left, right), expr_string(op, left_s, right_s)
+    curr_int_node = nodes["intermediates"]
+    nodes["intermediates"] += 1
+    f_edges[ops_string[op]] += [(left_n, curr_int_node), (right_n, curr_int_node)]
+    b_edges[ops_string[op]] += [(curr_int_node, left_n), (curr_int_node, right_n)]
+    return op(left, right), expr_string(op, left_s, right_s), curr_int_node
 
 
 def random_circuit(size):
     while True:
-        e, w = random_bool_expr(size)
+        e, e_string, e_output_node = random_bool_expr(size)
         e = aa.simplify(e)
         if e is not None:
-            return e, w
+            return e, e_string, e_output_node
         else: 
             print('    Failed to generate expression; trying again')
 
@@ -225,7 +264,7 @@ def main():
         num_attempts += 1
 
         try:
-            e, w = random_circuit(args.expr_size)
+            e, e_string, e_output_node = random_circuit(args.expr_size)
         except Exception as e:
             print('Got an exception when creating!')
             print(e)
@@ -245,7 +284,10 @@ def main():
         import ipdb
         ipdb.set_trace()
 #        print(e)
-#        print(w)
+#        print(e_string)
+#        print(e_output_node)
+#        print(nodes)
+#        print(edges)
 
         f = tempfile.NamedTemporaryFile()
         f.write(str(e).encode())

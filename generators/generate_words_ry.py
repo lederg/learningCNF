@@ -49,19 +49,55 @@ def expr_string(op, left_s, right_s):
 ###############################################################################
 ### Arithmetic expression as a graph
 ###############################################################################
-nodes = {"variables": [], "constants": [], "intermediates": 0}
-f_edges = {"+": [], "-": [], "and": [], "or": [], "xor": [], "invert": [], "abs": [],
-         "neg": [], "=": [], "!=": [], "<": [], "<=": [], ">": [], ">=": []}
-b_edges = {"+": [], "-": [], "and": [], "or": [], "xor": [], "invert": [], "abs": [],
-         "neg": [], "=": [], "!=": [], "<": [], "<=": [], ">": [], ">=": []}
+nodes = {"variables": 0, "constants": 0, "intermediates": 0,
+         "variable_names": {}, "constant_names": {}}
+f_edges = {"+": [], "and": [], "or": [], "xor": [], "invert": [], "abs": [], "neg": [], "=": [], "!=": [], 
+           "-L": [], "-R": [], "<L": [], "<R": [], "<=L": [], "<=R": [], ">L": [], ">R": [], ">=L": [], ">=R": [],
+           "-": [], "<": [], "<=": [], ">": [], ">=": []}
 
-#edges = {SignedBVExpr.__add__: [], SignedBVExpr.__sub__: [],
-#                 SignedBVExpr.__and__: [], SignedBVExpr.__or__: [], 
-#                 SignedBVExpr.__xor__: [], SignedBVExpr.__invert__: [], 
-#                 SignedBVExpr.__abs__: [], SignedBVExpr.__neg__: [],
-#                 SignedBVExpr.__eq__: [], SignedBVExpr.__ne__: [],
-#                 SignedBVExpr.__lt__: [], SignedBVExpr.__le__: [], 
-#                 SignedBVExpr.__gt__: [], SignedBVExpr.__ge__: []}       
+b_edges = {"+": [], "and": [], "or": [], "xor": [], "invert": [], "abs": [], "neg": [], "=": [], "!=": [], 
+           "-L": [], "-R": [], "<L": [], "<R": [], "<=L": [], "<=R": [], ">L": [], ">R": [], ">=L": [], ">=R": [],
+           "-": [], "<": [], "<=": [], ">": [], ">=": []}
+graph = {"nodes": nodes, "f_edges": f_edges, "b_edges": b_edges, "word_expr": None}
+non_commutative_ops = ["-", "<", "<=", ">", ">="]
+
+def add_op_expr_to_graph(op, left_n, right_n, unary=False):
+    curr_int_node = nodes["intermediates"]
+    nodes["intermediates"] += 1
+    ops = ops_string[op]
+    if unary:
+        arg_n = left_n
+        f_edges[ops] += [(arg_n, curr_int_node)]
+        b_edges[ops] += [(curr_int_node, arg_n)]
+    else:
+        if ops in non_commutative_ops:
+            f_edges[ops + "L"] = [(left_n, curr_int_node)]
+            f_edges[ops + "R"] = [(right_n, curr_int_node)]
+            b_edges[ops + "L"] = [(curr_int_node, left_n)]
+            b_edges[ops + "R"] = [(curr_int_node, right_n)]
+        f_edges[ops] += [(left_n, curr_int_node), (right_n, curr_int_node)]
+        b_edges[ops] += [(curr_int_node, left_n), (curr_int_node, right_n)]
+    return curr_int_node
+
+def add_leaf_to_graph(leaf, leaf_type):
+    if leaf_type == "variable":
+        curr_var_node = nodes["variables"]
+        nodes["variables"] += 1
+        leaf_s = "V" + str(curr_var_node)
+        nodes["variable_names"][leaf_s] = list(leaf.aigbv.inputs)[0]
+    elif leaf_type == "constant":
+        curr_const_node = nodes["constants"]
+        nodes["constants"] += 1
+        leaf_s = "C" + str(curr_const_node)
+        nodes["constant_names"][leaf_s] = list(leaf.aigbv.outputs)[0][:8]
+    return leaf_s
+
+def reset_graph():
+    nodes["variables"], nodes["constants"], nodes["intermediates"] = 0, 0, 0
+    nodes["variable_names"], nodes["constant_names"] = {}, {}
+    graph["word_expr"] = None
+    for key in f_edges: f_edges[key] = []
+    for key in b_edges: b_edges[key] = []       
 ###############################################################################
 
 variables = None
@@ -74,27 +110,21 @@ def variable():
 
 def constant_expr():
     if randint(0, 4) == 0:
-        c = atom(word_length, randint(- 2**(word_length-1), 2**(word_length-1) - 1), signed=True)
+        c = atom(word_length, randint(- 2**(word_length-1), 2**(word_length-1) - 1), signed=True) 
+        # any number from -2^7 to +2^7
     else: 
-        c = atom(word_length, 1, signed=True)
+        c = atom(word_length, 1, signed=True) # 00000001
     return c
 
 
 def leaf_expr(size):  # constant or variable
     assert size == 1
     if randint(0, 1) == 0:
-        leaf = variable() 
-        leaf_s = list(leaf.aigbv.inputs)[0]
-        nodes["variables"] += [leaf_s]
-        #leaf_s = "[" + list(leaf.aigbv.inputs)[0] + ", " + list(leaf.aigbv.outputs)[0] + "]"
+        leaf = variable()
+        leaf_s = add_leaf_to_graph(leaf, "variable")
     else:
-#        import ipdb
-#        ipdb.set_trace()
         leaf = constant_expr()
-        leaf_s = list(leaf.aigbv.outputs)[0][:8]
-        nodes["constants"] += [leaf_s]
-        #leaf_s = list(leaf.aigbv.outputs)[0]
-    #leaf = variable() if randint(0, 1) == 0 else constant_expr()
+        leaf_s = add_leaf_to_graph(leaf, "constant")
     return leaf, leaf_s, leaf_s
 
 def unary_expr(size):
@@ -102,10 +132,7 @@ def unary_expr(size):
     arg, arg_s, arg_n = random_expr(size - 1)
     op = unary_ops[randint(0, len(unary_ops) - 1)]
     
-    curr_int_node = nodes["intermediates"]
-    nodes["intermediates"] += 1
-    f_edges[ops_string[op]] += [(arg_n, curr_int_node)]
-    b_edges[ops_string[op]] += [(curr_int_node, arg_n)]
+    curr_int_node = add_op_expr_to_graph(op, arg_n, None, unary=True)
     return op(arg), expr_string(op, arg_s, None), curr_int_node
 
 
@@ -117,10 +144,7 @@ def arithmetic_expr(size):
     left, left_s, left_n = random_expr(split)
     right, right_s, right_n = random_expr(size - split - 1)
     
-    curr_int_node = nodes["intermediates"]
-    nodes["intermediates"] += 1
-    f_edges[ops_string[op]] += [(left_n, curr_int_node), (right_n, curr_int_node)]
-    b_edges[ops_string[op]] += [(curr_int_node, left_n), (curr_int_node, right_n)]
+    curr_int_node = add_op_expr_to_graph(op, left_n, right_n)
     return op(left, right), expr_string(op, left_s, right_s), curr_int_node
 
 
@@ -142,10 +166,7 @@ def bitwise_expr(size):
     left, left_s, left_n = random_expr(split)
     right, right_s, right_n = random_expr(size - split - 1)
     
-    curr_int_node = nodes["intermediates"]
-    nodes["intermediates"] += 1
-    f_edges[ops_string[op]] += [(left_n, curr_int_node), (right_n, curr_int_node)]
-    b_edges[ops_string[op]] += [(curr_int_node, left_n), (curr_int_node, right_n)]
+    curr_int_node = add_op_expr_to_graph(op, left_n, right_n)
     return op(left, right), expr_string(op, left_s, right_s), curr_int_node
 
 def random_bool_expr(size):
@@ -160,12 +181,8 @@ def random_bool_expr(size):
     left, left_s, left_n = random_expr(split)
     right, right_s, right_n = random_expr(size - split - 1)
     
-    curr_int_node = nodes["intermediates"]
-    nodes["intermediates"] += 1
-    f_edges[ops_string[op]] += [(left_n, curr_int_node), (right_n, curr_int_node)]
-    b_edges[ops_string[op]] += [(curr_int_node, left_n), (curr_int_node, right_n)]
+    curr_int_node = add_op_expr_to_graph(op, left_n, right_n)
     return op(left, right), expr_string(op, left_s, right_s), curr_int_node
-
 
 def random_circuit(size):
     while True:
@@ -251,7 +268,7 @@ def main():
     global word_length
     word_length = args.word_size
 
-    file_extension = 'qaiger'
+    #file_extension = 'qaiger'
     num_sat = 0
     num_unsat = 0
     num_unknown = 0
@@ -259,12 +276,15 @@ def main():
     num_attempts = 0
 
     while num_generated < args.num_generated:
+        reset_graph()
+        
         if num_attempts == 0:
             print('Generating file no {}'.format(num_generated+1))
         num_attempts += 1
 
         try:
             e, e_string, e_output_node = random_circuit(args.expr_size)
+            graph["word_expr"] = e_string
         except Exception as e:
             print('Got an exception when creating!')
             print(e)
@@ -281,8 +301,8 @@ def main():
             print('    No universals')
             continue
         
-        import ipdb
-        ipdb.set_trace()
+#        import ipdb
+#        ipdb.set_trace()
 #        print(e)
 #        print(e_string)
 #        print(e_output_node)
@@ -340,16 +360,23 @@ def main():
             print('    Found a good formula! Decisions'
                   f' {decisions}; {result_string}')
 
+            file_extension = 'qaiger'
             filedir = f'{args.directory}/{args.file_prefix}{num_generated}.{file_extension}'
-
             textfile = open(filedir, "w")
             textfile.write(str(e))
             textfile.close()
+            ################### Write the word_level graph ####################
+            file_extension = 'wordlevel'
+            filedir_word_graph = f'{args.directory}/{args.file_prefix}{num_generated}.{file_extension}'
+            textfile = open(filedir_word_graph, "w")
+            textfile.write(str(graph))
+            textfile.close()
+            ###################################################################
             num_generated += 1
             num_attempts = 0
         else:
             print(f'    Not the right number of decisions: {decisions}')
-
+    
     print(f'Generated {num_sat} SAT; {num_unsat} UNSAT; {num_unknown} UNKNOWN')
 
 

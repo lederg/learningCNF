@@ -97,7 +97,42 @@ def reset_graph():
     nodes["variable_names"], nodes["constant_names"] = {}, {}
     graph["word_expr"] = None
     for key in f_edges: f_edges[key] = []
-    for key in b_edges: b_edges[key] = []       
+    for key in b_edges: b_edges[key] = []      
+    
+def clean_graph():
+    """
+    Called at the very end, this modifies the variables, constant, and intermediate 
+    numberings so as to make the .wordlevel format suitable for a DGL graph
+    """
+    num_vars, num_const, num_intm = nodes['variables'], nodes['constants'], nodes['intermediates']    
+    var_map = {v : int(v[1:]) for v in nodes['variable_names'].keys()}
+    const_map = {c : num_vars+int(c[1:]) for c in nodes['constant_names'].keys()}
+    intm_map = {i : num_vars+num_const+i for i in range(nodes['intermediates'])}
+    
+    def is_var(x): return type(x)==str and x.startswith('V') and int(x[1]) < nodes['variables']
+    def is_const(x): return type(x)==str and x.startswith('C') and int(x[1]) < nodes['constants']
+    def is_intm(x): return type(x)==int and x < nodes['intermediates']
+    def convert_node(n):
+        if is_var(n): return var_map[n]
+        elif is_const(n): return const_map[n]
+        elif is_intm(n): return intm_map[n]
+        else: raise Exception()
+        
+    for key in f_edges: 
+        for i, edge in enumerate(f_edges[key]):
+            f_edges[key][i] = (convert_node(edge[0]), convert_node(edge[1]))
+    for key in b_edges: 
+        for i, edge in enumerate(b_edges[key]):
+            b_edges[key][i] = (convert_node(edge[0]), convert_node(edge[1]))
+            
+    vn = {}
+    for key in nodes['variable_names']: 
+        vn[convert_node(key)] = nodes['variable_names'][key]
+    nodes['variable_names'] = vn
+    cn = {}   
+    for key in nodes['constant_names']: 
+        cn[convert_node(key)] = nodes['constant_names'][key]
+    nodes['constant_names'] = cn    
 ###############################################################################
 
 variables = None
@@ -356,6 +391,7 @@ def main():
             textfile.write(str(e))
             textfile.close()
             ################### Write the word_level graph ####################
+            clean_graph()
             file_extension = 'wordlevel'
             filedir_word_graph = f'{args.directory}/{args.file_prefix}{num_generated}.{file_extension}'
             textfile = open(filedir_word_graph, "w")

@@ -1,5 +1,5 @@
 from cnf_parser import *
-from aag_parser import read_qaiger
+from aag_parser import read_qaiger, read_wordlevel
 from utils import *
 import numpy as np
 from functools import partial
@@ -311,16 +311,19 @@ class QbfDataset(Dataset):
             
 class CombinedGraph1Base(object):    
     """
-    Wrapper object for paired files ('a.qaiger', 'a.qdimacs) 
-    Holds the combined AAG-CNF graph (our first implementation, Oct 2019)
+    Wrapper object for paired files ('a.qaiger', 'a.qdimacs') 
+    Holds the combined Wordlevel-AAG-CNF graph
     Uses the DGL package to store this heterogeneous graph
-        3 types of nodes: AAG literals, QCNF literals, QCNF clauses
-        4 types of edges: 
+        Node Types: 
+            literals
+            clauses
+        Edge types: 
             AAG literal -> AAG literal forward edges 
             AAG literal -> AAG literal backward edges 
             QCNF literal -> QCNF clause forward edges 
             QCNF clause -> QCNF literal backward edges
-        9-dimensional node features for AAG literals and QCNF literals
+        9-dimensional features for literal nodes
+        1-dimensional features for clause nodes
     """
     def __init__(self, qcnf = None, qcnf_base = None, aag = None, G = None, **kwargs):
         self.qcnf = qcnf # WARNING: if use update_DGL_graph(), check that fix_qcnf_numbering() is used too

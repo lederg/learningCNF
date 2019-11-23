@@ -104,3 +104,16 @@ def read_qaiger(filename):
             #'avars': avars,
             'fname': filename
             }
+    
+import ast
+def read_wordlevel(filename):
+    """
+    read from a `.wordlevel` file (which contains a word-level dictionary).
+    """
+    with open(filename, 'r') as f:
+        a = f.readline()
+        return ast.literal_eval(a)
+        
+        
+# TEST
+#gd = read_wordlevel("./data/words_3_levels_1/words_0.wordlevel")

@@ -111,7 +111,7 @@ def variable():
 def constant_expr():
     if randint(0, 4) == 0:
         c = atom(word_length, randint(- 2**(word_length-1), 2**(word_length-1) - 1), signed=True) 
-        # any number from -2^7 to +2^7
+        # some number from -2^7 to +2^7
     else: 
         c = atom(word_length, 1, signed=True) # 00000001
     return c
@@ -174,8 +174,6 @@ def random_bool_expr(size):
     variables = ['2 y1', '1 x1', '2 y2', '1 x2']
 
     assert size > 2
-#    import ipdb
-#    ipdb.set_trace()
     op = cmp_ops[randint(0, len(cmp_ops)-1)]
     split = randint(1, size - 2)  # at least one operation on either side
     left, left_s, left_n = random_expr(split)
@@ -300,14 +298,6 @@ def main():
         if not any([v.startswith('1 x1') or v.startswith('1 x2') for v in e.inputs]):
             print('    No universals')
             continue
-        
-#        import ipdb
-#        ipdb.set_trace()
-#        print(e)
-#        print(e_string)
-#        print(e_output_node)
-#        print(nodes)
-#        print(edges)
 
         f = tempfile.NamedTemporaryFile()
         f.write(str(e).encode())

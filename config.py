@@ -17,6 +17,9 @@ def cfg():
 	save_config = True
 	update_config=None
 	state_dim = 36
+	gss_dim = 6
+	histograms_dim = (3,30)
+	hist_emb_dim = 8
 	embedding_dim = 20  # deprecated
 	vemb_dim = 16
 	cemb_dim = 64

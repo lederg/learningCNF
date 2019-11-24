@@ -731,10 +731,13 @@ class SCPolicyBase(PolicyBase):
   def __init__(self, **kwargs):
     super(SCPolicyBase, self).__init__(**kwargs)
     self.snorm_window = self.settings['vbn_window']    
+    self.gss_dim = self.settings['gss_dim']
+    self.hist_dim = self.settings['histograms_dim']
+    self.hist_emb_dim = self.settings['hist_emb_dim']    
     # self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
       # self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
-      self.state_vbn = NodeAverageAndStdVBN(self.state_dim, 'state_vbn', **kwargs)
+      self.state_vbn = NodeAverageAndStdVBN(self.gss_dim, 'state_vbn', **kwargs)
     if self.use_bn:
       self.clabels_vbn = MovingAverageAndStdVBN((self.snorm_window,self.clabel_dim))      
     sublayers = []
@@ -761,16 +764,11 @@ class SCPolicyBase(PolicyBase):
             nn.init.constant_(layer.bias,self.settings['init_threshold'])
         self.policy_layers.add_module('linear_{}'.format(i), layer)
 
-  # state is just a (batched) vector of fixed size state_dim which should be expanded. 
-  # vlabels are batch * max_vars * vlabel_dim
-
-  # cmat is already "batched" into a single matrix
-
   def forward(self, obs, **kwargs):
-    state = obs.state    
+    state = obs.state
     clabels = obs.clabels
     if self.state_bn:      
-      state = self.state_vbn(state, **kwargs)
+      state['regular'] = self.state_vbn(state['regular'], **kwargs)
     if self.use_bn and clabels is not None:
       clabels = clabels.view(-1,self.clabel_dim)
       clabels = self.clabels_vbn(clabels, **kwargs)    
@@ -785,13 +783,13 @@ class SCPolicyBase(PolicyBase):
     # return torch.cat(actions)
 
   def compute_loss(self, transition_data, **kwargs):    
-    state = torch.cat([x.state.state for x in transition_data])
+    state = collate_simple_dict([x.state.state for x in transition_data])
     collated_batch = EmptyState
     collated_batch.state = self.settings.cudaize_var(state)
     # collated_batch = collate_transitions(transition_data,self.settings)
     # collated_batch.state = cudaize_obs(collated_batch.state)
     returns = self.settings.FloatTensor([x.reward for x in transition_data])
-    outputs = self.forward(collated_batch)
+    outputs = self.forward(collated_batch, backwards=True)
     actions = [x.action for x in transition_data]
     logprobs, entropy = self.get_logprobs(outputs, actions)
     adv_t = returns
@@ -807,7 +805,7 @@ class SCPolicyBase(PolicyBase):
     # Recompute moving averages
 
     if self.state_bn:
-      self.state_vbn.recompute_moments(collated_batch.state.detach())
+      self.state_vbn.recompute_moments(collated_batch.state['regular'].detach())
     # if self.use_bn:
     #   z = collated_batch.state.clabels.detach().view(-1,6)
     #   self.clabels_vbn.recompute_moments(z.mean(dim=0).unsqueeze(0),z.std(dim=0).unsqueeze(0))
@@ -1168,13 +1166,21 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatDiscreteThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
     self.threshold_base = self.settings['sat_discrete_threshold_base']
+    self.hist_dim = self.settings['histograms_dim']
+    self.hist_emb_dim = self.settings['hist_emb_dim']
+    self.hist_layer = nn.Linear(self.hist_dim[1],self.hist_emb_dim)
 
   def input_dim(self):
-    return self.settings['state_dim']
+    return self.gss_dim + self.hist_dim[0]*self.hist_emb_dim
 
   def forward(self, obs, **kwargs):
+    # if kwargs.get('backwards',False):
+    #   import ipdb
+    #   ipdb.set_trace()
     state, clabels = super(SatDiscreteThresholdPolicy, self).forward(obs, **kwargs)
-    logits = self.policy_layers(state)
+    hist = self.hist_layer(state['histograms'].view(-1,self.hist_dim[1])).view(-1,self.hist_dim[0]*self.hist_emb_dim)
+    inputs = torch.cat([state['regular'],hist],dim=1)
+    logits = self.policy_layers(inputs)
 
     return logits         # We do NOT use clabels vbn, so just return logits
     # return logits, clabels

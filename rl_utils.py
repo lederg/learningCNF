@@ -125,6 +125,14 @@ def discount_episode(ep, settings=None):
   return ep
   # return [Transition(transition.state, transition.action, None, rew, transition.formula, transition.prev_obs) for transition, rew in zip(ep, r)]
 
+def collate_simple_dict(batch):
+  if batch.count(None) == len(batch):
+    return {}
+  keys = batch[0].keys()
+  rc = {k: torch.cat([x[k] for x in batch],dim=0) for k in keys}
+  return rc
+
+
 def collate_observations(batch, settings=None, replace_none=False, c_size=None, v_size=None):
   if batch.count(None) == len(batch):
     return State(None, None, None, None, None, None, None)

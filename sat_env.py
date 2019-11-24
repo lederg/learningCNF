@@ -202,7 +202,7 @@ class SatEnvProxy(EnvBase):
     clabels = Variable(all_clabels)
     vmask = last_obs.vmask if last_obs else None
     cmask = last_obs.cmask if last_obs else None
-    state = self.settings.FloatTensor(env_obs.state).unsqueeze(0)
+    state = {k: self.settings.FloatTensor(v).unsqueeze(0) for (k,v) in env_obs.state.items()}
     num_orig_clauses = len(self.orig_clabels)
     num_learned_clauses = len(env_obs.clabels)
 

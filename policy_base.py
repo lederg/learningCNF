@@ -8,8 +8,7 @@ class PolicyBase(nn.Module):
   def __init__(self, oracletype=None, **kwargs):
     super(PolicyBase, self).__init__()
     self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()        
-    self.state_dim = self.settings['state_dim']
-    self.embedding_dim = self.settings['embedding_dim']
+    self.state_dim = self.settings['state_dim']    
     self.vemb_dim = self.settings['vemb_dim']
     self.cemb_dim = self.settings['cemb_dim']
     self.vlabel_dim = self.settings['vlabel_dim']

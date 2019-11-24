@@ -20,17 +20,15 @@ def cfg():
 	gss_dim = 6
 	histograms_dim = (3,30)
 	hist_emb_dim = 8
-	embedding_dim = 20  # deprecated
+	embed_histograms = True	
 	vemb_dim = 16
-	cemb_dim = 64
-	ground_dim = 8  # deprecated
+	cemb_dim = 64	
 	vlabel_dim = 8
 	clabel_dim = 1
 	max_variables = 200 
 	max_clauses = 600
 	num_ground_variables = 0  # deprecated
 	data_dir = 'data/'
-	dataset = 'boolean8'
 	model_dir = 'saved_models'
 	base_model = None
 	# base_mode = BaseMode.ITERS 
@@ -68,9 +66,6 @@ def cfg():
 	sparse = True  # deprecated
 	# sparse = False
 	gru_bias = False  # deprecated
-	use_ground = False  # deprecated
-	moving_ground = False  # deprecated
-	split = False  # deprecated
 	# cuda = True 
 	cuda = False
 	reset_on_save = False
@@ -238,10 +233,6 @@ def cfg():
 
 # Localization
 	max_edges = 20
-
-	DS_TRAIN_FILE = 'expressions-synthetic/split/%s-trainset.json' % dataset
-	DS_VALIDATION_FILE = 'expressions-synthetic/split/%s-validationset.json' % dataset
-	DS_TEST_FILE = 'expressions-synthetic/split/%s-testset.json' % dataset
 
 	# return vars()
 

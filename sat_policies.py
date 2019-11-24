@@ -734,6 +734,7 @@ class SCPolicyBase(PolicyBase):
     self.gss_dim = self.settings['gss_dim']
     self.hist_dim = self.settings['histograms_dim']
     self.hist_emb_dim = self.settings['hist_emb_dim']    
+    self.embed_histograms = self.settings['embed_histograms']    
     # self.sigma = self.settings.FloatTensor(np.array(float(self.settings['threshold_sigma'])))
     if self.state_bn:
       # self.state_vbn = MovingAverageVBN((self.snorm_window,self.state_dim))
@@ -1166,19 +1167,21 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
   def __init__(self, **kwargs):
     super(SatDiscreteThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
     self.threshold_base = self.settings['sat_discrete_threshold_base']
-    self.hist_dim = self.settings['histograms_dim']
-    self.hist_emb_dim = self.settings['hist_emb_dim']
     self.hist_layer = nn.Linear(self.hist_dim[1],self.hist_emb_dim)
 
   def input_dim(self):
-    return self.gss_dim + self.hist_dim[0]*self.hist_emb_dim
+    hist_emb = self.hist_emb_dim if self.embed_histograms else self.hist_dim[1]
+    return self.gss_dim + self.hist_dim[0]*hist_emb
 
   def forward(self, obs, **kwargs):
     # if kwargs.get('backwards',False):
     #   import ipdb
     #   ipdb.set_trace()
     state, clabels = super(SatDiscreteThresholdPolicy, self).forward(obs, **kwargs)
-    hist = self.hist_layer(state['histograms'].view(-1,self.hist_dim[1])).view(-1,self.hist_dim[0]*self.hist_emb_dim)
+    if self.embed_histograms:
+      hist = self.hist_layer(state['histograms'].view(-1,self.hist_dim[1])).view(-1,self.hist_dim[0]*self.hist_emb_dim)
+    else:
+      hist = state['histograms'].view(-1,np.multiply(*self.hist_dim))
     inputs = torch.cat([state['regular'],hist],dim=1)
     logits = self.policy_layers(inputs)
 

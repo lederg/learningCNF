@@ -766,10 +766,10 @@ class SCPolicyBase(PolicyBase):
         self.policy_layers.add_module('linear_{}'.format(i), layer)
 
   def forward(self, obs, **kwargs):
-    state = obs.state
+    state = {'histograms': obs.state['histograms']}
     clabels = obs.clabels
     if self.state_bn:      
-      state['regular'] = self.state_vbn(state['regular'], **kwargs)
+      state['regular'] = self.state_vbn(obs.state['regular'], **kwargs)
     if self.use_bn and clabels is not None:
       clabels = clabels.view(-1,self.clabel_dim)
       clabels = self.clabels_vbn(clabels, **kwargs)    
@@ -1216,7 +1216,7 @@ class SatDiscreteThresholdPolicy(SCPolicyBase):
         if self.shelf_key not in self.shelf_file.keys():        
           self.shelf_file[self.shelf_key] = []
         tmp = self.shelf_file[self.shelf_key]
-        tmp.append((obs_batch.state.detach().numpy(),logits.detach().numpy()))
+        tmp.append(({k: v.detach().numpy() for (k,v) in obs_batch.state.items()},logits.detach().numpy()))
         self.shelf_file[self.shelf_key] = tmp
 
     if deterministic:

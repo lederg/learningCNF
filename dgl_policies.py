@@ -82,6 +82,79 @@ class AAGLayer(nn.Module):
     G.nodes['literal'].data['h_a'] = lembs
     
     return lembs
+
+
+class WordLevelLayer(nn.Module):
+    def __init__(self, in_size, out_size, activation=None, settings=None):
+    super(WordLevelLayer, self).__init__()
+    self.ntypes = ['literal', 'wl_node']
+    self.etypes = ['l2w', 'w2l', '+_f', 'and_f', 'or_f', 'xor_f', 
+                     'invert_f', 
+                     'abs_f', 
+                   'neg_f', 
+                   '=_f', 
+                    '!=_f', 
+                '-L_f', 
+         '-R_f', 
+                '<L_f', 
+                   '<R_f', 
+           '<=L_f', 
+            '<=R_f', 
+        '>L_f', 
+        '>R_f', 
+                  '>=L_f', 
+                     '>=R_f', 
+                     
+                 '+_b', 
+                    'and_b', 
+                      'or_b', 
+                   'xor_b', 
+            'invert_b', 
+                     'abs_b', 
+            'neg_b', 
+                   '=_b', 
+                     '!=_b', 
+                  '-L_b', 
+                      '-R_b', 
+                 '<L_b', 
+                '<R_b', 
+                  '<=L_b', 
+                      '<=R_b', 
+                    '>L_b', 
+                     '>R_b', 
+                    '>=L_b', '
+                    '>=R_b', 
+        
+        
+    # W_r for each relation
+    self.weight = nn.ModuleDict({
+      self.etypes[0] : nn.Linear(in_size, out_size),
+      self.etypes[1] : nn.Linear(in_size, out_size)
+    })
+    self.settings = settings if settings else CnfSettings()
+    self.activation = activation if activation else eval(self.settings['non_linearity'])
+  
+  def forward(self, G, feat_dict):
+      # the input is a dictionary of node features for each type
+    Wh_af = self.weight['aag_forward'](feat_dict['literal'])
+    G.nodes['literal'].data['Wh_af'] = Wh_af
+    Wh_ab = self.weight['aag_backward'](feat_dict['literal'])
+    G.nodes['literal'].data['Wh_ab'] = Wh_ab
+    
+    G['aag_forward'].update_all(fn.copy_src('Wh_af', 'm_af'), fn.sum('m_af', 'h_af'))
+    G['aag_backward'].update_all(fn.copy_src('Wh_ab', 'm_ab'), fn.sum('m_ab', 'h_ab'))
+    
+    lembs = G.nodes['literal'].data['h_af'] + G.nodes['literal'].data['h_ab']
+
+    # normalize by in_degree(v) + out_degree(v) for each literal node v
+    combined_degrees = G.out_degrees(etype="aag_forward") + G.out_degrees(etype="aag_backward")
+    combined_degrees[combined_degrees == 0] = 1
+    combined_degrees = combined_degrees.float()
+    lembs = ((lembs.T)/combined_degrees).T
+    lembs = self.activation(lembs)
+    G.nodes['literal'].data['h_a'] = lembs
+    
+    return lembs
    
 
 class DGLEncoder(nn.Module):

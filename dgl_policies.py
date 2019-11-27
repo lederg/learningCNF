@@ -17,6 +17,7 @@ from settings import *
 from policy_base import *
 from rl_utils import *
 from batch_dgl import batched_combined_graph
+from dgl_graph_base import DGL_Graph_Base
 
 
 class CNFLayer(nn.Module):
@@ -85,77 +86,91 @@ class AAGLayer(nn.Module):
 
 
 class WordLevelLayer(nn.Module):
-    def __init__(self, in_size, out_size, activation=None, settings=None):
+  def __init__(self, in_size, out_size, activation=None, settings=None):
     super(WordLevelLayer, self).__init__()
     self.ntypes = ['literal', 'wl_node']
-    self.etypes = ['l2w', 'w2l', '+_f', 'and_f', 'or_f', 'xor_f', 
-                     'invert_f', 
-                     'abs_f', 
-                   'neg_f', 
-                   '=_f', 
-                    '!=_f', 
-                '-L_f', 
-         '-R_f', 
-                '<L_f', 
-                   '<R_f', 
-           '<=L_f', 
-            '<=R_f', 
-        '>L_f', 
-        '>R_f', 
-                  '>=L_f', 
-                     '>=R_f', 
-                     
-                 '+_b', 
-                    'and_b', 
-                      'or_b', 
-                   'xor_b', 
-            'invert_b', 
-                     'abs_b', 
-            'neg_b', 
-                   '=_b', 
-                     '!=_b', 
-                  '-L_b', 
-                      '-R_b', 
-                 '<L_b', 
-                '<R_b', 
-                  '<=L_b', 
-                      '<=R_b', 
-                    '>L_b', 
-                     '>R_b', 
-                    '>=L_b', '
-                    '>=R_b', 
-        
-        
+#    self.etypes = ['l2w', 'w2l', 
+#                   '+_f', 'and_f', 'or_f', 'xor_f', 'invert_f', 
+#                   'abs_f', 'neg_f', '=_f', '!=_f', '-L_f', '-R_f', 
+#                   '<L_f', '<R_f', '<=L_f', '<=R_f', '>L_f', '>R_f', '>=L_f', '>=R_f', 
+#                   '+_b', 'and_b', 'or_b', 'xor_b', 'invert_b', 
+#                   'abs_b', 'neg_b', '=_b',   '!=_b', '-L_b', '-R_b', 
+#                   '<L_b', '<R_b', '<=L_b', '<=R_b', '>L_b', '>R_b', '>=L_b', '>=R_b']
+    self.etypes = ['l2w', 'w2l', 'wl_op_f', 'wl_op_b']
     # W_r for each relation
     self.weight = nn.ModuleDict({
-      self.etypes[0] : nn.Linear(in_size, out_size),
-      self.etypes[1] : nn.Linear(in_size, out_size)
+      self.etypes[i] : nn.Linear(in_size, out_size) for i in range(len(self.etypes))
     })
+#    self.weight = nn.ModuleDict({
+#      self.etypes[0] : nn.Linear(in_size, out_size),
+#      self.etypes[1] : nn.Linear(in_size, out_size)
+#    })
     self.settings = settings if settings else CnfSettings()
     self.activation = activation if activation else eval(self.settings['non_linearity'])
   
-  def forward(self, G, feat_dict):
-      # the input is a dictionary of node features for each type
-    Wh_af = self.weight['aag_forward'](feat_dict['literal'])
-    G.nodes['literal'].data['Wh_af'] = Wh_af
-    Wh_ab = self.weight['aag_backward'](feat_dict['literal'])
-    G.nodes['literal'].data['Wh_ab'] = Wh_ab
+  def forward(self, G, feat_dict): #FIXME
+    # assume we get node features for variables and constants in feat_dict
+    # as of now, the "bitblasting" is done before this WordLevelLayer
+    # it is also plausible to think the bitblasting should be done at the beginning of this layer
+    # the input is a dictionary of node features for each type
     
-    G['aag_forward'].update_all(fn.copy_src('Wh_af', 'm_af'), fn.sum('m_af', 'h_af'))
-    G['aag_backward'].update_all(fn.copy_src('Wh_ab', 'm_ab'), fn.sum('m_ab', 'h_ab'))
     
-    lembs = G.nodes['literal'].data['h_af'] + G.nodes['literal'].data['h_ab']
+    # FIXME: LINEAR LAYER
+    G.nodes['wl_node'].data['wl_0'] = feat_dict['wl_node']
+    
+    import ipdb
+    ipdb.set_trace()
+    
+    # propagate along wl_forward_edges, in order 0,1,2,...,n of wl_nodes
+    n = G.number_of_nodes("wl_node")
+    propagation_order_forwards = (torch.arange(n))
+    G.prop_nodes(propagation_order_forwards, 
+                 message_func = fn.copy_src('wl_0', 'wl_1'), 
+                 reduce_func = fn.sum('wl_1', 'wl_h'), 
+                 apply_node_func = None, 
+                 etype = 'wl_op_f')    
+    
+    # propagate along wl_backward_edges, in order n,n-1,...,0 of wl_nodes
+    propagation_order_backwards = (torch.tensor([n-1-i for i in range(n)]))
+    G.prop_nodes(propagation_order_backwards, 
+                 message_func = fn.copy_src('wl_h', 'wl_2'), 
+                 reduce_func = fn.sum('wl_2', 'wl_b'), 
+                 apply_node_func = None, 
+                 etype = 'wl_op_b')
+    
+    
+    
+#    # propagate bitblast edges from literals to wl_nodes
+#    Wh_l2w = self.weight['l2w'](feat_dict['literal'])
+#    G.nodes['literal'].data['Wh_l2w'] = Wh_l2w
+#    G['l2w'].update_all(fn.copy_src('Wh_l2w', 'm_l2w'), fn.mean('m_l2w', 'h_l2w'))
+#    wl_embs_0 = G.nodes['wl_node'].data['h_l2w']    # self.activation() ???
+    
+    # propagate bitblast edges from wl_nodes to literals
+    
+    wl_embs = G.nodes['wl_noed'].data['wl_h']
+    return wl_embs
 
-    # normalize by in_degree(v) + out_degree(v) for each literal node v
-    combined_degrees = G.out_degrees(etype="aag_forward") + G.out_degrees(etype="aag_backward")
-    combined_degrees[combined_degrees == 0] = 1
-    combined_degrees = combined_degrees.float()
-    lembs = ((lembs.T)/combined_degrees).T
-    lembs = self.activation(lembs)
-    G.nodes['literal'].data['h_a'] = lembs
-    
-    return lembs
+###############################################################################
+##### Test WordLevelLayer
+b = DGL_Graph_Base()
+b.load_paired_files(
+        wordlevel_fname = './data/words_3_levels_1/words_2.wordlevel', 
+        aag_fname = './data/words_3_levels_1/words_2.qaiger', 
+        qcnf_fname = './data/words_3_levels_1/words_2.qaiger.qdimacs')
+x = torch.zeros([b.G.number_of_nodes("wl_node"), 5]) 
+for i in range(b.G.number_of_nodes("wl_node")): x[i] = i
+feat_dict = {
+        'literal': b.G.nodes['literal'].data['lit_labels'],   
+        'wl_node' : x
+}
+in_size = feat_dict['literal'].shape[1]
+out_size = 7
+W = WordLevelLayer(in_size, out_size, activation=F.relu)
+W_f = W(b.G, feat_dict)
+###############################################################################
    
+###############################################################################
 
 class DGLEncoder(nn.Module):
   def __init__(self, settings=None, **kwargs):
@@ -446,4 +461,3 @@ class DGLPolicy(PolicyBase):
 #    G['aag_backward'].update_all(fn.copy_src('Wh_ab', 'm_ab'), reduce_ab)
 #    import ipdb
 #    ipdb.set_trace()
-###############################################################################

@@ -8,10 +8,13 @@ import dgl
 class DGL_Graph_Base(object):    
     """
     Wrapper object for paired files ('a.wordlevel', 'a.qaiger', 'a.qdimacs') 
-    Holds the combined Wordlevel-AAG-CNF graph
+    Holds the combined Wordlevel-AAG-CNF graph    
     Uses the DGL package to store this heterogeneous graph
         Node Types: 
-            literals
+            if var_graph == FALSE (default):
+                literals
+            if var_graph == TRUE:
+                variables
             clauses
             wordlevel nodes: TBD
         Edge types: 
@@ -23,13 +26,19 @@ class DGL_Graph_Base(object):
         9-dimensional features for literal nodes
         1-dimensional features for clause nodes
     """
-    def __init__(self, qcnf = None, qcnf_base = None, aag = None, wl = None, G = None, **kwargs):
+    def __init__(self, qcnf = None, qcnf_base = None, aag = None, wl = None, G = None, var_graph=False, **kwargs):
         self.qcnf = qcnf # WARNING: if use update_DGL_graph(), check that fix_qcnf_numbering() is used too
         self.qcnf_base = qcnf_base
         self.aag = aag
         self.wl = wl
         self.aag_forward_edges = []
         self.aag_backward_edges = []
+        self.lit_labels = None
+        
+        self.aag_f_p, self.aag_f_n, self.aag_b_p, self.aag_b_n = [], [], [], []
+        self.v2c_p, self.v2c_n, self.c2v_p, self.c2v_n = [], [], [], []
+        self.var_labels = None
+
         self.G = G
         self.extra_clauses = {}
         self.removed_old_clauses = []
@@ -38,22 +47,24 @@ class DGL_Graph_Base(object):
         self.IDX_VAR_UNIVERSAL = 0
         self.IDX_VAR_EXISTENTIAL = 1
         self.IDX_VAR_INPUT_OUTPUT = 8 # Last Column
+        self.var_graph = var_graph
         
     def reset(self):
         self.extra_clauses = {}
         self.removed_old_clauses = []
         
-    def load_paired_files(self, wordlevel_fname = None, aag_fname = None, qcnf_fname = None):
+    def load_paired_files(self, wordlevel_fname = None, aag_fname = None, qcnf_fname = None, var_graph=False):
         # self.aag_og = read_qaiger(aag_fname)        # for testing
         # self.qcnf_og = qdimacs_to_cnf(qcnf_fname)   # for testing
         if not qcnf_fname: raise Exception("need a qcnf graph; see dgl_graph_base.py")
-        self.wl = read_wordlevel(wordlevel_fname)
+        self.var_graph = var_graph
+        if wordlevel_fname: self.wl = read_wordlevel(wordlevel_fname)
         self.aag = fix_aag_numbering(read_qaiger(aag_fname)) if aag_fname else None
         self.qcnf = fix_qcnf_numbering(qdimacs_to_cnf(qcnf_fname))
         self.reset()
         self.create_DGL_graph()
         
-    def create_DGL_graph(self, qcnf_base = None,
+    def create_DGL_graph(self, qcnf_base = None, old_base = None,
             l2w_edges = [], w2l_edges = [],
             aag_forward_edges = [], aag_backward_edges = [],
             qcnf_forward_edges = [], qcnf_backward_edges = [],
@@ -75,22 +86,46 @@ class DGL_Graph_Base(object):
         """
         if qcnf_base:
             self.qcnf_base = qcnf_base
-            # self.qcnf = fix_qcnf_numbering(self.qcnf_base.qcnf)   
-        if not aag_forward_edges or not aag_backward_edges:
-            aag_forward_edges, aag_backward_edges = self.initial_aag_edges()
-        if not qcnf_forward_edges or not qcnf_backward_edges:
-            qcnf_forward_edges, qcnf_backward_edges = self.initial_qcnf_edges()
-        if type(lit_labels) == list and lit_labels == []: ##FIXME
-            lit_labels = self.initial_lit_features()
-        if type(clause_labels) == list and clause_labels == []: ##FIXME
-            clause_labels =  self.initial_clause_features()
             
-        
+        if old_base: # creating this graph from an older graph
+            old_G = old_base.G
+            if self.var_graph: # variable graph
+                aag_f_p, aag_f_n, aag_b_p, aag_b_n = old_base.aag_f_p, old_base.aag_f_n, old_base.aag_b_p, old_base.aag_b_n
+                v2c_p, v2c_n, c2v_p, c2v_n = old_base.v2c_p, old_base.v2c_n, old_base.c2v_p, old_base.c2v_n
+                var_labels = old_G.nodes['variable'].data['var_labels']
+            else: # literal graph
+                aag_forward_edges, aag_backward_edges = old_base.aag_forward_edges, old_base.aag_backward_edges
+                qcnf_forward_edges, qcnf_backward_edges = old_base.qcnf_forward_edges, old_base.qcnf_backward_edges
+                lit_labels = old_G.nodes['literal'].data['lit_labels']
+        else: # create this graph from scratch
+            clause_labels =  self.initial_clause_features()
+            if self.var_graph: # variable graph
+                aag_f_p, aag_f_n, aag_b_p, aag_b_n = self.initial_aag_edges()
+                v2c_p, v2c_n, c2v_p, c2v_n = self.initial_qcnf_edges()
+                var_labels = self.initial_lit_features()
+            else: # literal graph
+                aag_forward_edges, aag_backward_edges = self.initial_aag_edges()
+                qcnf_forward_edges, qcnf_backward_edges = self.initial_qcnf_edges()
+                lit_labels = self.initial_lit_features()
+            
         ## add qcnf edges for each clause in extra_clauses
         for cl_num in extra_clauses:
-            for lit in extra_clauses[cl_num]:
-                qcnf_forward_edges.append( (lit,cl_num) )
-                qcnf_backward_edges.append( (cl_num,lit) )
+            for lit in extra_clauses[cl_num]:            
+                if self.var_graph: # graph on variables
+                    var = self.node_num(lit)
+                    if self.is_positive(lit):
+                        v2c_p.append( (var, cl_num) )
+                        c2v_p.append( (cl_num, var) )
+                    else:
+                        v2c_n.append( (var, cl_num) )
+                        c2v_n.append( (cl_num, var) )
+                else: # graph on literals
+                    qcnf_forward_edges.append( (lit, cl_num) )
+                    qcnf_backward_edges.append( (cl_num, lit) )
+                
+            
+                
+                
         ## change clause embeddings : 1 for extra clauses        
         if extra_clauses:
             clause_labels = torch.zeros([self.num_clauses(extra_clauses), self.CLAUSE_FEATURE_DIM])
@@ -104,12 +139,50 @@ class DGL_Graph_Base(object):
                 qcnf_forward_edges.remove(qcnf_forward_edges_cl_num)
                 qcnf_backward_edges.remove(qcnf_backward_edges_cl_num)
                 
-        self.qcnf_forward_edges = qcnf_forward_edges
-        self.qcnf_backward_edges = qcnf_backward_edges
+                
+                
+        ###### Save graph info in the base object
         self.extra_clauses = extra_clauses
         self.removed_old_clauses = removed_old_clauses
+        self.clause_labels = clause_labels
+        if self.var_graph: # variable graph
+            self.var_labels = var_labels
+            self.aag_f_p, self.aag_f_n, self.aag_b_p, self.aag_b_n = aag_f_p, aag_f_n, aag_b_p, aag_b_n
+            self.v2c_p, self.v2c_n, self.c2v_p, self.c2v_n = v2c_p, v2c_n, c2v_p, c2v_n
+        else: # literal graph
+            self.lit_labels = lit_labels
+            self.qcnf_forward_edges = qcnf_forward_edges
+            self.qcnf_backward_edges = qcnf_backward_edges
         
-        
+        ###### Form the DGL graph (no word-level)
+        if not self.wl:
+            if self.var_graph: # variable graph, no word-level
+                G = dgl.heterograph(
+                        {('variable', 'aag_f_+', 'variable') : aag_f_p,
+                         ('variable', 'aag_f_-', 'variable') : aag_f_n,
+                         ('variable', 'aag_b_+', 'variable') : aag_b_p,
+                         ('variable', 'aag_b_-', 'variable') : aag_b_n,
+                         ('variable', 'v2c_+', 'clause') : v2c_p,
+                         ('variable', 'v2c_-', 'clause') : v2c_n,
+                         ('clause', 'c2v_+', 'variable') : c2v_p,
+                         ('clause', 'c2v_-', 'variable') : c2v_n},
+                        {'variable': int(self.num_lits/2),
+                         'clause': self.num_clauses(extra_clauses)}) 
+                G.nodes['variable'].data['var_labels'] = lit_labels
+                G.nodes['clause'].data['clause_labels'] = clause_labels
+                self.G = G
+            else: # literal graph, no word-level
+                G = dgl.heterograph(
+                    {('literal', 'aag_forward', 'literal') : aag_forward_edges,
+                     ('literal', 'aag_backward', 'literal') : aag_backward_edges,
+                     ('literal', 'l2c', 'clause') : qcnf_forward_edges,
+                     ('clause', 'c2l', 'literal') : qcnf_backward_edges},
+                    {'literal': self.num_lits,
+                     'clause': self.num_clauses(extra_clauses)}) 
+                G.nodes['literal'].data['lit_labels'] = lit_labels
+                G.nodes['clause'].data['clause_labels'] = clause_labels
+                self.G = G
+                
         #### Word Level stuff #################################################
         if self.wl:
             num_vars, num_const, num_intm = self.wl['nodes']['variables'], self.wl['nodes']['constants'], self.wl['nodes']['intermediates']    
@@ -121,6 +194,14 @@ class DGL_Graph_Base(object):
                 else:
                     raise Exception("Not yet implemented; need to figure out bitblasting without aag circuit...")
             
+            wl_op_edges_f = []
+            for e in self.wl['f_edges'].values(): 
+                wl_op_edges_f += e
+            wl_op_edges_b = []
+            for e in self.wl['b_edges'].values(): 
+                wl_op_edges_b += e
+                
+            ###### Form the DGL graph (word-level)
             G = dgl.heterograph(
                     {('literal', 'aag_forward', 'literal') : aag_forward_edges,
                      ('literal', 'aag_backward', 'literal') : aag_backward_edges,
@@ -130,64 +211,75 @@ class DGL_Graph_Base(object):
                      ('literal', 'l2w', 'wl_node') : l2w_edges,
                      ('wl_node', 'w2l', 'literal') : w2l_edges,
                      
-                     ('wl_node', '+_f', 'wl_node') : self.wl['f_edges']['+'],
-                     ('wl_node', 'and_f', 'wl_node') : self.wl['f_edges']['and'],
-                     ('wl_node', 'or_f', 'wl_node') : self.wl['f_edges']['or'],
-                     ('wl_node', 'xor_f', 'wl_node') : self.wl['f_edges']['xor'],
-                     ('wl_node', 'invert_f', 'wl_node') : self.wl['f_edges']['invert'],
-                     ('wl_node', 'abs_f', 'wl_node') : self.wl['f_edges']['abs'],
-                     ('wl_node', 'neg_f', 'wl_node') : self.wl['f_edges']['neg'],
-                     ('wl_node', '=_f', 'wl_node') : self.wl['f_edges']['='],
-                     ('wl_node', '!=_f', 'wl_node') : self.wl['f_edges']['!='],
-                     ('wl_node', '-L_f', 'wl_node') : self.wl['f_edges']['-L'],
-                     ('wl_node', '-R_f', 'wl_node') : self.wl['f_edges']['-R'],
-                     ('wl_node', '<L_f', 'wl_node') : self.wl['f_edges']['<L'],
-                     ('wl_node', '<R_f', 'wl_node') : self.wl['f_edges']['<R'],
-                     ('wl_node', '<=L_f', 'wl_node') : self.wl['f_edges']['<=L'],
-                     ('wl_node', '<=R_f', 'wl_node') : self.wl['f_edges']['<=R'],
-                     ('wl_node', '>L_f', 'wl_node') : self.wl['f_edges']['>L'],
-                     ('wl_node', '>R_f', 'wl_node') : self.wl['f_edges']['>R'],
-                     ('wl_node', '>=L_f', 'wl_node') : self.wl['f_edges']['>=L'],
-                     ('wl_node', '>=R_f', 'wl_node') : self.wl['f_edges']['>=R'],
+                     ('wl_node', 'wl_op_f', 'wl_node') : wl_op_edges_f,
+                     ('wl_node', 'wl_op_b', 'wl_node') : wl_op_edges_b},
                      
-                     ('wl_node', '+_b', 'wl_node') : self.wl['b_edges']['+'],
-                     ('wl_node', 'and_b', 'wl_node') : self.wl['b_edges']['and'],
-                     ('wl_node', 'or_b', 'wl_node') : self.wl['b_edges']['or'],
-                     ('wl_node', 'xor_b', 'wl_node') : self.wl['b_edges']['xor'],
-                     ('wl_node', 'invert_b', 'wl_node') : self.wl['b_edges']['invert'],
-                     ('wl_node', 'abs_b', 'wl_node') : self.wl['b_edges']['abs'],
-                     ('wl_node', 'neg_b', 'wl_node') : self.wl['b_edges']['neg'],
-                     ('wl_node', '=_b', 'wl_node') : self.wl['b_edges']['='],
-                     ('wl_node', '!=_b', 'wl_node') : self.wl['b_edges']['!='],
-                     ('wl_node', '-L_b', 'wl_node') : self.wl['b_edges']['-L'],
-                     ('wl_node', '-R_b', 'wl_node') : self.wl['b_edges']['-R'],
-                     ('wl_node', '<L_b', 'wl_node') : self.wl['b_edges']['<L'],
-                     ('wl_node', '<R_b', 'wl_node') : self.wl['b_edges']['<R'],
-                     ('wl_node', '<=L_b', 'wl_node') : self.wl['b_edges']['<=L'],
-                     ('wl_node', '<=R_b', 'wl_node') : self.wl['b_edges']['<=R'],
-                     ('wl_node', '>L_b', 'wl_node') : self.wl['b_edges']['>L'],
-                     ('wl_node', '>R_b', 'wl_node') : self.wl['b_edges']['>R'],
-                     ('wl_node', '>=L_b', 'wl_node') : self.wl['b_edges']['>=L'],
-                     ('wl_node', '>=R_b', 'wl_node') : self.wl['b_edges']['>=R']},
+#                     ('wl_node', '+_f', 'wl_node') : self.wl['f_edges']['+'],
+#                     ('wl_node', 'and_f', 'wl_node') : self.wl['f_edges']['and'],
+#                     ('wl_node', 'or_f', 'wl_node') : self.wl['f_edges']['or'],
+#                     ('wl_node', 'xor_f', 'wl_node') : self.wl['f_edges']['xor'],
+#                     ('wl_node', 'invert_f', 'wl_node') : self.wl['f_edges']['invert'],
+#                     ('wl_node', 'abs_f', 'wl_node') : self.wl['f_edges']['abs'],
+#                     ('wl_node', 'neg_f', 'wl_node') : self.wl['f_edges']['neg'],
+#                     ('wl_node', '=_f', 'wl_node') : self.wl['f_edges']['='],
+#                     ('wl_node', '!=_f', 'wl_node') : self.wl['f_edges']['!='],
+#                     ('wl_node', '-L_f', 'wl_node') : self.wl['f_edges']['-L'],
+#                     ('wl_node', '-R_f', 'wl_node') : self.wl['f_edges']['-R'],
+#                     ('wl_node', '<L_f', 'wl_node') : self.wl['f_edges']['<L'],
+#                     ('wl_node', '<R_f', 'wl_node') : self.wl['f_edges']['<R'],
+#                     ('wl_node', '<=L_f', 'wl_node') : self.wl['f_edges']['<=L'],
+#                     ('wl_node', '<=R_f', 'wl_node') : self.wl['f_edges']['<=R'],
+#                     ('wl_node', '>L_f', 'wl_node') : self.wl['f_edges']['>L'],
+#                     ('wl_node', '>R_f', 'wl_node') : self.wl['f_edges']['>R'],
+#                     ('wl_node', '>=L_f', 'wl_node') : self.wl['f_edges']['>=L'],
+#                     ('wl_node', '>=R_f', 'wl_node') : self.wl['f_edges']['>=R'],
+#                     
+#                     ('wl_node', '+_b', 'wl_node') : self.wl['b_edges']['+'],
+#                     ('wl_node', 'and_b', 'wl_node') : self.wl['b_edges']['and'],
+#                     ('wl_node', 'or_b', 'wl_node') : self.wl['b_edges']['or'],
+#                     ('wl_node', 'xor_b', 'wl_node') : self.wl['b_edges']['xor'],
+#                     ('wl_node', 'invert_b', 'wl_node') : self.wl['b_edges']['invert'],
+#                     ('wl_node', 'abs_b', 'wl_node') : self.wl['b_edges']['abs'],
+#                     ('wl_node', 'neg_b', 'wl_node') : self.wl['b_edges']['neg'],
+#                     ('wl_node', '=_b', 'wl_node') : self.wl['b_edges']['='],
+#                     ('wl_node', '!=_b', 'wl_node') : self.wl['b_edges']['!='],
+#                     ('wl_node', '-L_b', 'wl_node') : self.wl['b_edges']['-L'],
+#                     ('wl_node', '-R_b', 'wl_node') : self.wl['b_edges']['-R'],
+#                     ('wl_node', '<L_b', 'wl_node') : self.wl['b_edges']['<L'],
+#                     ('wl_node', '<R_b', 'wl_node') : self.wl['b_edges']['<R'],
+#                     ('wl_node', '<=L_b', 'wl_node') : self.wl['b_edges']['<=L'],
+#                     ('wl_node', '<=R_b', 'wl_node') : self.wl['b_edges']['<=R'],
+#                     ('wl_node', '>L_b', 'wl_node') : self.wl['b_edges']['>L'],
+#                     ('wl_node', '>R_b', 'wl_node') : self.wl['b_edges']['>R'],
+#                     ('wl_node', '>=L_b', 'wl_node') : self.wl['b_edges']['>=L'],
+#                     ('wl_node', '>=R_b', 'wl_node') : self.wl['b_edges']['>=R']},
+                    
                 {'literal': self.num_lits,
                  'clause': self.num_clauses(extra_clauses),
                  'wl_node': num_wl_nodes})
             
-        #######################################################################
-        if not self.wl:
-            G = dgl.heterograph(
-                    {('literal', 'aag_forward', 'literal') : aag_forward_edges,
-                     ('literal', 'aag_backward', 'literal') : aag_backward_edges,
-                     ('literal', 'l2c', 'clause') : qcnf_forward_edges,
-                     ('clause', 'c2l', 'literal') : qcnf_backward_edges},
-                    {'literal': self.num_lits,
-                     'clause': self.num_clauses(extra_clauses)}) 
-
-
-        G.nodes['literal'].data['lit_labels'] = lit_labels
-        G.nodes['clause'].data['clause_labels'] = clause_labels
-        self.G = G
+            G.nodes['literal'].data['lit_labels'] = lit_labels
+            G.nodes['clause'].data['clause_labels'] = clause_labels
+            self.G = G
             
+            #G.nodes['wl_node'].data['wl_node_labels'] = clause_labels
+        #######################################################################
+            
+    def node_num(self, x):
+        """
+        type(x) == int
+        x is a literal number        0,1, 2,3 4,5 ... 2n-2,2n-1
+        if self.var_graph == True:
+            use variable numberings  0,   1,  2,  ... n 
+        """
+        return int(x/2) if self.var_graph else x
+    
+    def is_positive(self, lit):
+        """
+        lit is a literal 0,1,...,2n-2,2n-1
+        return True iff lit is even (positive)
+        """
+        return lit % 2 == 0
 
     def bitblast_edges(self, aag): 
         """
@@ -209,30 +301,65 @@ class DGL_Graph_Base(object):
         create aag edges, which remain fixed
         """
         aag_forward_edges, aag_backward_edges = [], []
+        aag_f_p, aag_f_n, aag_b_p, aag_b_n = [], [], [], []
         if self.aag:
             for ag in self.aag['and_gates']:
                 x, y, z = ag[0], ag[1], ag[2]
-                aag_forward_edges.append( (x,y) )
-                aag_forward_edges.append( (x,z) )
-                aag_backward_edges.append( (y,x) )
-                aag_backward_edges.append( (z,x) )
-        self.aag_forward_edges = aag_forward_edges
-        self.aag_backward_edges = aag_backward_edges
-        return (aag_forward_edges, aag_backward_edges)
+                if self.var_graph: # graph on variables
+                    vx, vy, vz = self.node_num(ag[0]), self.node_num(ag[1]), self.node_num(ag[2])
+                    if self.is_positive(x):
+                        aag_f_p.append( (vx,vy) )
+                        aag_f_p.append( (vx,vz) )
+                    else:
+                        aag_f_n.append( (vx,vy) )
+                        aag_f_n.append( (vx,vz) )
+                    if self.is_positive(y):
+                        aag_b_p.append( (vy,vx) )
+                    else:
+                        aag_b_n.append( (vy,vx) )
+                    if self.is_positive(z):
+                        aag_b_p.append( (vz,vx) )
+                    else:
+                        aag_b_n.append( (vz,vx) )
+                else: # graph on literals
+                    aag_forward_edges.append( (x,y) )
+                    aag_forward_edges.append( (x,z) )
+                    aag_backward_edges.append( (y,x) )
+                    aag_backward_edges.append( (z,x) )
+        if self.var_graph: # graph on variables
+            
+            return (aag_f_p, aag_f_n, aag_b_p, aag_b_n)
+        else: # graph on literals
+            self.aag_forward_edges = aag_forward_edges
+            self.aag_backward_edges = aag_backward_edges
+            return (aag_forward_edges, aag_backward_edges)
     
     def initial_qcnf_edges(self):
         """
         create qcnf edges, from original clauses only
         need to be updated from CADET obs
         """
-        qcnf_forward_edges, qcnf_backward_edges = [], []
+        l2c, c2l = [], []
+        v2c_p, v2c_n, c2v_p, c2v_n = [], [], [], []
         for cl_num, clause in enumerate(self.qcnf['clauses']):
             for lit in clause:
-                qcnf_forward_edges.append( (lit,cl_num) )
-                qcnf_backward_edges.append( (cl_num,lit) )
-        self.qcnf_forward_edges = qcnf_forward_edges
-        self.qcnf_backward_edges = qcnf_backward_edges
-        return (qcnf_forward_edges, qcnf_backward_edges)
+                if self.var_graph: # graph on variables
+                    var = self.node_num(lit)
+                    if self.is_positive(lit):
+                        v2c_p.append( (var, cl_num) )
+                        c2v_p.append( (cl_num, var) )
+                    else:
+                        v2c_n.append( (var, cl_num) )
+                        c2v_n.append( (cl_num, var) )
+                else: # graph on literals
+                    l2c.append( (lit, cl_num) )
+                    c2l.append( (cl_num, lit) )
+        if self.var_graph: # graph on variables
+            return (v2c_p, v2c_n, c2v_p, c2v_n)
+        else: # graph on literals
+            self.qcnf_forward_edges = l2c
+            self.qcnf_backward_edges = c2l
+            return (l2c, c2l)
     
     def initial_lit_features(self):
         """
@@ -259,6 +386,8 @@ class DGL_Graph_Base(object):
             embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_inputs] = 1
             embs[:, self.IDX_VAR_INPUT_OUTPUT][self.aag['outputs']] = 1
             embs[:, self.IDX_VAR_INPUT_OUTPUT][flipped_outputs] = 1
+        if self.var_graph:
+            return embs[[i for i in range(embs.shape[0]) if i%2==0],:]
         return embs
     
     def initial_clause_features(self):
@@ -412,3 +541,14 @@ def Vars01_to_Lits01(V):
 #        wordlevel_fname = './data/words_3_levels_1/words_2.wordlevel', 
 #        aag_fname = './data/words_3_levels_1/words_2.qaiger', 
 #        qcnf_fname = './data/words_3_levels_1/words_2.qaiger.qdimacs')
+    
+c = DGL_Graph_Base()
+c.load_paired_files(
+        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
+        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs')
+    
+d = DGL_Graph_Base()
+d.load_paired_files(
+        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
+        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs',
+        var_graph =  True)

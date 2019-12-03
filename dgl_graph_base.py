@@ -66,10 +66,7 @@ class DGL_Graph_Base(object):
         
     def create_DGL_graph(self, qcnf_base = None, old_base = None,
             l2w_edges = [], w2l_edges = [],
-            aag_forward_edges = [], aag_backward_edges = [],
-            qcnf_forward_edges = [], qcnf_backward_edges = [],
             extra_clauses = {}, removed_old_clauses = [], 
-            lit_labels = [], clause_labels = []
         ):
         """
         Create the combined AAG-QCNF graph.
@@ -87,6 +84,7 @@ class DGL_Graph_Base(object):
         if qcnf_base:
             self.qcnf_base = qcnf_base
             
+        ######## edges before CADET update
         if old_base: # creating this graph from an older graph
             old_G = old_base.G
             if self.var_graph: # variable graph
@@ -108,6 +106,8 @@ class DGL_Graph_Base(object):
                 qcnf_forward_edges, qcnf_backward_edges = self.initial_qcnf_edges()
                 lit_labels = self.initial_lit_features()
             
+            
+        ######## use CADET update
         ## add qcnf edges for each clause in extra_clauses
         for cl_num in extra_clauses:
             for lit in extra_clauses[cl_num]:            
@@ -123,9 +123,6 @@ class DGL_Graph_Base(object):
                     qcnf_forward_edges.append( (lit, cl_num) )
                     qcnf_backward_edges.append( (cl_num, lit) )
                 
-            
-                
-                
         ## change clause embeddings : 1 for extra clauses        
         if extra_clauses:
             clause_labels = torch.zeros([self.num_clauses(extra_clauses), self.CLAUSE_FEATURE_DIM])
@@ -133,15 +130,25 @@ class DGL_Graph_Base(object):
 
         ## remove qcnf edges for each clause in remove_old_clauses
         for cl_num in removed_old_clauses:
-            qcnf_forward_edges_cl_num = [e for e in qcnf_forward_edges if e[1]==cl_num]
-            qcnf_backward_edges_cl_num = [e for e in qcnf_backward_edges if e[0]==cl_num]
-            for e in qcnf_forward_edges_cl_num:
-                qcnf_forward_edges.remove(qcnf_forward_edges_cl_num)
-                qcnf_backward_edges.remove(qcnf_backward_edges_cl_num)
+            if self.var_graph: # graph on variables
+                v2c_p_cl_num = [e for e in v2c_p if e[1]==cl_num] #v2c
+                c2v_p_cl_num = [e for e in c2v_p if e[0]==cl_num] #c2v
+                v2c_n_cl_num = [e for e in v2c_n if e[1]==cl_num] #v2c
+                c2v_n_cl_num = [e for e in c2v_n if e[0]==cl_num] #c2v
+                for e in v2c_p_cl_num:
+                    v2c_p.remove(v2c_p_cl_num)
+                    c2v_p.remove(c2v_p_cl_num)
+                for e in v2c_n_cl_num:
+                    v2c_n.remove(v2c_n_cl_num)
+                    c2v_n.remove(c2v_n_cl_num)
+            else: # graph on literals
+                qcnf_forward_edges_cl_num = [e for e in qcnf_forward_edges if e[1]==cl_num] #l2c
+                qcnf_backward_edges_cl_num = [e for e in qcnf_backward_edges if e[0]==cl_num] #c2l
+                for e in qcnf_forward_edges_cl_num:
+                    qcnf_forward_edges.remove(qcnf_forward_edges_cl_num)
+                    qcnf_backward_edges.remove(qcnf_backward_edges_cl_num)
                 
-                
-                
-        ###### Save graph info in the base object
+        ######## Save graph info in the base object
         self.extra_clauses = extra_clauses
         self.removed_old_clauses = removed_old_clauses
         self.clause_labels = clause_labels
@@ -154,7 +161,7 @@ class DGL_Graph_Base(object):
             self.qcnf_forward_edges = qcnf_forward_edges
             self.qcnf_backward_edges = qcnf_backward_edges
         
-        ###### Form the DGL graph (no word-level)
+        ######## Form the DGL graph (no word-level)
         if not self.wl:
             if self.var_graph: # variable graph, no word-level
                 G = dgl.heterograph(
@@ -168,7 +175,7 @@ class DGL_Graph_Base(object):
                          ('clause', 'c2v_-', 'variable') : c2v_n},
                         {'variable': int(self.num_lits/2),
                          'clause': self.num_clauses(extra_clauses)}) 
-                G.nodes['variable'].data['var_labels'] = lit_labels
+                G.nodes['variable'].data['var_labels'] = var_labels
                 G.nodes['clause'].data['clause_labels'] = clause_labels
                 self.G = G
             else: # literal graph, no word-level
@@ -417,7 +424,10 @@ class DGL_Graph_Base(object):
         """
         n, num_feats = ground_embs.shape[0], ground_embs.shape[1]
         u = torch.cat((ground_embs, ground_embs),dim=1).view(2*n, num_feats)
-        self.G.nodes['literal'].data['lit_labels'][:,:num_feats] = u
+        if self.var_graph: # variable graph
+            self.G.nodes['variable'].data['var_labels'][:,:num_feats] = u
+        else: # literal graph
+            self.G.nodes['literal'].data['lit_labels'][:,:num_feats] = u
         
 ##############################################################################
 ##### Properties    

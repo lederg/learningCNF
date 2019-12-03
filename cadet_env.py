@@ -6,6 +6,7 @@ from IPython.core.debugger import Tracer
 import time
 from settings import *
 from qbf_data import *
+from dgl_graph_base import DGL_Graph_Base
 from cadet_utils import *
 from envbase import *
 
@@ -26,7 +27,7 @@ def require_init(f, *args, **kwargs):
     
 class CadetEnv(EnvBase):
   def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, slim_state=False,
-                use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, 
+                use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, var_graph=False,
                 use_vsids_rewards = False, def_step_cost = -1e-4, cadet_completion_reward=1., logger=None, settings=None, **kwargs):
     self.EnvObservation = namedtuple('EnvObservation', 
                     ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
@@ -36,7 +37,8 @@ class CadetEnv(EnvBase):
     self.cadet_binary = cadet_binary
     self.debug = debug
     self.qbf = QbfBase(**kwargs)
-    self.aag_qcnf = CombinedGraph1Base(**kwargs)
+    self.aag_qcnf = DGL_Graph_Base(var_graph=var_graph, **kwargs) #CombinedGraph1Base(**kwargs)
+    self.var_graph=var_graph
     self.greedy_rewards = greedy_rewards
     self.clause_learning = clause_learning
     self.vars_set = vars_set
@@ -132,7 +134,7 @@ class CadetEnv(EnvBase):
     if type(fname) == str:
         fname = (None, fname)
     if type(fname) == tuple and len(fname) == 2:
-        self.aag_qcnf.load_paired_files(aag_fname = fname[0], qcnf_fname = fname[1])
+        self.aag_qcnf.load_paired_files(aag_fname = fname[0], qcnf_fname = fname[1], var_graph=self.var_graph)
         self.qbf.reload_qdimacs(fname[1])
         fname = fname[1]
     else:
@@ -329,36 +331,41 @@ class CadetEnv(EnvBase):
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
-    # import ipdb
-    # ipdb.set_trace()
-    
+      
     if not env_obs:
       return None
       
     if env_obs.clause or not last_obs:
       # If learned/derived/removed a clause, or this is the first observation, then UPDATE THE GRAPH.
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
-      clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
+      clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()      
       
       extra_clauses = self.qbf.extra_clauses.copy()
       for k in extra_clauses:
           extra_clauses[k] = [convert_qdimacs_lit(l) for l in extra_clauses[k]]
         
       # update the combined graph
+      old_base = last_obs.ext_data if last_obs else None
       G = last_obs.ext_data.G if last_obs else self.aag_qcnf.G
+      
       lit_labels = G.nodes['literal'].data['lit_labels']
       clause_labels = G.nodes['clause'].data['clause_labels']
       self.aag_qcnf.create_DGL_graph(
               qcnf_base = self.qbf,
-              aag_forward_edges = self.aag_qcnf.aag_forward_edges, 
-              aag_backward_edges = self.aag_qcnf.aag_backward_edges,
-              qcnf_forward_edges = self.aag_qcnf.qcnf_forward_edges, 
-              qcnf_backward_edges = self.aag_qcnf.qcnf_backward_edges,
+              old_base = old_base,
               extra_clauses = extra_clauses, # UPDATE: learned/derived clauses
               removed_old_clauses = self.qbf.removed_old_clauses, # UPDATE: removed old clauses
-              lit_labels = lit_labels, 
-              clause_labels = clause_labels
+#              qcnf_base = self.qbf,
+#              aag_forward_edges = self.aag_qcnf.aag_forward_edges, 
+#              aag_backward_edges = self.aag_qcnf.aag_backward_edges,
+#              qcnf_forward_edges = self.aag_qcnf.qcnf_forward_edges, 
+#              qcnf_backward_edges = self.aag_qcnf.qcnf_backward_edges,
+#              extra_clauses = extra_clauses, # UPDATE: learned/derived clauses
+#              removed_old_clauses = self.qbf.removed_old_clauses, # UPDATE: removed old clauses
+#              lit_labels = lit_labels, 
+#              clause_labels = clause_labels
       )
+            
     else: # no changed clauses AND last_obs, graph is the same
       cmat, clabels = last_obs.cmat, last_obs.clabels
     if last_obs:

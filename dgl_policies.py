@@ -89,67 +89,74 @@ class WordLevelLayer(nn.Module):
   def __init__(self, in_size, out_size, activation=None, settings=None):
     super(WordLevelLayer, self).__init__()
     self.ntypes = ['literal', 'wl_node']
-#    self.etypes = ['l2w', 'w2l', 
-#                   '+_f', 'and_f', 'or_f', 'xor_f', 'invert_f', 
-#                   'abs_f', 'neg_f', '=_f', '!=_f', '-L_f', '-R_f', 
-#                   '<L_f', '<R_f', '<=L_f', '<=R_f', '>L_f', '>R_f', '>=L_f', '>=R_f', 
-#                   '+_b', 'and_b', 'or_b', 'xor_b', 'invert_b', 
-#                   'abs_b', 'neg_b', '=_b',   '!=_b', '-L_b', '-R_b', 
-#                   '<L_b', '<R_b', '<=L_b', '<=R_b', '>L_b', '>R_b', '>=L_b', '>=R_b']
-    self.etypes = ['l2w', 'w2l', 'wl_op_f', 'wl_op_b']
+    self.etypes = [
+#                   'l2w', 'w2l', 
+                   '+_f', 'and_f', 'or_f', 'xor_f', 'invert_f', 
+                   'abs_f', 'neg_f', '=_f', '!=_f', '-L_f', '-R_f', 
+                   '<L_f', '<R_f', '<=L_f', '<=R_f', '>L_f', '>R_f', '>=L_f', '>=R_f', 
+                   '+_b', 'and_b', 'or_b', 'xor_b', 'invert_b', 
+                   'abs_b', 'neg_b', '=_b',   '!=_b', '-L_b', '-R_b', 
+                   '<L_b', '<R_b', '<=L_b', '<=R_b', '>L_b', '>R_b', '>=L_b', '>=R_b']
+    self.etypes_f = ['+_f', 'and_f', 'or_f', 'xor_f', 'invert_f', 
+                   'abs_f', 'neg_f', '=_f', '!=_f', '-L_f', '-R_f', 
+                   '<L_f', '<R_f', '<=L_f', '<=R_f', '>L_f', '>R_f', '>=L_f', '>=R_f']
+    self.etypes_b = ['+_b', 'and_b', 'or_b', 'xor_b', 'invert_b', 
+                   'abs_b', 'neg_b', '=_b',   '!=_b', '-L_b', '-R_b', 
+                   '<L_b', '<R_b', '<=L_b', '<=R_b', '>L_b', '>R_b', '>=L_b', '>=R_b']
     # W_r for each relation
     self.weight = nn.ModuleDict({
       self.etypes[i] : nn.Linear(in_size, out_size) for i in range(len(self.etypes))
     })
-#    self.weight = nn.ModuleDict({
-#      self.etypes[0] : nn.Linear(in_size, out_size),
-#      self.etypes[1] : nn.Linear(in_size, out_size)
-#    })
     self.settings = settings if settings else CnfSettings()
     self.activation = activation if activation else eval(self.settings['non_linearity'])
+    
+  def get_edges(self, G, node, forward=True):
+      """
+      forward == True -> 'f' edges;    forward == False -> 'b' edges
+      in the forward case, return the edges ending with `node`
+      in the backward case, return the edges beggining with `node`
+      """
+      if forward:
+          edge_list = self.etypes_f
+          k = 1
+      else: # backward
+          edge_list = self.etypes_v
+          k = 0
+      result = []
+      for etype in edge_list:
+          if G.number_of_edges(etype=etype) > 0:
+               e = G.edges(etype=etype)
+               if node in e[k]:
+                   edges = [(e[0][i].item(), e[1][i].item()) for i in range(len(e[0])) if e[k][i].item() == node]
+                   result.append( (edges, etype) )
+      return result
   
-  def forward(self, G, feat_dict): #FIXME
-    # assume we get node features for variables and constants in feat_dict
-    # as of now, the "bitblasting" is done before this WordLevelLayer
-    # it is also plausible to think the bitblasting should be done at the beginning of this layer
+  def send_message(self, G, prop_order, forward=True):
+    for n in prop_order:
+        pre_aggregation = []
+        for x in self.get_edge(G, n, forward=forward):
+            edges, etype = x[0], x[1]
+            pre_aggregation += [ self.weight[etype](G.ndata['Wh_wl'][edges[i]]) for i in range(len(edges)) ]
+        msg = self.activation( torch.mean( torch.tensor(pre_aggregation) ) )
+        G.ndata['Wh_wl'][n] = msg
+
+  def forward(self, G, feat_dict): 
     # the input is a dictionary of node features for each type
+    G.ndata['Wh_wl'] = feat_dict['wl_node']
     
+#    import ipdb
+#    ipdb.set_trace()
+
+    n = G.number_of_nodes(ntype='wl_node')
+    forwards_order = torch.arange(n) # non leaves in order #FIXME
+    self.send_message(G, forwards_order, forward=True)
     
-    # FIXME: LINEAR LAYER
-    G.nodes['wl_node'].data['wl_0'] = feat_dict['wl_node']
-    
-    import ipdb
-    ipdb.set_trace()
-    
-    # propagate along wl_forward_edges, in order 0,1,2,...,n of wl_nodes
-    n = G.number_of_nodes("wl_node")
-    propagation_order_forwards = (torch.arange(n))
-    G.prop_nodes(propagation_order_forwards, 
-                 message_func = fn.copy_src('wl_0', 'wl_1'), 
-                 reduce_func = fn.sum('wl_1', 'wl_h'), 
-                 apply_node_func = None, 
-                 etype = 'wl_op_f')    
-    
-    # propagate along wl_backward_edges, in order n,n-1,...,0 of wl_nodes
-    propagation_order_backwards = (torch.tensor([n-1-i for i in range(n)]))
-    G.prop_nodes(propagation_order_backwards, 
-                 message_func = fn.copy_src('wl_h', 'wl_2'), 
-                 reduce_func = fn.sum('wl_2', 'wl_b'), 
-                 apply_node_func = None, 
-                 etype = 'wl_op_b')
+    backwards_order = [n - i for i in forwards_order.tolist()]
+    self.send_message(G, backwards_order, forward=False)
     
     
     
-#    # propagate bitblast edges from literals to wl_nodes
-#    Wh_l2w = self.weight['l2w'](feat_dict['literal'])
-#    G.nodes['literal'].data['Wh_l2w'] = Wh_l2w
-#    G['l2w'].update_all(fn.copy_src('Wh_l2w', 'm_l2w'), fn.mean('m_l2w', 'h_l2w'))
-#    wl_embs_0 = G.nodes['wl_node'].data['h_l2w']    # self.activation() ???
     
-    # propagate bitblast edges from wl_nodes to literals
-    
-    wl_embs = G.nodes['wl_noed'].data['wl_h']
-    return wl_embs
 
 ###############################################################################
 ##### Test WordLevelLayer
@@ -161,13 +168,21 @@ b.load_paired_files(
 x = torch.zeros([b.G.number_of_nodes("wl_node"), 5]) 
 for i in range(b.G.number_of_nodes("wl_node")): x[i] = i
 feat_dict = {
-        'literal': b.G.nodes['literal'].data['lit_labels'],   
+        #'literal': b.G.nodes['literal'].data['lit_labels'],   
         'wl_node' : x
 }
-in_size = feat_dict['literal'].shape[1]
+in_size = feat_dict['wl_node'].shape[1]
 out_size = 7
-W = WordLevelLayer(in_size, out_size, activation=F.relu)
-W_f = W(b.G, feat_dict)
+#
+#H = dgl.DGLGraph()
+#H.add_nodes(b.G.number_of_nodes("wl_node"))
+#H.add_edges(b.G.edges(etype="wl_op_f")[0], b.G.edges(etype="wl_op_f")[1])
+#
+#W = WordLevelLayer(in_size, out_size, activation=F.relu)
+#W_f = W(H, feat_dict)
+##W_f = W(b.G, feat_dict)
+
+
 ###############################################################################
    
 ###############################################################################

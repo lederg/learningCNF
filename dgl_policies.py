@@ -120,7 +120,7 @@ class WordLevelLayer(nn.Module):
           edge_list = self.etypes_f
           k = 1
       else: # backward
-          edge_list = self.etypes_v
+          edge_list = self.etypes_b
           k = 0
       result = []
       for etype in edge_list:
@@ -131,30 +131,40 @@ class WordLevelLayer(nn.Module):
                    result.append( (edges, etype) )
       return result
   
-  def send_message(self, G, prop_order, forward=True):
+  def send_messages(self, G, prop_order, forward=True):    
     for n in prop_order:
         pre_aggregation = []
-        for x in self.get_edge(G, n, forward=forward):
+        for x in self.get_edges(G, n, forward=forward):
             edges, etype = x[0], x[1]
-            pre_aggregation += [ self.weight[etype](G.ndata['Wh_wl'][edges[i]]) for i in range(len(edges)) ]
-        msg = self.activation( torch.mean( torch.tensor(pre_aggregation) ) )
-        G.ndata['Wh_wl'][n] = msg
+            pre_aggregation += [ self.weight[etype](G.nodes['wl_node'].data['Wh_wl'][edges[i][0]]) for i in range(len(edges)) ]
+        
+        if forward:
+            msg = self.activation( torch.mean(torch.stack(pre_aggregation), dim=0) )
+            G.nodes['wl_node'].data['Wh_wl'][n] = msg
+        else: # backward propagation
+            msgs = [ self.activation(p) for p in pre_aggregation ]
+            send_to = []
+            for a in self.get_edges(G, n, forward=forward):
+                edges = a[0]
+                for e in edges:
+                    send_to.append(e[1])
+            for i, dst in enumerate(send_to):
+                G.nodes['wl_node'].data['Wh_wl'][dst] = msgs[i]
+            
 
   def forward(self, G, feat_dict): 
     # the input is a dictionary of node features for each type
-    G.ndata['Wh_wl'] = feat_dict['wl_node']
-    
-#    import ipdb
-#    ipdb.set_trace()
+    G.nodes['wl_node'].data['Wh_wl'] = feat_dict['wl_node']
 
+    first_prop_node = int(G.nodes['wl_node'].data['begin_propagation'][0].item())
     n = G.number_of_nodes(ntype='wl_node')
-    forwards_order = torch.arange(n) # non leaves in order #FIXME
-    self.send_message(G, forwards_order, forward=True)
+    forwards_order = list(range(first_prop_node, n)) # non-leaves in order
+    self.send_messages(G, forwards_order, forward=True)
     
-    backwards_order = [n - i for i in forwards_order.tolist()]
-    self.send_message(G, backwards_order, forward=False)
+    backwards_order = [n - i -1 + first_prop_node for i in forwards_order]
+    self.send_messages(G, backwards_order, forward=False)
     
-    
+    return G.nodes['wl_node'].data['Wh_wl']
     
     
 
@@ -172,15 +182,16 @@ feat_dict = {
         'wl_node' : x
 }
 in_size = feat_dict['wl_node'].shape[1]
-out_size = 7
+out_size = in_size # FIXME # as of now, only works for same size
+
 #
 #H = dgl.DGLGraph()
 #H.add_nodes(b.G.number_of_nodes("wl_node"))
 #H.add_edges(b.G.edges(etype="wl_op_f")[0], b.G.edges(etype="wl_op_f")[1])
 #
-#W = WordLevelLayer(in_size, out_size, activation=F.relu)
+W = WordLevelLayer(in_size, out_size, activation=F.relu)
 #W_f = W(H, feat_dict)
-##W_f = W(b.G, feat_dict)
+W_f = W(b.G, feat_dict)
 
 
 ###############################################################################

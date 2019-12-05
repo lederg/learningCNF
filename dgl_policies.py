@@ -170,28 +170,28 @@ class WordLevelLayer(nn.Module):
 
 ###############################################################################
 ##### Test WordLevelLayer
-b = DGL_Graph_Base()
-b.load_paired_files(
-        wordlevel_fname = './data/words_3_levels_1/words_2.wordlevel', 
-        aag_fname = './data/words_3_levels_1/words_2.qaiger', 
-        qcnf_fname = './data/words_3_levels_1/words_2.qaiger.qdimacs')
-x = torch.zeros([b.G.number_of_nodes("wl_node"), 5]) 
-for i in range(b.G.number_of_nodes("wl_node")): x[i] = i
-feat_dict = {
-        #'literal': b.G.nodes['literal'].data['lit_labels'],   
-        'wl_node' : x
-}
-in_size = feat_dict['wl_node'].shape[1]
-out_size = in_size # FIXME # as of now, only works for same size
+# b = DGL_Graph_Base()
+# b.load_paired_files(
+#         wordlevel_fname = './data/words_3_levels_1/words_2.wordlevel', 
+#         aag_fname = './data/words_3_levels_1/words_2.qaiger', 
+#         qcnf_fname = './data/words_3_levels_1/words_2.qaiger.qdimacs')
+# x = torch.zeros([b.G.number_of_nodes("wl_node"), 5]) 
+# for i in range(b.G.number_of_nodes("wl_node")): x[i] = i
+# feat_dict = {
+#         #'literal': b.G.nodes['literal'].data['lit_labels'],   
+#         'wl_node' : x
+# }
+# in_size = feat_dict['wl_node'].shape[1]
+# out_size = in_size # FIXME # as of now, only works for same size
 
 #
 #H = dgl.DGLGraph()
 #H.add_nodes(b.G.number_of_nodes("wl_node"))
 #H.add_edges(b.G.edges(etype="wl_op_f")[0], b.G.edges(etype="wl_op_f")[1])
 #
-W = WordLevelLayer(in_size, out_size, activation=F.relu)
-#W_f = W(H, feat_dict)
-W_f = W(b.G, feat_dict)
+# W = WordLevelLayer(in_size, out_size, activation=F.relu)
+# #W_f = W(H, feat_dict)
+# W_f = W(b.G, feat_dict)
 
 
 ###############################################################################

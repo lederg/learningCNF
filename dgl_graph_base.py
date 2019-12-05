@@ -26,7 +26,7 @@ class DGL_Graph_Base(object):
         9-dimensional features for literal nodes
         1-dimensional features for clause nodes
     """
-    def __init__(self, qcnf = None, qcnf_base = None, aag = None, wl = None, G = None, var_graph=False, **kwargs):
+    def __init__(self, var_graph = False, qcnf = None, qcnf_base = None, aag = None, wl = None, G = None, **kwargs):
         self.qcnf = qcnf # WARNING: if use update_DGL_graph(), check that fix_qcnf_numbering() is used too
         self.qcnf_base = qcnf_base
         self.aag = aag
@@ -150,7 +150,7 @@ class DGL_Graph_Base(object):
                     qcnf_forward_edges.remove(qcnf_forward_edges_cl_num)
                     qcnf_backward_edges.remove(qcnf_backward_edges_cl_num)
                 
-        ######## Save graph info in the base object
+        ######## Store graph info in this base object
         self.extra_clauses = extra_clauses
         self.removed_old_clauses = removed_old_clauses
         self.clause_labels = clause_labels
@@ -160,10 +160,10 @@ class DGL_Graph_Base(object):
             self.v2c_p, self.v2c_n, self.c2v_p, self.c2v_n = v2c_p, v2c_n, c2v_p, c2v_n
         else: # literal graph
             self.lit_labels = lit_labels
-            self.qcnf_forward_edges = qcnf_forward_edges
-            self.qcnf_backward_edges = qcnf_backward_edges
+            self.aag_forward_edges, self.aag_backward_edges = aag_forward_edges, aag_backward_edges
+            self.qcnf_forward_edges, self.qcnf_backward_edges = qcnf_forward_edges, qcnf_backward_edges
         
-        ######## Form the DGL graph (no word-level)
+        ######## Form the DGL graph (no word-level component)
         if not self.wl:
             if self.var_graph: # variable graph, no word-level
                 G = dgl.heterograph(
@@ -546,17 +546,22 @@ def Vars01_to_Lits01(V):
     
     
 ##############################################################################
-##### TESTING         
-c = DGL_Graph_Base()
-c.load_paired_files(
-        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
-        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs')
+##### TESTING   
+
+# test without WordLevel   
     
-d = DGL_Graph_Base()
-d.load_paired_files(
-        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
-        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs',
-        var_graph =  True)
+#c = DGL_Graph_Base()
+#c.load_paired_files(
+#        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
+#        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs')
+#    
+#d = DGL_Graph_Base()
+#d.load_paired_files(
+#        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
+#        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs',
+#        var_graph =  True)
+    
+# test with WordLevel 
 
 #e = DGL_Graph_Base()
 #e.load_paired_files(

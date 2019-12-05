@@ -27,18 +27,18 @@ def require_init(f, *args, **kwargs):
     
 class CadetEnv(EnvBase):
   def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, slim_state=False,
-                use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, var_graph=False,
+                use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True,
                 use_vsids_rewards = False, def_step_cost = -1e-4, cadet_completion_reward=1., logger=None, settings=None, **kwargs):
     self.EnvObservation = namedtuple('EnvObservation', 
                     ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
                       'reward', 'vars_set', 'done'])
     
     self.settings = settings if settings else CnfSettings()
+    self.var_graph = self.settings['var_graph']
     self.cadet_binary = cadet_binary
     self.debug = debug
-    self.qbf = QbfBase(**kwargs)
-    self.aag_qcnf = DGL_Graph_Base(var_graph=var_graph, **kwargs) #CombinedGraph1Base(**kwargs)
-    self.var_graph=var_graph
+    self.qbf = QbfBase(**kwargs)    
+    self.aag_qcnf = DGL_Graph_Base(**kwargs) #CombinedGraph1Base(**kwargs)
     self.greedy_rewards = greedy_rewards
     self.clause_learning = clause_learning
     self.vars_set = vars_set
@@ -331,7 +331,7 @@ class CadetEnv(EnvBase):
   # And it returns the next observation.
 
   def process_observation(self, last_obs, env_obs, settings=None):
-      
+            
     if not env_obs:
       return None
       
@@ -345,25 +345,12 @@ class CadetEnv(EnvBase):
           extra_clauses[k] = [convert_qdimacs_lit(l) for l in extra_clauses[k]]
         
       # update the combined graph
-      old_base = last_obs.ext_data if last_obs else None
-      G = last_obs.ext_data.G if last_obs else self.aag_qcnf.G
-      
-      lit_labels = G.nodes['literal'].data['lit_labels']
-      clause_labels = G.nodes['clause'].data['clause_labels']
+      old_base = last_obs.ext_data if last_obs else None      
       self.aag_qcnf.create_DGL_graph(
               qcnf_base = self.qbf,
               old_base = old_base,
               extra_clauses = extra_clauses, # UPDATE: learned/derived clauses
               removed_old_clauses = self.qbf.removed_old_clauses, # UPDATE: removed old clauses
-#              qcnf_base = self.qbf,
-#              aag_forward_edges = self.aag_qcnf.aag_forward_edges, 
-#              aag_backward_edges = self.aag_qcnf.aag_backward_edges,
-#              qcnf_forward_edges = self.aag_qcnf.qcnf_forward_edges, 
-#              qcnf_backward_edges = self.aag_qcnf.qcnf_backward_edges,
-#              extra_clauses = extra_clauses, # UPDATE: learned/derived clauses
-#              removed_old_clauses = self.qbf.removed_old_clauses, # UPDATE: removed old clauses
-#              lit_labels = lit_labels, 
-#              clause_labels = clause_labels
       )
             
     else: # no changed clauses AND last_obs, graph is the same

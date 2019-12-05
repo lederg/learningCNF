@@ -6,7 +6,7 @@ from IPython.core.debugger import Tracer
 import time
 from settings import *
 from qbf_data import *
-from dgl_graph_base import DGL_Graph_Base
+from dgl_graph_base import *
 from cadet_utils import *
 from envbase import *
 

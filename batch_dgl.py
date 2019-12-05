@@ -4,7 +4,7 @@ Batch a list of AAG-CNF graphs
 import torch
 import dgl
 import networkx
-from qbf_data import CombinedGraph1Base
+from dgl_graph_base import DGL_Graph_Base
 import time
     
 def batched_combined_graph(L):
@@ -56,11 +56,11 @@ def batched_combined_graph(L):
 ###############################################################################
     ### TEST
 ###############################################################################
-#a = CombinedGraph1Base()
+#a = DGL_Graph_Base()
 #a.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/a.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/a.qaiger.qdimacs')
-#b = CombinedGraph1Base()
+#b = DGL_Graph_Base()
 #b.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/b.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/b.qaiger.qdimacs')
-#c = CombinedGraph1Base()
+#c = DGL_Graph_Base()
 #c.load_paired_files(aag_fname = './data/words_test_ryan_mini_m/c.qaiger', qcnf_fname = './data/words_test_ryan_mini_m/c.qaiger.qdimacs')
 #A, B, C = a.G, b.G, c.G
 #G = batched_combined_graph2([A, B, C])

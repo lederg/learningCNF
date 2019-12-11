@@ -105,25 +105,6 @@ class CNFVarLayer(nn.Module):
     G.nodes['variable'].data['h_c2v'] = vembs
                         
     return vembs
-
-
-###############################################################################
-##### Test CNFVarLayer()
-#a = DGL_Graph_Base()
-#a.load_paired_files(
-#        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
-#        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs',
-#        var_graph =  True)
-#feat_dict = {
-#        'variable': a.G.nodes['variable'].data['var_labels'],   
-#        'clause' : a.G.nodes['clause'].data['clause_labels'] 
-#}
-#in_size = feat_dict['variable'].shape[1]
-#clause_size = 11
-#out_size = 7
-#C = CNFVarLayer(in_size, clause_size, out_size, activation=F.relu)
-#C_f = C(a.G, feat_dict)  
-###############################################################################
     
 class AAGLayer(nn.Module):
   def __init__(self, in_size, out_size, activation=None, settings=None):
@@ -278,6 +259,7 @@ class DGLEncoder(nn.Module):
   def __init__(self, settings=None, **kwargs):
     super(DGLEncoder, self).__init__()
     self.settings = settings if settings else CnfSettings()
+    
     self.vlabel_dim = self.settings['vlabel_dim']
     self.clabel_dim = self.settings['clabel_dim']
     self.vemb_dim = self.settings['vemb_dim']
@@ -313,6 +295,20 @@ class CNFEncoder(DGLEncoder):
       pre_embs = self.layers[i](G, feat_dict)
       embs = DGLEncoder.tie_literals(pre_embs)
     return torch.cat([embs,vlabels],dim=1)
+
+class CNFVarEncoder(DGLEncoder):
+  def __init__(self, settings=None, **kwargs):
+    super(CNFVarEncoder, self).__init__(settings=settings, **kwargs)
+
+    self.layers = nn.ModuleList([CNFVarLayer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
+    for i in range(1,self.max_iters):
+      self.layers.append(CNFVarLayer(self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
+
+  def forward(self, G, feat_dict, **kwargs):    
+    embs = self.layers[0](G,feat_dict)
+    for i in range(1,self.max_iters):      
+      embs = self.layers[i](G, feat_dict)
+    return embs
 
 class CnfAagEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
@@ -563,3 +559,34 @@ class DGLPolicy(PolicyBase):
 #    G['aag_backward'].update_all(fn.copy_src('Wh_ab', 'm_ab'), reduce_ab)
 #    import ipdb
 #    ipdb.set_trace()
+
+###############################################################################
+#### Test CNFVarLayer()
+#a = DGL_Graph_Base()
+#a.load_paired_files(
+#        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
+#        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs',
+#        var_graph =  True)
+#feat_dict = {
+#        'variable': a.G.nodes['variable'].data['var_labels'],   
+#        'clause' : a.G.nodes['clause'].data['clause_labels'] 
+#}
+#in_size = feat_dict['variable'].shape[1]
+#clause_size = 11
+#out_size = 7
+#C = CNFVarLayer(in_size, clause_size, out_size, activation=F.relu)
+#C_f = C(a.G, feat_dict)  
+##### Test CNFVarEncoder()
+### put the following inside DGLEncoder __init__()
+#self.vlabel_dim = 9
+#self.clabel_dim = 1
+#self.vemb_dim = 9
+#self.cemb_dim = 11 #hidden
+#self.max_iters = 2   
+#self.non_linearity = F.relu
+####
+#G = a.G
+###feat_dict = {'variable' : torch.ones(10,4), 'clause': torch.ones(10,1)}
+#e = CNFVarEncoder()
+#v = e(G, feat_dict)
+###############################################################################

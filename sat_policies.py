@@ -620,7 +620,7 @@ class SatDeleteAllPolicy(PolicyBase):
 
 class SatFixedThresholdPolicy(PolicyBase):
   def __init__(self, encoder=None, **kwargs):
-    super(SatFixedThresholdPolicy, self).__init__(**kwargs)
+    super(SatFixedThresholdPolicy, self).__init__(oracletype='lbd_threshold', **kwargs)
     self.t = self.settings['init_threshold']
     self.threshold = nn.Parameter(torch.tensor(self.t), requires_grad=False)
     
@@ -645,16 +645,8 @@ class SatFixedThresholdPolicy(PolicyBase):
     # return torch.cat(actions)
 
   def select_action(self, obs_batch, **kwargs):
-    assert(obs_batch.clabels.shape[0]==1)
-    threshold = self.forward(obs_batch)
-    clabels = obs_batch.clabels.view(-1,self.clabel_dim)
-    rc = clabels[:,CLABEL_LBD] < threshold
-    a = rc.detach()
-    num_learned = obs_batch.ext_data[0]
-    locked = clabels[num_learned[0]:num_learned[1],CLABEL_LOCKED].long().view(1,-1)
-    final_action = torch.max(a.long(),locked).view(-1)
-
-    return [final_action]
+    
+    return [self.t], 0.
 
   def compute_loss(self, transition_data):        
     return 0., self.threshold

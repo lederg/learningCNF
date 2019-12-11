@@ -569,6 +569,8 @@ def Vars01_to_Lits01(V):
 #        aag_fname = './data/words_3_levels_1/words_2.qaiger', 
 #        qcnf_fname = './data/words_3_levels_1/words_2.qaiger.qdimacs')
 #
+## test with WordLevel and Variable - DOESNT WORK YET
+#    
 #f = DGL_Graph_Base()
 #f.load_paired_files(
 #        wordlevel_fname = './data/words_3_levels_1/words_2.wordlevel', 

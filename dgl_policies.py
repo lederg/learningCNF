@@ -47,7 +47,83 @@ class CNFLayer(nn.Module):
                     
     return lembs
 
+class CNFVarLayer(nn.Module):
+  def __init__(self, in_size, clause_size, out_size, activation=None, settings=None, **kwargs):
+    super(CNFVarLayer, self).__init__()
+    self.ntypes = ['variable', 'clause']
+    self.etypes = ['v2c_+', 'v2c_-', 'c2v_+', 'c2v_-']
+    # W_r for each relation
+    self.weight = nn.ModuleDict({
+      self.etypes[0] : nn.Linear(in_size, clause_size),
+      self.etypes[1] : nn.Linear(in_size, clause_size),
+      self.etypes[2] : nn.Linear(clause_size+1, out_size),
+      self.etypes[3] : nn.Linear(clause_size+1, out_size)
+    })
+    self.settings = settings if settings else CnfSettings()
+    self.activation = activation if activation else eval(self.settings['non_linearity'])
+    
+  def forward(self, G, feat_dict):
+    # the input is a dictionary of node features for each type
+    
+    ###### v2c propagation
+    Wh_v2c_p = self.weight['v2c_+'](feat_dict['variable'])
+    G.nodes['variable'].data['Wh_v2c_p'] = Wh_v2c_p
+    Wh_v2c_n = self.weight['v2c_-'](feat_dict['variable'])
+    G.nodes['variable'].data['Wh_v2c_n'] = Wh_v2c_n
+    
+    G['v2c_+'].update_all(fn.copy_src('Wh_v2c_p', 'm_v2c_p'), fn.sum('m_v2c_p', 'h_v2c_p'))
+    G['v2c_-'].update_all(fn.copy_src('Wh_v2c_n', 'm_v2c_n'), fn.sum('m_v2c_n', 'h_v2c_n'))
+    
+    cembs = G.nodes['clause'].data['h_v2c_p'] + G.nodes['clause'].data['h_v2c_n']
 
+    # normalize, for each clause node
+    combined_degrees = G.in_degrees(etype="v2c_+") + G.in_degrees(etype="v2c_-")
+    combined_degrees[combined_degrees == 0] = 1
+    combined_degrees = combined_degrees.float()
+    cembs = ((cembs.T)/combined_degrees).T
+    cembs = self.activation(cembs)
+    G.nodes['clause'].data['h_v2c'] = cembs
+    cembs = torch.cat([cembs,feat_dict['clause']], dim=1)
+    
+    ###### c2v propagation  
+    Wh_c2v_p = self.weight['c2v_+'](cembs)
+    G.nodes['clause'].data['Wh_c2v_p'] = Wh_c2v_p
+    Wh_c2v_n = self.weight['c2v_-'](cembs)
+    G.nodes['clause'].data['Wh_c2v_n'] = Wh_c2v_n
+    
+    G['c2v_+'].update_all(fn.copy_src('Wh_c2v_p', 'm_c2v_p'), fn.sum('m_c2v_p', 'h_c2v_p'))
+    G['c2v_-'].update_all(fn.copy_src('Wh_c2v_n', 'm_c2v_n'), fn.sum('m_c2v_n', 'h_c2v_n'))
+    
+    cembs = G.nodes['variable'].data['h_c2v_p'] + G.nodes['variable'].data['h_c2v_n']
+
+    # normalize, for each clause node
+    combined_degrees = G.in_degrees(etype="c2v_+") + G.in_degrees(etype="c2v_-")
+    combined_degrees[combined_degrees == 0] = 1
+    combined_degrees = combined_degrees.float()
+    vembs = ((cembs.T)/combined_degrees).T
+    vembs = self.activation(vembs)
+    G.nodes['variable'].data['h_c2v'] = vembs
+                        
+    return vembs
+
+
+###############################################################################
+##### Test CNFVarLayer()
+#a = DGL_Graph_Base()
+#a.load_paired_files(
+#        aag_fname = './data/words_test_ryan_0/words_0_SAT.qaiger', 
+#        qcnf_fname = './data/words_test_ryan_0/words_0_SAT.qaiger.qdimacs',
+#        var_graph =  True)
+#feat_dict = {
+#        'variable': a.G.nodes['variable'].data['var_labels'],   
+#        'clause' : a.G.nodes['clause'].data['clause_labels'] 
+#}
+#in_size = feat_dict['variable'].shape[1]
+#clause_size = 11
+#out_size = 7
+#C = CNFVarLayer(in_size, clause_size, out_size, activation=F.relu)
+#C_f = C(a.G, feat_dict)  
+###############################################################################
     
 class AAGLayer(nn.Module):
   def __init__(self, in_size, out_size, activation=None, settings=None):

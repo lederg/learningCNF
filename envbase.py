@@ -2,6 +2,7 @@ import os
 import torch.multiprocessing as mp
 from enum import Enum
 from utils import set_proc_name
+import gym
 
 class EnvCommands(Enum):
 	CMD_RESET = 1
@@ -11,8 +12,8 @@ class EnvCommands(Enum):
 	ACK_STEP = 5
 	ACK_EXIT = 6
 
-class EnvBase(object):
-	def __init__(self):
+class EnvBase(gym.Env):
+	def __init__(self, config):
 		pass
 
 	def step(self,action):
@@ -21,6 +22,9 @@ class EnvBase(object):
 	def exit(self):
 		pass
 
+	def close(self):
+		self.exit()
+		
 	def reset(self,fname):
 		pass
 

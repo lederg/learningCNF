@@ -125,17 +125,20 @@ class SatActiveEnv:
         raise e
 
 class SatEnvProxy(EnvBase):
-  def __init__(self, queue_in, queue_out, server_pid, settings=None):
-    self.settings = settings if settings else CnfSettings()
-    self.queue_in = queue_in
-    self.queue_out = queue_out
+  def __init__(self, config):
+    self.settings = config['settings']
+    if not self.settings:
+      self.settings = CnfSettings()
+    self.queue_in = config['queue_in']
+    self.queue_out = config['queue_out']
+    self.provider = config['provider']
     self.state = torch.zeros(8)
     self.orig_clabels = None
     self.rewards = None
     self.finished = False
     self.reward_scale = self.settings['sat_reward_scale']
     self.disable_gnn = self.settings['disable_gnn']
-    self.server_pid = server_pid
+    self.server_pid = config['server_pid']
     self.logger = utils.get_logger(self.settings, 'SatEnvProxy')
 
   def step(self, action):
@@ -147,16 +150,18 @@ class SatEnvProxy(EnvBase):
     if env_obs.reward:
       r = env_obs.reward / self.reward_scale
       self.rewards.append(r)
-    return env_obs
+    print('Here 0')
+    return env_obs.state, r, env_obs.done, None
 
-  def reset(self, fname):
+  def reset(self):
+    fname = self.provider.get_next()
     self.finished = False
     self.rewards = []
     self.queue_out.put((EnvCommands.CMD_RESET,fname))
     ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'    
     if rc != None:
-      return SatActiveEnv.EnvObservation(*rc)
+      return SatActiveEnv.EnvObservation(*rc).state
 
   def exit(self):
     self.queue_out.put((EnvCommands.CMD_EXIT,None))
@@ -230,8 +235,12 @@ class SatEnvServer(mp.Process):
     self.uncache_after_batch = self.settings['uncache_after_batch']
     self.logger = utils.get_logger(self.settings, 'SatEnvServer')    
 
-  def proxy(self):
-    return SatEnvProxy(self.queue_out, self.queue_in, self.pid)
+  def proxy(self, **kwargs):
+    config = kwargs
+    config['queue_out'] = self.queue_in
+    config['queue_in'] = self.queue_out
+    config['server_pid'] = self.pid
+    return SatEnvProxy(config)
 
   def run(self):
     print('Env {} on pid {}'.format(self.env.name, os.getpid()))

@@ -18,7 +18,7 @@ class EnvFactory:
   def create_env(self, envtype=None, **kwargs):
     if not envtype:
       envtype = self.settings['solver']
-
+    kwargs['settings'] = self.settings
     if envtype == 'cadet':
       return CadetEnv(**self.settings.hyperparameters)
     elif envtype == 'minisat':
@@ -26,7 +26,7 @@ class EnvFactory:
       satserv = SatEnvServer(satenv)
       log.info('Starting minisat server')
       satserv.start()
-      return satserv.proxy()
+      return satserv.proxy(**kwargs)
     elif envtype == 'function':
       return FunctionEnv(**kwargs)
     elif envtype == 'empty':

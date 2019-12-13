@@ -90,6 +90,7 @@ def cfg():
     gamma = 0.99
     entropy_alpha = 0.000
     policy = 'Actor1Policy'
+    dgl_cnf_layer = 'CNFLayer'
     policy_dim1 = 64
     policy_dim2 = 0
     batch_backwards = False  # deprecated                    # Are we going to re-feed all states into the network in batch (True) or do the naive solution (False)

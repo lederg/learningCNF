@@ -13,6 +13,7 @@ import tracemalloc
 import torch.multiprocessing as mp
 import utils
 import pysolvers
+from gym import *
 from settings import *
 from qbf_data import *
 from envbase import *
@@ -21,6 +22,7 @@ from reduce_base_provider import *
 
 LOG_SIZE = 200
 DEF_STEP_REWARD = -0.01     # Temporary reward until Pash sends something from minisat
+NUM_ACTIONS = 29
 log = mp.get_logger()
 
 
@@ -129,6 +131,8 @@ class SatEnvProxy(EnvBase):
     self.settings = config['settings']
     if not self.settings:
       self.settings = CnfSettings()
+    self.action_space = spaces.Discrete(NUM_ACTIONS)      # Make a config or take it from somewhere
+    self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(201,))
     self.queue_in = config['queue_in']
     self.queue_out = config['queue_out']
     self.provider = config['provider']
@@ -138,6 +142,7 @@ class SatEnvProxy(EnvBase):
     self.finished = False
     self.reward_scale = self.settings['sat_reward_scale']
     self.disable_gnn = self.settings['disable_gnn']
+    self.sat_min_reward = self.settings['sat_min_reward']
     self.server_pid = config['server_pid']
     self.logger = utils.get_logger(self.settings, 'SatEnvProxy')
 
@@ -146,12 +151,11 @@ class SatEnvProxy(EnvBase):
     ack, rc = self.queue_in.get()  
     assert ack==EnvCommands.ACK_STEP, 'Expected ACK_STEP'
     env_obs = SatActiveEnv.EnvObservation(*rc)
-    self.finished = env_obs.done    
-    if env_obs.reward:
+    self.finished = env_obs.done
+    if env_obs.reward:      
       r = env_obs.reward / self.reward_scale
-      self.rewards.append(r)
-    print('Here 0')
-    return env_obs.state, r, env_obs.done, None
+      self.rewards.append(r)    
+    return env_obs, r, env_obs.done or self.check_break(), None
 
   def reset(self):
     fname = self.provider.get_next()
@@ -168,6 +172,13 @@ class SatEnvProxy(EnvBase):
     ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_EXIT, 'Expected ACK_EXIT'
 
+    # For the gym interface, the env itself decides whether to abort.
+
+  def check_break(self):
+    if self.sat_min_reward:        
+      return (sum(self.rewards) < self.sat_min_reward)
+    else:
+      return False
 
   def new_episode(self, fname, **kwargs):    
     return self.reset(fname)        

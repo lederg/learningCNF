@@ -13,7 +13,9 @@ import tracemalloc
 import torch.multiprocessing as mp
 import utils
 import pysolvers
+import traceback
 from gym import *
+from gym import spaces
 from settings import *
 from qbf_data import *
 from envbase import *
@@ -155,7 +157,7 @@ class SatEnvProxy(EnvBase):
     if env_obs.reward:      
       r = env_obs.reward / self.reward_scale
       self.rewards.append(r)    
-    return env_obs, r, env_obs.done or self.check_break(), None
+    return env_obs.state, r, env_obs.done or self.check_break(), {}
 
   def reset(self):
     fname = self.provider.get_next()
@@ -295,7 +297,7 @@ class SatEnvServer(mp.Process):
       if self.cmd == EnvCommands.CMD_STEP:
         last_step_reward = -(self.env.get_reward() - self.last_reward)      
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
-        msg = self.env.EnvObservation(reward=self.winning_reward+last_step_reward, done=True)
+        msg = self.env.EnvObservation(state=np.zeros(201), reward=self.winning_reward+last_step_reward, done=True)
         # msg = self.env.EnvObservation(None, None, None, None, None, None, self.winning_reward+last_step_reward, True)
         self.queue_out.put((EnvCommands.ACK_STEP,tuple(msg)))
         self.total_episodes += 1

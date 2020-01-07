@@ -52,7 +52,7 @@ def my_postprocess(info):
 		ObserverDispatcher().notify('new_batch')
 
 class RLLibTrainer():
-	def __init__(self):
+	def __init__(self, args):
 		self.settings = CnfSettings()		
 		self.clock = GlobalTick()
 		self.logger = utils.get_logger(self.settings, 'rllib_trainer', 'logs/{}_rllib_trainer.log'.format(log_name(self.settings)))
@@ -60,7 +60,10 @@ class RLLibTrainer():
 		self.training_steps = self.settings['training_steps']        
 		register_env("sat_env", env_creator)
 		ModelCatalog.register_custom_model("sat_model", SatThresholdModel)
-		ray.init()
+		if args.cluster:
+			ray.init(address='auto', redis_password='blabla')
+		else:
+			ray.init()
 
 	def main(self):    
 		if self.settings['do_not_run']:
@@ -92,20 +95,21 @@ class RLLibTrainer():
 				print("checkpoint saved at", checkpoint)
 
 
-def rllib_main():	
-	rllib_trainer = RLLibTrainer()
+def rllib_main(args):	
+	rllib_trainer = RLLibTrainer(args)
 	rllib_trainer.main()
 
 if __name__=='__main__':
 	parser = argparse.ArgumentParser(description='Process some params.')
 	parser.add_argument('params', metavar='N', type=str, nargs='*', help='an integer for the accumulator')
 	parser.add_argument('-s', '--settings', type=str, help='settings file') 
+	parser.add_argument('-c', '--cluster', action='store_true', default=False, help='settings file') 
 	args = parser.parse_args()
 	get_settings_from_file(args.settings)
 	for param in args.params:
 		k, v = param.split('=')
 		settings.hyperparameters[k]=v
-	rllib_main()
+	rllib_main(args)
 
 
 

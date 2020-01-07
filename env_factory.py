@@ -1,7 +1,8 @@
 from IPython.core.debugger import Tracer
 import time
 import logging
-
+import socket
+import os
 
 from settings import *
 from cadet_env import CadetEnv
@@ -48,4 +49,8 @@ def env_creator(env_config):
     provider=pcls(env_config['formula_dir'])
     settings.formula_cache = FormulaCache()
     env = envfac.create_env(provider=provider, oracletype='lbd_threshold')
+    hostname = socket.gethostname()
+    IPAddr = socket.gethostbyname(hostname)
+    print(hostname,IPAddr,os.getpid())
+
     return env

@@ -76,10 +76,10 @@ class SatThresholdModel(RLLibModel):
 
   def forward(self, input_dict, state, seq_lens):  
     features = self.policy_layers(input_dict["obs"])
-    self._value_out = self.value_layer(features).view(1)
+    # self._value_out = self.value_layer(features).view(1)
+    self._value_out = self.value_layer(features)
     return self.logits_layer(features), state
 
   def value_function(self):
-    print('returning value {}'.format(self._value_out))
-    return self._value_out
+    return self._value_out.view(-1)
 

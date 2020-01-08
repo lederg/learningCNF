@@ -80,6 +80,8 @@ class RLLibTrainer():
 		config["sample_batch_size"]=int(self.settings['min_timesteps_per_batch'])
 		config["train_batch_size"]=int(self.settings['min_timesteps_per_batch'])
 		config['gamma'] = float(self.settings['gamma'])
+		config["model"] = {"custom_model": "sat_model"}		
+		config['use_pytorch'] = True
 		config['lr'] = float(self.settings['init_lr'])
 		if settings['use_seed']:
 			config['seed'] = int(settings['use_seed'])

@@ -40,7 +40,7 @@ class EnvFactory:
       return None
 
 def env_creator(env_config):
-    is_eval = env_config['eval']
+    is_eval = env_config['eval']    
     settings = CnfSettings(env_config['settings'])
     settings.hyperparameters['cuda']=False
     envfac = EnvFactory()

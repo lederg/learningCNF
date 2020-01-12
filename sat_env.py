@@ -157,6 +157,8 @@ class SatEnvProxy(EnvBase):
     if env_obs.reward:      
       r = env_obs.reward / self.reward_scale
       self.rewards.append(r)    
+    # if env_obs.done:
+    #   print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
     return env_obs.state, r, env_obs.done or self.check_break(), {}
 
   def reset(self):

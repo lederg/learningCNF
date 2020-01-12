@@ -21,7 +21,7 @@ from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.evaluation.rollout_worker import *
 from ray.rllib.evaluation.worker_set import *
 from ray.tune.logger import pretty_print
-
+from argmax_action_dist import TorchCategoricalArgmax
 from dispatcher import *
 from episode_data import *
 from policy_factory import *
@@ -51,6 +51,41 @@ def my_postprocess(info):
 		steps_counter = 0
 		ObserverDispatcher().notify('new_batch')
 
+
+
+def get_logger_creator(settings):
+	import tempfile
+	from ray.tune.logger import UnifiedLogger
+	logdir_prefix = settings['name']+'_'
+	logdir_default = settings['rl_log_dir']
+
+	def named_logger_creator(config):
+	    """Creates a Unified logger with a default logdir prefix
+	    containing the agent name and the env id
+	    """
+	    if not os.path.exists(logdir_default):
+	        os.makedirs(logdir_default)
+	    logdir = tempfile.mkdtemp(
+	        prefix=logdir_prefix, dir=logdir_default)
+	    return UnifiedLogger(config, logdir, loggers=None)
+
+	return named_logger_creator
+
+
+@ray.remote
+def evaluate(config, weights):
+	env_config = config['env_config']
+	settings = env_config['settings']
+	env_config['eval'] = True
+	env_config['formula_dir'] = settings['rl_test_data']
+	config["model"]['custom_action_dist'] = 'argmax_dist'
+	w = RolloutWorker(env_creator=env_creator, policy=A3CTorchPolicy, batch_mode='complete_episodes', policy_config=config, env_config=config['env_config'])
+	w.set_weights(weights['default_policy'])
+	a = w.sample()
+	import ipdb
+	ipdb.set_trace()
+	return 'bla'
+
 class RLLibTrainer():
 	def __init__(self, args):
 		self.settings = CnfSettings()		
@@ -60,6 +95,8 @@ class RLLibTrainer():
 		self.training_steps = self.settings['training_steps']        
 		register_env("sat_env", env_creator)
 		ModelCatalog.register_custom_model("sat_model", SatThresholdModel)
+		ModelCatalog.register_custom_action_dist("argmax_dist", TorchCategoricalArgmax)
+		# TorchCategoricalArgmax
 		if args.cluster:
 			ray.init(address='auto', redis_password='blabla')
 		else:
@@ -80,16 +117,22 @@ class RLLibTrainer():
 		config["sample_batch_size"]=int(self.settings['min_timesteps_per_batch'])
 		config["train_batch_size"]=int(self.settings['min_timesteps_per_batch'])
 		config['gamma'] = float(self.settings['gamma'])
-		config["model"] = {"custom_model": "sat_model"}		
+		config["model"] = {"custom_model": "sat_model"}
 		config['use_pytorch'] = True
 		config['lr'] = float(self.settings['init_lr'])
 		if settings['use_seed']:
 			config['seed'] = int(settings['use_seed'])
 		config["callbacks"] = {'on_postprocess_traj': my_postprocess}
-		config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data']}
-		trainer = a3c.A3CTrainer(config=config, env="sat_env")
+		config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data'], 'eval': False}
+		trainer = a3c.A3CTrainer(config=config, env="sat_env", logger_creator=get_logger_creator(settings))
+		if self.settings['base_model']:
+			self.logger.info('Loading from {}..'.format(self.settings['base_model']))
+			trainer.restore(self.settings['base_model'])
 		print('Running for {} iterations..'.format(self.training_steps))
 		for i in range(self.training_steps):
+			# weights = ray.put({"default_policy": trainer.get_weights()})			
+			# eval_metrics = evaluate(config, weights)
+			# eval_metrics = evaluate.remote(config, weights)
 			result = trainer.train()
 			print(pretty_print(result))
 			if i % 100 == 0:

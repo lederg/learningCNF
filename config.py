@@ -81,6 +81,7 @@ def cfg():
 	policy_non_linearity = 'torch.relu'
 	attn_non_linearity = 'F.tanh'
 	episode_provider = 'UniformEpisodeProvider'
+	evaluation_provider = 'OnePassProvider'
 	test_every = 1000
 	sync_every = 5
 	is_sat=True

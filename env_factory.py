@@ -40,14 +40,19 @@ class EnvFactory:
       return None
 
 def env_creator(env_config):
+    is_eval = env_config['eval']
     settings = CnfSettings(env_config['settings'])
     settings.hyperparameters['cuda']=False
+    envfac = EnvFactory()
+    if is_eval:
+      pcls = eval(settings['evaluation_provider'])
+      provider=pcls(env_config['formula_dir'])      
+    else:
+      pcls = eval(settings['episode_provider'])
+      provider=pcls(env_config['formula_dir'])
+    settings.formula_cache = FormulaCache()
     if settings['preload_formulas']:
         settings.formula_cache.load_files(provider.items)  
-    envfac = EnvFactory()
-    pcls = eval(settings['episode_provider'])
-    provider=pcls(env_config['formula_dir'])
-    settings.formula_cache = FormulaCache()
     env = envfac.create_env(provider=provider, oracletype='lbd_threshold')
     hostname = socket.gethostname()
     IPAddr = socket.gethostbyname(hostname)

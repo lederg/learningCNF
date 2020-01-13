@@ -97,6 +97,8 @@ def evaluate(steps, config, weights):
 		# 	print('Eval {}'.format(i))
 	res = np.mean(results)
 	print('Evaluate finished with reward {}'.format(res))
+	w.stop()
+	del w
 	return steps, res
 
 class RLLibTrainer():

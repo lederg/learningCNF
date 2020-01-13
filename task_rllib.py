@@ -85,6 +85,7 @@ def evaluate(steps, config, weights):
 	config["model"]['custom_action_dist'] = 'argmax_dist'
 	config["sample_batch_size"]=1
 	config["train_batch_size"]=1
+	config["entropy_coeff"]=float(settings['entropy_alpha'])
 	config["callbacks"] = {'on_postprocess_traj': eval_postprocess}
 	w = RolloutWorker(env_creator=env_creator, policy=A3CTorchPolicy, batch_steps=1, batch_mode='complete_episodes', 
 		callbacks={'on_postprocess_traj': eval_postprocess}, policy_config=config, env_config=config['env_config'])

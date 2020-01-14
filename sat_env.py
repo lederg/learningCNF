@@ -133,8 +133,9 @@ class SatEnvProxy(EnvBase):
     self.settings = config['settings']
     if not self.settings:
       self.settings = CnfSettings()
+    self.state_dim = self.settings['state_dim']
     self.action_space = spaces.Discrete(NUM_ACTIONS)      # Make a config or take it from somewhere
-    self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(201,))
+    self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.state_dim,))
     self.queue_in = config['queue_in']
     self.queue_out = config['queue_out']
     self.provider = config['provider']
@@ -232,6 +233,7 @@ class SatEnvServer(mp.Process):
   def __init__(self, env, settings=None):
     super(SatEnvServer, self).__init__()
     self.settings = settings if settings else CnfSettings()
+    self.state_dim = self.settings['state_dim']    
     self.env = env
     self.env.server = self
     self.queue_in = mp.Queue()
@@ -299,7 +301,7 @@ class SatEnvServer(mp.Process):
       if self.cmd == EnvCommands.CMD_STEP:
         last_step_reward = -(self.env.get_reward() - self.last_reward)      
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
-        msg = self.env.EnvObservation(state=np.zeros(201), reward=self.winning_reward+last_step_reward, done=True)
+        msg = self.env.EnvObservation(state=np.zeros(self.state_dim), reward=self.winning_reward+last_step_reward, done=True)
         # msg = self.env.EnvObservation(None, None, None, None, None, None, self.winning_reward+last_step_reward, True)
         self.queue_out.put((EnvCommands.ACK_STEP,tuple(msg)))
         self.total_episodes += 1

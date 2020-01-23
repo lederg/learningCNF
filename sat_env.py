@@ -160,10 +160,11 @@ class SatEnvProxy(EnvBase):
       self.rewards.append(r)    
     # if env_obs.done:
     #   print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
-    return env_obs.state, r, env_obs.done or self.check_break(), {}
+    return env_obs.state, r, env_obs.done or self.check_break(), {'testval': np.random.rand(5)}
 
   def reset(self):
     fname = self.provider.get_next()
+    # print('reset: Got formula: {}'.format(fname))
     self.finished = False
     self.rewards = []
     self.queue_out.put((EnvCommands.CMD_RESET,fname))

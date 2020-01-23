@@ -1,5 +1,6 @@
 from config import *
 from settings import *
+import ipdb
 import os
 import numpy as np
 import pickle
@@ -14,17 +15,19 @@ from IPython.core.debugger import Tracer
 from collections import Counter
 from matplotlib import pyplot as plt
 from ray.tune.registry import register_env
-import ray.rllib.agents.ppo as ppo
+# import ray.rllib.agents.ppo as ppo
 from ray.rllib.agents import a3c
 from ray.rllib.agents.a3c.a3c_torch_policy import *
 from ray.rllib.models import ModelCatalog
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.evaluation.rollout_worker import *
 from ray.rllib.evaluation.worker_set import *
-from ray.tune.logger import pretty_print
+from ray.tune.logger import *
 from ray.tune.result import TIMESTEPS_TOTAL
+from ray.rllib.utils.numpy import sigmoid, softmax
+from ray.rllib.utils.memory import ray_get_and_free
 
-from argmax_action_dist import TorchCategoricalArgmax
+from custom_rllib_utils import *
 from dispatcher import *
 from episode_data import *
 from policy_factory import *
@@ -36,31 +39,54 @@ from rllib_sat_models import *
 steps_counter = 0
 settings = CnfSettings(cfg())
 
+def log_logits_policy_wrapper(policy):
+	def add_logits(policy, input_dict, state_batches, model, action_dist):
+		logits, _ = model(input_dict, state_batches, [1])
+		probs = softmax(logits.cpu().numpy())
+		return {SampleBatch.VF_PREDS: model.value_function().cpu().numpy(), 'probs': probs}
+	return policy.with_updates(extra_action_out_fn=add_logits, name='AddLogitsA3CPolicy')
 
 def get_settings_from_file(fname):
 	conf = load_config_from_file(fname)
 	for (k,v) in conf.items():
 		settings.hyperparameters[k]=v
 
+def make_cnf_optimizer(workers, config):
+    return CNFGradientsOptimizer(workers, **config["optimizer"])
+
+def on_train_result(info):
+	custom_metrics = info['result']['custom_metrics']
+	probs = custom_metrics.pop('probs_mean')
+	logger = info['trainer']._result_logger._loggers[-1]
+	steps = info['result'].get(TIMESTEPS_TOTAL)
+	hist_data = (probs*2000).astype(int)
+	dummy_data = []
+	for idx, value in enumerate(hist_data):
+		dummy_data += [idx + 2.001] * value
+	values = np.array(dummy_data).astype(float).reshape(-1)
+	logger._file_writer.add_histogram('hist_probs', values, global_step=steps, bins=list(range(2,32)))
+	logger._file_writer.flush()
+
+def on_episode_end(info):
+	ipdb.set_trace()
+
 def my_postprocess(info):
 	global steps_counter
 	settings = CnfSettings()
-	episode = info["episode"]
 	batch = info["post_batch"]
-	episode.custom_metrics["length"] = batch.count
+	episode = info["episode"]
+	episode.custom_metrics["probs"] = batch['probs'].mean(axis=0)
 	steps_counter += batch.count
-	# steps_counter += info['post_batch']['obs'].shape[0]
 	if steps_counter > int(settings['min_timesteps_per_batch']):
 		steps_counter = 0
 		ObserverDispatcher().notify('new_batch')
-
 
 def eval_postprocess(info):
 	ObserverDispatcher().notify('new_batch')
 
 def get_logger_creator(settings):
 	import tempfile
-	from ray.tune.logger import UnifiedLogger
+	from ray.tune.logger import UnifiedLogger, TBXLogger
 	logdir_prefix = settings['name']+'_'
 	logdir_default = settings['rl_log_dir']
 
@@ -72,7 +98,8 @@ def get_logger_creator(settings):
 	        os.makedirs(logdir_default)
 	    logdir = tempfile.mkdtemp(
 	        prefix=logdir_prefix, dir=logdir_default)
-	    return UnifiedLogger(config, logdir, loggers=None)
+	    # return TBXLogger(config, logdir)
+	    return UnifiedLogger(config, logdir, loggers=(JsonLogger, CSVLogger, TBXLogger))
 
 	return named_logger_creator
 
@@ -97,7 +124,7 @@ def evaluate(steps, config, weights):
 		# 	print('Eval {}'.format(i))
 	res = np.mean(results)
 	print('Evaluate finished with reward {}'.format(res))
-	w.stop()
+	# w.stop()
 	del w
 	return steps, res
 
@@ -133,6 +160,7 @@ class RLLibTrainer():
 		config["batch_mode"]='complete_episodes'
 		config["sample_batch_size"]=int(self.settings['min_timesteps_per_batch'])
 		config["train_batch_size"]=int(self.settings['min_timesteps_per_batch'])
+		# config["timesteps_per_iteration"]=10
 		config['gamma'] = float(self.settings['gamma'])
 		config["model"] = {"custom_model": "sat_model"}
 		config['use_pytorch'] = True
@@ -140,10 +168,14 @@ class RLLibTrainer():
 		config['lr'] = float(self.settings['init_lr'])
 		if settings['use_seed']:
 			config['seed'] = int(settings['use_seed'])
-		config["callbacks"] = {'on_postprocess_traj': my_postprocess}
-
+		config["callbacks"] = {'on_postprocess_traj': my_postprocess, 'on_train_result': on_train_result, }
+														# 'on_episode_end': on_episode_end}
 		config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data'], 'eval': False}
-		trainer = a3c.A3CTrainer(config=config, env="sat_env", logger_creator=get_logger_creator(settings))
+		custom_policy = log_logits_policy_wrapper(A3CTorchPolicy)
+		trainer_class = a3c.A3CTrainer.with_updates(default_policy=custom_policy, name='GilTrainer', get_policy_class=lambda x: custom_policy,
+																									make_policy_optimizer=make_cnf_optimizer)
+		trainer = trainer_class(config=config, env="sat_env", logger_creator=get_logger_creator(settings))
+		# self.result_logger = trainer._result_logger
 		self.result_logger = trainer._result_logger._loggers[-1]
 		if self.settings['base_model']:
 			self.logger.info('Loading from {}..'.format(self.settings['base_model']))
@@ -152,16 +184,17 @@ class RLLibTrainer():
 		eval_results = []
 		for i in range(self.training_steps):
 			result = trainer.train()
-			print(pretty_print(result))			
+			print(pretty_print(result))						
 			weights = ray.put({"default_policy": trainer.get_weights()})			
 			if i % self.test_every == 0:
 				eval_results.append(evaluate.remote(result.get(TIMESTEPS_TOTAL), config, weights))
 				ready, _ = ray.wait(eval_results,timeout=0.01)
 				for obj in ready:
-					t, result = ray.get(obj)
+					t, result = ray.ray_get_and_free(obj)
 					print('Adding evaluation result at timestep {}: {}'.format(t,result))
-					val = [tf.Summary.Value(tag="ray/eval/{}".format(self.settings['rl_test_data']), simple_value=result)]
-					self.result_logger._file_writer.add_summary(tf.Summary(value=val), t)
+					# val = [tf.Summary.Value(tag="ray/eval/{}".format(self.settings['rl_test_data']), simple_value=result)]
+					# self.result_logger._file_writer.add_summary(tf.Summary(value=val), t)
+					self.result_logger._file_writer.add_scalar("ray/eval/{}".format(self.settings['rl_test_data']), result, global_step=t)
 					self.result_logger._file_writer.flush()
 					eval_results.remove(obj)
 			if i % 100 == 0:

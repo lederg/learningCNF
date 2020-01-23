@@ -120,7 +120,8 @@ class EnvInteractor:
     
     action, ent = self.lmodel.select_action(obs, **kwargs)    
     envstr.episode_memory.append(Transition(obs,action,None, None, ent, envstr.env_id, envstr.prev_obs))    
-    next_obs, *_ = envstr.env.step(self.lmodel.translate_action(action, obs))    
+    next_obs = envstr.env.step(self.lmodel.translate_action(action, obs))    
+    # next_obs, *_ = envstr.env.step(self.lmodel.translate_action(action, obs))    
     done = next_obs.done
     self.total_steps += 1
     envstr.curr_step += 1

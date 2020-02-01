@@ -1,17 +1,21 @@
+import ipdb
+import select
+import gym
+import time
 from subprocess import Popen, PIPE, STDOUT
 from collections import deque
 from collections import namedtuple
-import select
+from gym import spaces
 from IPython.core.debugger import Tracer
-import time
 from settings import *
 from qbf_data import *
 from cadet_utils import *
 from envbase import *
+from rl_utils import *
 
 DEF_GREEDY_ALPHA = 0.01
 MAX_EPISODE_LENGTH = 200
-DQN_DEF_COST = -0.2
+DQN_DEF_COST = 1e-4
 # DQN_DEF_COST = 0.
 BINARY_SUCCESS = 1.
 LOG_SIZE = 100
@@ -21,37 +25,47 @@ def require_init(f, *args, **kwargs):
     return f(instance,*args,**kwargs)
   return inner
 
+class CadetSpace(gym.Space):
+  def contains(self, x):
+    return True
+
+  @property
+  def shape(self):
+    return ()
+  
 
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     
 class CadetEnv(EnvBase):
-  def __init__(self, cadet_binary='./cadet', debug=False, greedy_rewards=False, slim_state=False,
-                use_old_rewards = False, fresh_seed = False, clause_learning=True, vars_set=True, 
-                use_vsids_rewards = False, def_step_cost = -1e-4, cadet_completion_reward=1., logger=None, settings=None, **kwargs):
+  def __init__(self, provider=None, **kwargs):
     self.EnvObservation = namedtuple('EnvObservation', 
                     ['state', 'vars_add', 'vars_remove', 'activities', 'decision', 'clause', 
                       'reward', 'vars_set', 'done'])
 
-    if settings:
-      self.settings = settings
-    else:
-      self.settings = CnfSettings()
-    self.cadet_binary = cadet_binary
-    self.debug = debug
+    self.settings = CnfSettings()
+    self.provider = provider
+    self.cadet_binary = self.settings['cadet_binary']
+    self.debug = self.settings['debug']
     self.qbf = QbfBase(**kwargs)
-    self.greedy_rewards = greedy_rewards
-    self.clause_learning = clause_learning
-    self.vars_set = vars_set
-    self.fresh_seed = fresh_seed
-    self.use_old_rewards = use_old_rewards
-    self.use_vsids_rewards = use_vsids_rewards
-    self.slim_state = slim_state
-    self.def_step_cost = def_step_cost
-    self.cadet_completion_reward = cadet_completion_reward
-    self.logger = logger
+    self.observation_space = CadetSpace()
+    self.action_space = spaces.Discrete(self.settings['max_variables'])
+    self.greedy_rewards = self.settings['greedy_rewards']
+    self.clause_learning = self.settings['clause_learning']
+    self.vars_set = self.settings['vars_set']
+    self.fresh_seed = self.settings['fresh_seed']
+    self.use_old_rewards = self.settings['use_old_rewards']
+    self.use_vsids_rewards = self.settings['use_vsids_rewards']
+    self.slim_state = self.settings['slim_state']
+    self.def_step_cost = self.settings['def_step_cost']
+    self.cadet_completion_reward = self.settings['cadet_completion_reward']
+    self.max_step = self.settings['max_step']
+    self.restart_solver_every = int(self.settings['restart_solver_every'])
+    # self.logger = logger
     self.greedy_alpha = DEF_GREEDY_ALPHA if self.greedy_rewards else 0.    
     self.tail = deque([],LOG_SIZE)
+    self.reset_counter = 0
     self.use_activities = self.settings['cadet_use_activities']
+    self.last_processed_obs = None
     self.start_cadet()
     
 
@@ -123,8 +137,18 @@ class CadetEnv(EnvBase):
       rewards = np.asarray(list(map(float,a.split()[1:])))
       return rewards
 
-  def reset(self, fname):    
+  def exit(self):
+    print('exit()')
     self.terminate()
+    self.stop_cadet(5)
+
+  def reset(self):
+    self.reset_counter += 1
+    if self.restart_solver_every > 0 and (self.settings['restart_in_test'] or (self.reset_counter % self.restart_solver_every == 0)):
+      self.restart_env(timeout=0)
+
+    self.terminate()
+    fname = self.provider.get_next()
     if self.debug:
       print('Starting Env {}'.format(fname))
     # if fname == 'data/huge_gen1/small-bug1-fixpoint-3.qdimacs':
@@ -143,7 +167,8 @@ class CadetEnv(EnvBase):
     self.done = False
     self.current_fname = fname
     rc = self.read_state_update()     # Initial state
-    return rc
+    self.last_processed_obs = self.process_observation(None, rc)
+    return self.last_processed_obs
     
 
 
@@ -231,8 +256,8 @@ class CadetEnv(EnvBase):
         break
       elif a.startswith('rewards') or a.startswith('SATrewards') or a.startswith('UNSATrewards'):
         self.rewards = np.asarray(list(map(float,a.split()[1:])))
-        if self.debug:
-          Tracer()()
+        # if self.debug:
+        #   Tracer()()
         if np.isnan(self.rewards).any():
           if np.isnan(self.rewards[:-1]).any():
             Tracer()()
@@ -303,7 +328,7 @@ class CadetEnv(EnvBase):
     if self.timestep > 0:      
       greedy_reward = np.count_nonzero(self.total_vars_deterministic) - self.last_total_determinized
       self.running_reward.append(greedy_reward)
-      reward = BINARY_SUCCESS if self.done else DQN_DEF_COST 
+      reward = self.def_step_cost  + (self.cadet_completion_reward if self.done else 0.)
       if self.greedy_rewards:
         reward += self.greedy_alpha*self.running_reward[-1]
     self.last_total_determinized = np.count_nonzero(self.total_vars_deterministic)
@@ -323,17 +348,18 @@ class CadetEnv(EnvBase):
   # state, vars_add, vars_remove, activities, decision, clause, reward, done = env.step(action)
   # And it returns the next observation.
 
-  def process_observation(self, last_obs, env_obs, settings=None):
+  def process_observation(self, last_obs, env_obs):
     # import ipdb
     # ipdb.set_trace()
     
-    if not env_obs:
-      return None
+    if not env_obs or env_obs.done:
+      return EmptyDenseState
     if env_obs.clause or not last_obs:
       # Tracer()()
       cmat = get_input_from_qbf(self.qbf, self.settings, False) # Do not split
       clabels = Variable(torch.from_numpy(self.qbf.get_clabels()).float().unsqueeze(0)).t()
     else:
+      last_obs = undensify_obs(last_obs)
       cmat, clabels = last_obs.cmat, last_obs.clabels
     if last_obs:
       ground_embs = np.copy(last_obs.ground.data.numpy().squeeze())
@@ -363,7 +389,8 @@ class CadetEnv(EnvBase):
 
     state = Variable(torch.from_numpy(env_obs.state).float().unsqueeze(0))
     ground_embs = Variable(torch.from_numpy(ground_embs).float().unsqueeze(0))
-    return State(state,cmat, ground_embs, clabels, vmask, cmask, None)
+    # ipdb.set_trace()
+    return densify_obs(State(state,cmat, ground_embs, clabels, vmask, cmask, None))
     
 
 
@@ -378,6 +405,19 @@ class CadetEnv(EnvBase):
     except:
       print('Error reseting with file {}'.format(fname))
 
+
+  def check_break(self):
+    return self.timestep >= self.max_step
+
+  def translate_action(self, action):
+    try:
+      if action in ['?']:
+        return action
+    except:
+      pass
+    return (int(action/2),int(action%2))
+
+
   def step(self, action):
     assert(not self.done)
     # if self.greedy_rewards and self.timestep > MAX_EPISODE_LENGTH:      
@@ -385,6 +425,11 @@ class CadetEnv(EnvBase):
     #   self.rewards = np.concatenate([rewards, [DQN_DEF_COST]])    # Average action
     #   return None, None, None, None, None, None, DQN_DEF_COST, None, True    
     self.timestep += 1
-    self.write_action(action)
-    return self.read_state_update()
+    # ipdb.set_trace()
+    self.write_action(self.translate_action(action))
+    env_obs = self.read_state_update()
+    obs = self.process_observation(self.last_processed_obs, env_obs)
+    self.last_processed_obs = obs
+    rc = obs, env_obs.reward, env_obs.done or self.check_break(), {'fname': self.current_fname}
+    return rc
             

@@ -318,3 +318,13 @@ def seed_all(settings, name):
     else:
       np.random.seed(settings['use_seed'])
       torch.manual_seed(settings['use_seed'])      
+
+def load_dir(directory):
+  return load_files([os.path.join(directory, f) for f in os.listdir(directory)])
+
+def load_files(files):
+  if type(files) is not list:
+    files = [files]
+  only_files = [x for x in files if os.path.isfile(x)]
+  only_dirs = [x for x in files if os.path.isdir(x)]
+  return only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([load_dir(x) for x in only_dirs]))

@@ -150,7 +150,7 @@ class SatEnvProxy(EnvBase):
     self.logger = utils.get_logger(self.settings, 'SatEnvProxy')
 
   def step(self, action):
-    self.queue_out.put((EnvCommands.CMD_STEP,action))    
+    self.queue_out.put((EnvCommands.CMD_STEP,action))
     ack, rc = self.queue_in.get()  
     assert ack==EnvCommands.ACK_STEP, 'Expected ACK_STEP'
     env_obs = SatActiveEnv.EnvObservation(*rc)

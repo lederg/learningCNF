@@ -16,7 +16,7 @@ def cfg():
 	pyro_host=None
 	save_config = True
 	update_config=None
-	state_dim = 36
+	state_dim = 90
 	embedding_dim = 20  # deprecated
 	vemb_dim = 16
 	cemb_dim = 64

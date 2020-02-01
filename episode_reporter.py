@@ -1,4 +1,5 @@
 import os
+import ipdb
 import numpy as np
 import torch.multiprocessing as mp
 from torch.multiprocessing import Manager
@@ -10,7 +11,7 @@ from IPython.core.debugger import Tracer
 import shelve
 import logging
 import Pyro4
-
+import ray
 
 DEF_WINDOW = 100
 CMD_EXIT = 1
@@ -190,7 +191,74 @@ class PGEpisodeReporter(SPReporter):
     #   log_value('env {} entropy'.format(id), np.mean(entropy), total_steps)
     #   log_value('env {} rewards'.format(id), np.mean(rewards), total_steps)
 
+@ray.remote
+class RLLibEpisodeReporter(object):
+  def __init__(self, fname, settings):
+    self.settings = settings
+    self.fname = fname
+    self.stats_dict = {}
+    self.ids_to_log = set()
+    self.report_window = self.settings['report_window']
+    self.short_window = self.settings['short_window']
+    self.report_last_envs = self.settings['report_last_envs']
+    self.logger = utils.get_logger(self.settings, 'episode_reporter', 'logs/{}_reporter.log'.format(log_name(self.settings)))
 
+  def add_stat(self, env_id, steps, reward, entropy=0.):
+    # print('got env_id: {}, steps: {}, reward: {}'.format(env_id,steps,reward))
+    if not env_id in self.stats_dict.keys():
+      self.stats_dict[env_id] = []
+
+    # Add entropy as well     
+    self.stats_dict[env_id] = (self.stats_dict[env_id] + [(steps, reward, entropy)])[-self.short_window:]
+
+  def add_stats(self, all_stats):
+    for stat in all_stats:
+      self.add_stat(*stat)
+
+  def get_keys(self):
+    return self.stats_dict.keys()
+
+  def get_stats_for_envs(self, *args):
+    return {env: self.stats_dict[env] for env in args}
+
+  def report_stats(self):
+    if not self.stats_dict:
+      self.logger.info('report_stats: No episodes registered yet, skipping')
+      return None, None
+    totals = sorted([(k,len(val), *zip(*val)) for k, val in self.stats_dict.items()],key=lambda x: -x[1])
+    if self.settings['report_uniform']:
+      all_stats = [x[1] for x in self.stats_dict.items()]
+      windowed_stats = []
+      for x in all_stats:
+        windowed_stats.append(np.array(x[-self.short_window:]))
+      # windowed_stats = [np.array(x[-100:]) for x in all_stats]
+      mean_rewards = [x.mean(axis=0)[1] for x in windowed_stats]
+      mean_steps = [x.mean(axis=0)[0] for x in windowed_stats]
+      mean_ent = [x.mean(axis=0)[2] for x in windowed_stats]
+      self.logger.info('Mean steps for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_steps)))
+      self.logger.info('Mean reward for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_rewards)))
+      self.logger.info('Mean entropy for the last {} instances per episode: {}'.format(self.short_window,np.mean(mean_ent)))
+    else:     
+      self.logger.info('Mean steps for the last {} episodes: {}'.format(self.report_window,np.mean(steps[-self.report_window:])))
+      self.logger.info('Mean reward for the last {} episodes: {}'.format(self.report_window,np.mean(rewards[-self.report_window:])))
+
+    # if sum(steps)+1000 < total_steps:     # Not all episodes are actually used (parallelism/on-policy pg)
+    #   total_steps = sum(steps)
+
+    self.logger.info('Data for the {} most common envs:'.format(self.report_last_envs))
+    for vals in totals[:self.report_last_envs]:
+      s = vals[2][-self.short_window:]
+      r = vals[3][-self.short_window:]
+      self.logger.info('Env {} appeared {} times, with moving (100) reward mean/std {}/{}:'.format(vals[0], vals[1], np.mean(r), np.std(r)))
+      self.logger.info('Env {} appeared {} times, with moving (100) steps mean/std {}/{}:'.format(vals[0], vals[1], np.mean(s), np.std(s)))
+      self.logger.info(r)
+      self.logger.info(s)
+      self.logger.info('\n\n')
+        
+    if self.settings['report_uniform']:
+      return np.mean(mean_steps), np.mean(mean_rewards)
+    else:
+      return np.mean(stepssteps[-self.report_window:]), np.mean(rewards[-self.report_window:])
 
 class DqnEpisodeReporter(SPReporter): 
   def log_env(self, id):

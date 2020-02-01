@@ -30,9 +30,11 @@ from ray.rllib.utils.memory import ray_get_and_free
 from custom_rllib_utils import *
 from dispatcher import *
 from episode_data import *
+from episode_reporter import *
 from policy_factory import *
 from test_envs import *
 from rllib_sat_models import *
+from rllib_cadet_models import *
 
 
 # In[2]:
@@ -70,16 +72,21 @@ def on_train_result(info):
 def on_episode_end(info):
 	ipdb.set_trace()
 
-def my_postprocess(info):
-	global steps_counter
-	settings = CnfSettings()
-	batch = info["post_batch"]
-	episode = info["episode"]
-	episode.custom_metrics["probs"] = batch['probs'].mean(axis=0)
-	steps_counter += batch.count
-	if steps_counter > int(settings['min_timesteps_per_batch']):
-		steps_counter = 0
-		ObserverDispatcher().notify('new_batch')
+def get_postprocess_fn(reporter):
+	def my_postprocess(info):
+		global steps_counter
+		settings = CnfSettings()
+		batch = info["post_batch"]
+		episode = info["episode"]
+		reporter.add_stat.remote(batch['infos'][0]['fname'],batch.count,batch['rewards'].sum())
+		if 'probs' in batch:
+			episode.custom_metrics["probs"] = batch['probs'].mean(axis=0)
+		steps_counter += batch.count
+		if steps_counter >= int(settings['min_timesteps_per_batch']):
+			steps_counter = 0
+			ObserverDispatcher().notify('new_batch')
+
+	return my_postprocess
 
 def eval_postprocess(info):
 	ObserverDispatcher().notify('new_batch')
@@ -138,6 +145,7 @@ class RLLibTrainer():
 		self.test_every = int(self.settings['test_every'])
 		register_env("sat_env", env_creator)
 		ModelCatalog.register_custom_model("sat_model", SatThresholdModel)
+		ModelCatalog.register_custom_model("cadet_model", CadetModel)
 		ModelCatalog.register_custom_action_dist("argmax_dist", TorchCategoricalArgmax)
 		# TorchCategoricalArgmax
 		if args.cluster:
@@ -151,7 +159,14 @@ class RLLibTrainer():
 			print(self.settings.hyperparameters)
 			return
 		print('Main pid is {}'.format(os.getpid()))
+		if self.settings['solver'] == 'minisat':
+			model_name = 'sat_model'
+		elif self.settings['solver'] == 'cadet':
+			model_name = 'cadet_model'
+		else:
+			assert False, "Unknown solver: {}".format(self.settings['solver'])
 		# config = ppo.DEFAULT_CONFIG.copy()
+		reporter = RLLibEpisodeReporter.remote("{}/{}".format(self.settings['rl_log_dir'], log_name(self.settings)), self.settings)
 		config = a3c.DEFAULT_CONFIG.copy()
 		config["num_gpus"] = 0
 		config["num_workers"] = int(self.settings['parallelism'])
@@ -162,18 +177,23 @@ class RLLibTrainer():
 		config["train_batch_size"]=int(self.settings['min_timesteps_per_batch'])
 		# config["timesteps_per_iteration"]=10
 		config['gamma'] = float(self.settings['gamma'])
-		config["model"] = {"custom_model": "sat_model"}
+		config["model"] = {"custom_model": model_name}
 		config['use_pytorch'] = True
 		config["entropy_coeff"]=float(settings['entropy_alpha'])		
 		config['lr'] = float(self.settings['init_lr'])
+		config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data'], 'eval': False}
 		if settings['use_seed']:
 			config['seed'] = int(settings['use_seed'])
-		config["callbacks"] = {'on_postprocess_traj': my_postprocess, 'on_train_result': on_train_result, }
+		if settings['solver'] == 'minisat':
+			config["callbacks"] = {'on_postprocess_traj': get_postprocess_fn(reporter), 'on_train_result': on_train_result, }
 														# 'on_episode_end': on_episode_end}
-		config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data'], 'eval': False}
-		custom_policy = log_logits_policy_wrapper(A3CTorchPolicy)
-		trainer_class = a3c.A3CTrainer.with_updates(default_policy=custom_policy, name='GilTrainer', get_policy_class=lambda x: custom_policy,
-																									make_policy_optimizer=make_cnf_optimizer)
+			custom_policy = log_logits_policy_wrapper(A3CTorchPolicy)
+			trainer_class = a3c.A3CTrainer.with_updates(default_policy=custom_policy, name='GilTrainer', get_policy_class=lambda x: custom_policy,
+																										make_policy_optimizer=make_cnf_optimizer)
+		elif settings['solver'] == 'cadet':
+			config["callbacks"] = {'on_postprocess_traj': get_postprocess_fn(reporter), }
+			trainer_class = a3c.A3CTrainer
+
 		trainer = trainer_class(config=config, env="sat_env", logger_creator=get_logger_creator(settings))
 		# self.result_logger = trainer._result_logger
 		self.result_logger = trainer._result_logger._loggers[-1]
@@ -184,9 +204,15 @@ class RLLibTrainer():
 		eval_results = []
 		for i in range(self.training_steps):
 			result = trainer.train()
-			print(pretty_print(result))						
-			weights = ray.put({"default_policy": trainer.get_weights()})			
-			if i % self.test_every == 0:
+			print(pretty_print(result))			
+
+			# Do the uniform style reporting
+			steps_val, reward_val = ray.get(reporter.report_stats.remote())
+			self.result_logger._file_writer.add_scalar("ray/uniform/mean_steps", steps_val, global_step=result.get(TIMESTEPS_TOTAL))
+			self.result_logger._file_writer.add_scalar("ray/uniform/mean_reward", reward_val, global_step=result.get(TIMESTEPS_TOTAL))
+			self.result_logger._file_writer.flush()
+			weights = ray.put({"default_policy": trainer.get_weights()})
+			if i % self.test_every == 0 and i > 0:
 				eval_results.append(evaluate.remote(result.get(TIMESTEPS_TOTAL), config, weights))
 				ready, _ = ray.wait(eval_results,timeout=0.01)
 				for obj in ready:

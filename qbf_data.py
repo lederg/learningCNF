@@ -64,7 +64,11 @@ class QbfBase(object):
         
 
     def reload_qdimacs(self, fname):
-        self.qcnf = qdimacs_to_cnf(fname)
+        try:
+            self.qcnf = qdimacs_to_cnf(fname)
+        except Exception as e:
+            print('Got exception in loading {}'.format(fname))
+            print(e)
         self.reset()
 
     @classmethod 

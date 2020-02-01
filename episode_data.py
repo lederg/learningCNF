@@ -308,6 +308,9 @@ class OnePassProvider(AbstractEpisodeProvider):
   def get_next(self, **kwargs):
     return self.sample(**kwargs)
 
+  def __len__(self):
+    return len(self.items) - self.current
+
   def __iter__(self):
     return self.get_next()
 

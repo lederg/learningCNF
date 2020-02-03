@@ -48,9 +48,9 @@ class CapActivity(object):
         
 
 class CnfGNNDataset(Dataset):
-	def __init__(self, fname, transform=lambda x: x):
-		self.items = load_files(fname)
-		self.cache = LRU(CACHE_SIZE)
+	def __init__(self, fname, transform=lambda x: x, cache_size=1):
+		self.items = load_files(fname)		
+		self.cache = LRU(cache_size)
 		self.transform = transform
 
 	def __len__(self):

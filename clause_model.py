@@ -26,11 +26,11 @@ class ClausePredictionModel(nn.Module):
     self.gss_dim = self.settings['state_dim']
     self.encoder = CNFEncoder(settings)
     self.decision_layer = nn.Linear(self.gss_dim+self.encoder.cemb_dim+self.encoder.clabel_dim,2)
-    
+
   def forward(self, input_dict, **kwargs):
     gss = input_dict['gss']
     G = input_dict['graph'].local_var()
-    
+    pred_idx = torch.where(G.nodes['clause'].data['predicted_clauses'])[0]
     feat_dict = {
       'literal': G.nodes['literal'].data['lit_labels'],
       'clause': G.nodes['clause'].data['clause_labels'],        
@@ -39,9 +39,8 @@ class ClausePredictionModel(nn.Module):
     vembs, cembs = self.encoder(G,feat_dict)
     out = torch.cat([gss,cembs],dim=1)
     logits = self.decision_layer(out)
-
-    learnt = (G.nodes['clause'].data['clause_labels'][:,-1]).int()
-    learnt_idx = torch.where(learnt)[0]
-    return logits[learnt_idx]
+    # print("model says, pred_idx (out of {}) is:".format(logits.size(0)))
+    # print(pred_idx)
+    return logits[pred_idx]
 
 

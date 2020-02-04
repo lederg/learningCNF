@@ -14,6 +14,7 @@ def cfg():
 	pyro_name = None   		# This will become the experiment name
 	pyro_port=None
 	pyro_host=None
+	ray_address=None
 	save_config = True
 	update_config=None
 	state_dim = 90
@@ -43,6 +44,7 @@ def cfg():
 	val_size = 100  # deprecated?
 	threshold = 10  # deprecated
 	init_lr = 0.0006
+	num_epochs = 10
 	# init_lr = 0.001
 	# 'init_lr = 0.0004
 	decay_lr = 0.055

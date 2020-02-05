@@ -4,7 +4,7 @@ import torch
 import pickle
 import dgl
 import numpy as np
-from lru import LRU
+# from lru import LRU
 from torchvision import transforms
 from torch.utils.data import Dataset
 from utils import load_dir, load_files
@@ -73,7 +73,7 @@ class CapActivity(object):
 class CnfGNNDataset(Dataset):
   def __init__(self, fname, transform=lambda x: x, cache_size=1):
     self.items = load_files(fname)    
-    self.cache = LRU(cache_size)
+    # self.cache = LRU(cache_size)
     self.transform = transform
 
   def __len__(self):
@@ -81,6 +81,7 @@ class CnfGNNDataset(Dataset):
 
   def __getitem__(self, idx):
     fname = self.items[idx]
-    if fname not in self.cache:     
-      self.cache[fname] = self.transform(load_formula(fname))
-    return self.cache[fname]
+    return self.transform(load_formula(fname))
+    # if fname not in self.cache:     
+    #   self.cache[fname] = self.transform(load_formula(fname))
+    # return self.cache[fname]

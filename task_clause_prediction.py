@@ -136,7 +136,10 @@ def update_settings(config):
   if 'settings' in config:
     new_settings = config['settings']
     for k in new_settings.keys():
-      settings.hyperparameters[k] = new_settings[k]
+      if k in config.keys():
+        settings.hyperparameters[k] = config[k]
+      else:        
+        settings.hyperparameters[k] = new_settings[k]
   return settings
 
 
@@ -182,6 +185,7 @@ def clause_prediction_main():
     "batch_size": settings['batch_size'],
     "config": {
       "lr": settings['init_lr'],
+      # "max_iters": tune.grid_search([1,2,3]),
       # "lr": tune.grid_search([1e-2,settings['init_lr']]),
       "settings": settings.hyperparameters,
       },

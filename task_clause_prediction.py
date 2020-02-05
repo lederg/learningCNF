@@ -13,8 +13,6 @@ from ray.experimental.sgd.pytorch import utils as pytorch_utils
 from ray.experimental.sgd.utils import TimerStat
 from ray.experimental.sgd.pytorch.pytorch_trainer import PyTorchTrainer, PyTorchTrainable
 from ray.tune.schedulers import PopulationBasedTraining
-from ray.tune.utils import validate_save_restore
-from ray.tune.trial import ExportFormat
 
 from tqdm import tqdm
 from pprint import pprint
@@ -165,7 +163,7 @@ def clause_prediction_main():
   address = settings['ray_address']
   if address:
     print('Running in ray cluster mode')
-    run.init(address=address, redis_password='blabla')
+    ray.init(address=address, redis_password='blabla')
   else:
     ray.init(num_cpus=settings['parallelism']+1)
   # criterion = torch.nn.CrossEntropyLoss()

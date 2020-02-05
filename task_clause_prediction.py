@@ -11,7 +11,8 @@ from supervised_cnf_dataset import *
 from ray import tune
 from ray.experimental.sgd.pytorch import utils as pytorch_utils
 from ray.experimental.sgd.utils import TimerStat
-from ray.experimental.sgd.pytorch.pytorch_trainer import PyTorchTrainer, PyTorchTrainable
+from ray.experimental.sgd.pytorch.pytorch_trainer import PyTorchTrainer
+from cp_trainable import ClausePredictionTrainable
 from ray.tune.schedulers import PopulationBasedTraining
 
 from tqdm import tqdm
@@ -208,11 +209,11 @@ def clause_prediction_main():
 
 
   analysis = tune.run(
-    PyTorchTrainable,
+    ClausePredictionTrainable,
     name=settings['name'],
     num_samples=2,
     # scheduler=pbt,
-    reuse_actors=True,    
+    reuse_actors=True,        
     config=config,
     stop={"training_iteration": 40},
     verbose=1)

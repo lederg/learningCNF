@@ -66,6 +66,7 @@ class CapActivity(object):
   def __call__(self, sample):
     G = sample['graph']
     G.nodes['literal'].data['lit_labels'][:,3].tanh_()
+    G.nodes['clause'].data['clause_labels'][:,3].tanh_()
     return sample
         
 

@@ -3,6 +3,8 @@ import time
 import itertools
 import logging
 import numpy as np
+import random
+import string
 from torch.autograd import Variable
 import pandas as pd
 import scipy.signal
@@ -328,3 +330,6 @@ def load_files(files):
   only_files = [x for x in files if os.path.isfile(x)]
   only_dirs = [x for x in files if os.path.isdir(x)]
   return only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([load_dir(x) for x in only_dirs]))
+
+def random_string(n):
+  return ''.join([random.choice(string.ascii_letters + string.digits) for _ in xrange(n)])

@@ -12,6 +12,10 @@ from ray import tune
 from ray.experimental.sgd.pytorch import utils as pytorch_utils
 from ray.experimental.sgd.utils import TimerStat
 from ray.experimental.sgd.pytorch.pytorch_trainer import PyTorchTrainer, PyTorchTrainable
+from ray.tune.schedulers import PopulationBasedTraining
+from ray.tune.utils import validate_save_restore
+from ray.tune.trial import ExportFormat
+
 from tqdm import tqdm
 from pprint import pprint
 
@@ -54,13 +58,14 @@ def train(model, train_iterator, criterion, optimizer, config):
       _, predicted = torch.max(output.data, 1)
       total += target.size(0)
       correct += (predicted == target).sum().item()
-
+      # print(output)
+      # print('predicted variability: {}/{}'.format(predicted.sum().float(),predicted.size(0)))
       # measure accuracy and record loss
       losses.update(loss.item(), output.size(0))
 
     with timers["grad"]:
       # compute gradients in a backward pass
-      optimizer.zero_grad()
+      optimizer.zero_grad()      
       loss.backward()
 
     with timers["apply"]:
@@ -182,11 +187,25 @@ def clause_prediction_main():
       },
   }
 
+  pbt = PopulationBasedTraining(
+    time_attr="training_iteration",
+    metric="mean_accuracy",
+    mode="max",
+    perturbation_interval=6,
+    hyperparam_mutations={
+        # distribution for resampling
+        "lr": lambda: random.uniform(0.0001, 0.02),
+    })
+
+
   analysis = tune.run(
     PyTorchTrainable,
-    num_samples=1,
+    name=settings['name'],
+    num_samples=4,
+    scheduler=pbt,
+    reuse_actors=True,    
     config=config,
-    stop={"training_iteration": 4},
+    stop={"training_iteration": 400},
     verbose=1)
 
   rc = analysis.get_best_config(metric="validation_loss", mode="min")

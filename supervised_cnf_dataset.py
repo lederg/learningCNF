@@ -7,7 +7,7 @@ import numpy as np
 # from lru import LRU
 from torchvision import transforms
 from torch.utils.data import Dataset
-from utils import load_dir, load_files
+from utils_dir.utils import load_dir, load_files
 from sat_code.supervised import get_graph
 
 CACHE_SIZE = 200

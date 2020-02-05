@@ -17,6 +17,10 @@ from ray.tune.schedulers import PopulationBasedTraining
 from tqdm import tqdm
 from pprint import pprint
 
+def initialization_hook(runner):
+  print('initialization_hook!!')
+  print(os.environ)
+
 def train(model, train_iterator, criterion, optimizer, config):
   """Runs 1 training epoch"""
   print('Beginning epoch')
@@ -178,13 +182,16 @@ def clause_prediction_main():
     "loss_creator": tune.function(cross_loss),
     "train_function": tune.function(train),
     "validation_function": tune.function(validate),
+    # "initialization_hook": initialization_hook,
     "num_replicas": settings['parallelism'],
     "use_gpu": False,
     "batch_size": settings['batch_size'],
     "config": {
       "lr": settings['init_lr'],
-      # "max_iters": tune.grid_search([1,2,3]),
       # "lr": tune.grid_search([1e-2,settings['init_lr']]),
+      "max_iters": tune.grid_search([0,1,2,3,4]),
+      "use_sum": tune.grid_search([True, False]),
+      "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu'])
       "settings": settings.hyperparameters,
       },
   }
@@ -203,11 +210,11 @@ def clause_prediction_main():
   analysis = tune.run(
     PyTorchTrainable,
     name=settings['name'],
-    num_samples=4,
-    scheduler=pbt,
+    num_samples=2,
+    # scheduler=pbt,
     reuse_actors=True,    
     config=config,
-    stop={"training_iteration": 400},
+    stop={"training_iteration": 40},
     verbose=1)
 
   rc = analysis.get_best_config(metric="validation_loss", mode="min")

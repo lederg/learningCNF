@@ -1,7 +1,7 @@
 import json
 import torch
 from torch.autograd import Variable
-from utils import Singleton
+from utils_dir.utils import Singleton
 
 
 class CnfSettings(metaclass=Singleton):

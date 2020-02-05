@@ -1,5 +1,5 @@
 import time
-from utils import BaseMode
+# from utils import BaseMode
 from sacred import Experiment
 
 ex = Experiment('REINFORCE')
@@ -32,7 +32,7 @@ def cfg():
 	model_dir = 'saved_models'
 	base_model = None
 	# base_mode = BaseMode.ITERS 
-	base_mode = BaseMode.ALL	
+	# base_mode = BaseMode.ALL	
 	base_iters = 1
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
@@ -245,4 +245,4 @@ def cfg():
 
 	# return vars()
 
-ex.add_config({'gil': 'moshe'})
+# ex.add_config({'gil': 'moshe'})

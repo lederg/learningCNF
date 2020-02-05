@@ -29,17 +29,18 @@ class CNFLayer(nn.Module):
       self.etypes[1] : nn.Linear(clause_size+self.settings['clabel_dim'], out_size)
     })
     self.activation = activation if activation else eval(self.settings['non_linearity'])
+    self.aggregate = fn.sum if self.settings['use_sum'] else fn.mean
     
   def forward(self, G, feat_dict):
     # the input is a dictionary of node features for each type
     Wh_l2c = self.weight['l2c'](feat_dict['literal'])
     G.nodes['literal'].data['Wh_l2c'] = Wh_l2c
-    G['l2c'].update_all(fn.copy_src('Wh_l2c', 'm'), fn.mean('m', 'h'))
+    G['l2c'].update_all(fn.copy_src('Wh_l2c', 'm'), self.aggregate('m', 'h'))
     cembs = self.activation(G.nodes['clause'].data['h'])            # cembs now holds the half-round embedding
     G.nodes['clause'].data['cembs'] = cembs
     Wh_c2l = self.weight['c2l'](torch.cat([cembs,feat_dict['clause']], dim=1))
     G.nodes['clause'].data['Wh_c2l'] = Wh_c2l
-    G['c2l'].update_all(fn.copy_src('Wh_c2l', 'm'), fn.mean('m', 'h'))    
+    G['c2l'].update_all(fn.copy_src('Wh_c2l', 'm'), self.aggregate('m', 'h'))    
     lembs = self.activation(G.nodes['literal'].data['h'])
                     
     return lembs

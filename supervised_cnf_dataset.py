@@ -69,6 +69,12 @@ class CapActivity(object):
     G.nodes['clause'].data['clause_labels'][:,3].tanh_()
     return sample
         
+class ZeroLbd(object):
+  def __call__(self, sample):
+    G = sample['graph']    
+    G.nodes['clause'].data['clause_labels'][:,2] = 0
+    return sample
+
 
 class CnfGNNDataset(Dataset):
   def __init__(self, fname, transform=lambda x: x, cache_size=1):

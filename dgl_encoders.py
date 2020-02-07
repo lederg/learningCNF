@@ -99,18 +99,36 @@ class DGLEncoder(nn.Module):
 class CNFEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
     super(CNFEncoder, self).__init__(settings=settings, **kwargs)
+
+    if self.settings['cp_normalization'] == 'batch':
+      norm_class = nn.BatchNorm1d
+    elif self.settings['cp_normalization'] == 'layer':
+      norm_class = nn.LayerNorm
+    self.use_norm = self.settings['cp_normalization'] != None
     cnf_layer = CNFLayer
-    self.layers = nn.ModuleList([cnf_layer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
-    for i in range(1,self.max_iters):
-      self.layers.append(CNFLayer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
+    if self.max_iters > 0:
+      self.vnorm_layers = nn.ModuleList([norm_class(self.vemb_dim)]) if self.use_norm else nn.ModuleList([])
+      self.layers = nn.ModuleList([cnf_layer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
+      for i in range(1,self.max_iters):
+        self.layers.append(cnf_layer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
+        if self.use_norm:
+          self.vnorm_layers.append(norm_class(self.vemb_dim))
 
   def forward(self, G, feat_dict, **kwargs):    
     vlabels = feat_dict['literal']
-    embs = DGLEncoder.tie_literals(self.layers[0](G,feat_dict))
-    for i in range(1,self.max_iters):      
-      feat_dict['literal'] = embs
+    if self.max_iters == 0:
+      z = torch.zeros(1)
+      vz = z.expand(G.number_of_nodes('literal'),2*self.vemb_dim)
+      cz = z.expand(G.number_of_nodes('clause'),self.cemb_dim)
+      vembs = torch.cat([vz,vlabels],dim=1)
+      cembs = torch.cat([cz,feat_dict['clause']], dim=1)    
+      return vembs, cembs
+    for i in range(self.max_iters):
       pre_embs = self.layers[i](G, feat_dict)
+      if self.use_norm:
+          pre_embs = self.vnorm_layers[i](pre_embs)
       embs = DGLEncoder.tie_literals(pre_embs)
+      feat_dict['literal'] = embs
     vembs = torch.cat([embs,vlabels],dim=1)
     cembs = torch.cat([G.nodes['clause'].data['cembs'],feat_dict['clause']], dim=1)    
     return vembs, cembs

@@ -156,8 +156,11 @@ def optimizer_creator(model, config):
 
 def data_creator(batch_size, config):
   settings = update_settings(config)
-  ds = CnfGNNDataset(settings['rl_train_data'], transform=transforms.Compose([SampleLearntClauses(10),CapActivity()]))
-  validate_ds = CnfGNNDataset(settings['rl_validation_data'], transforms.Compose([SampleLearntClauses(10),CapActivity()]))
+  trans = transforms.Compose([SampleLearntClauses(10),CapActivity()])
+  if not settings['cp_use_lbd']:
+    trans = transforms.Compose([ZeroLbd(),trans])
+  ds = CnfGNNDataset(settings['rl_train_data'], transform=trans)
+  validate_ds = CnfGNNDataset(settings['rl_validation_data'], trans)
   rc1 = torch.utils.data.DataLoader(ds, batch_size=batch_size, collate_fn=sat_collate_fn,shuffle=True, num_workers=3)
   rc2 = torch.utils.data.DataLoader(validate_ds, batch_size=batch_size, collate_fn=sat_collate_fn,shuffle=True, num_workers=2)
   return rc1, rc2
@@ -170,11 +173,12 @@ def clause_prediction_main():
     print('Running in ray cluster mode')
     ray.init(address=address, redis_password='blabla')
   else:
-    ray.init(num_cpus=settings['parallelism']+1)
+    ray.init()
+    # ray.init(num_cpus=settings['parallelism']+1)
   # criterion = torch.nn.CrossEntropyLoss()
-  # model = model_creator({})
-  # optimizer = optimizer_creator(model, {'lr': 1e-2})
-  # train_loader, validation_loader = data_creator(settings['batch_size'], {})
+  model = model_creator({})
+  optimizer = optimizer_creator(model, {'lr': 1e-2})
+  train_loader, validation_loader = data_creator(settings['batch_size'], {})
   cross_loss = lambda x: nn.CrossEntropyLoss()
   config = {    
     "model_creator": tune.function(model_creator),
@@ -190,9 +194,9 @@ def clause_prediction_main():
     "config": {
       "lr": settings['init_lr'],
       # "lr": tune.grid_search([1e-2,settings['init_lr']]),
-      "max_iters": tune.grid_search([0,1,2,3,4]),
-      "use_sum": tune.grid_search([True, False]),
-      "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
+      # "max_iters": tune.grid_search([0,1,2,3,4]),
+      # "use_sum": tune.grid_search([True, False]),
+      # "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
       "settings": settings.hyperparameters,
       },
   }
@@ -211,9 +215,10 @@ def clause_prediction_main():
   analysis = tune.run(
     ClausePredictionTrainable,
     name=settings['name'],
-    num_samples=2,
+    num_samples=settings['cp_num_samples'],
     # scheduler=pbt,
-    reuse_actors=True,        
+    reuse_actors=True,    
+    resources_per_trial={'cpu': 6, 'memory': 2**33},
     config=config,
     stop={"training_iteration": 40},
     verbose=1)

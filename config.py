@@ -236,6 +236,12 @@ def cfg():
 	es_num_formulas = 5
 	es_naive_stepsize = 1.
 
+# Clause prediction
+	cp_use_lbd = True
+	cp_num_samples = 2
+	cp_normalization = None
+
+
 # Localization
 	max_edges = 20
 

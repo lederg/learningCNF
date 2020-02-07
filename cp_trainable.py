@@ -3,14 +3,14 @@ from ray.experimental.sgd.pytorch.pytorch_trainer import PyTorchTrainer
 from ray.tune.trial import Resources
 
 class ClausePredictionTrainable(Trainable):
-    @classmethod
-    def default_resource_request(cls, config):
-        return Resources(
-            cpu=0,
-            gpu=0,
-            memory=2**33,
-            extra_cpu=config["num_replicas"],
-            extra_gpu=int(config["use_gpu"]) * config["num_replicas"])
+    # @classmethod
+    # def default_resource_request(cls, config):
+    #     return Resources(
+    #         cpu=0,
+    #         gpu=0,
+    #         memory=2**34,
+    #         extra_cpu=config["num_replicas"]+3,             # data loader
+    #         extra_gpu=int(config["use_gpu"]) * config["num_replicas"])
 
     def _setup(self, config):
         self._trainer = PyTorchTrainer(**config)

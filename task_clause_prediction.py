@@ -156,9 +156,13 @@ def optimizer_creator(model, config):
 
 def data_creator(batch_size, config):
   settings = update_settings(config)
-  trans = transforms.Compose([SampleLearntClauses(10),CapActivity()])
+  trans = [CapActivity(),SampleLearntClauses(10)]
   if not settings['cp_use_lbd']:
-    trans = transforms.Compose([ZeroLbd(),trans])
+    trans.append(ZeroClauseIndex(2))
+  if not settings['cp_use_activity']:
+    trans.append(ZeroClauseIndex(3))
+
+  trans = transforms.Compose(trans)
   ds = CnfGNNDataset(settings['rl_train_data'], transform=trans)
   validate_ds = CnfGNNDataset(settings['rl_validation_data'], trans)
   rc1 = torch.utils.data.DataLoader(ds, batch_size=batch_size, collate_fn=sat_collate_fn,shuffle=True, num_workers=3)
@@ -176,74 +180,77 @@ def clause_prediction_main():
     ray.init()
     # ray.init(num_cpus=settings['parallelism']+1)
   # criterion = torch.nn.CrossEntropyLoss()
-  model = model_creator({})
-  optimizer = optimizer_creator(model, {'lr': 1e-2})
-  train_loader, validation_loader = data_creator(settings['batch_size'], {})
   cross_loss = lambda x: nn.CrossEntropyLoss()
-  config = {    
-    "model_creator": tune.function(model_creator),
-    "data_creator": tune.function(data_creator),
-    "optimizer_creator": tune.function(optimizer_creator),
-    "loss_creator": tune.function(cross_loss),
-    "train_function": tune.function(train),
-    "validation_function": tune.function(validate),
-    # "initialization_hook": initialization_hook,
-    "num_replicas": settings['parallelism'],
-    "use_gpu": False,
-    "batch_size": settings['batch_size'],
-    "config": {
-      "lr": settings['init_lr'],
-      # "lr": tune.grid_search([1e-2,settings['init_lr']]),
-      # "max_iters": tune.grid_search([0,1,2,3,4]),
-      # "use_sum": tune.grid_search([True, False]),
-      # "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
-      "settings": settings.hyperparameters,
-      },
-  }
+  if not settings['smoke_test']:
+    config = {    
+      "model_creator": tune.function(model_creator),
+      "data_creator": tune.function(data_creator),
+      "optimizer_creator": tune.function(optimizer_creator),
+      "loss_creator": tune.function(cross_loss),
+      "train_function": tune.function(train),
+      "validation_function": tune.function(validate),
+      # "initialization_hook": initialization_hook,
+      "num_replicas": settings['parallelism'],
+      "use_gpu": False,
+      "batch_size": settings['batch_size'],
+      "config": {
+        "lr": settings['init_lr'],
+        # "lr": tune.grid_search([1e-2,settings['init_lr']]),
+        # "max_iters": tune.grid_search([0,1,2,3,4]),
+        # "use_sum": tune.grid_search([True, False]),
+        # "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
+        "settings": settings.hyperparameters,
+        },
+    }
 
-  pbt = PopulationBasedTraining(
-    time_attr="training_iteration",
-    metric="mean_accuracy",
-    mode="max",
-    perturbation_interval=6,
-    hyperparam_mutations={
-        # distribution for resampling
-        "lr": lambda: random.uniform(0.0001, 0.02),
-    })
+    pbt = PopulationBasedTraining(
+      time_attr="training_iteration",
+      metric="mean_accuracy",
+      mode="max",
+      perturbation_interval=6,
+      hyperparam_mutations={
+          # distribution for resampling
+          "lr": lambda: random.uniform(0.0001, 0.02),
+      })
 
 
-  analysis = tune.run(
-    ClausePredictionTrainable,
-    name=settings['name'],
-    num_samples=settings['cp_num_samples'],
-    # scheduler=pbt,
-    reuse_actors=True,    
-    resources_per_trial={'cpu': 6, 'memory': 2**33},
-    config=config,
-    stop={"training_iteration": 40},
-    verbose=1)
+    analysis = tune.run(
+      ClausePredictionTrainable,
+      name=settings['name'],
+      num_samples=settings['cp_num_samples'],
+      # scheduler=pbt,
+      reuse_actors=True,    
+      resources_per_trial={'cpu': 6, 'memory': 2**33},
+      config=config,
+      stop={"training_iteration": 40},
+      verbose=1)
 
-  rc = analysis.get_best_config(metric="validation_loss", mode="min")
-  print('Finished. Printing Analysis:\n\n\n\n')
-  print(rc)
+    rc = analysis.get_best_config(metric="validation_loss", mode="min")
+    print('Finished. Printing Analysis:\n\n\n\n')
+    print(rc)
 
-  # trainer1 = PyTorchTrainer(
-  #   model_creator,
-  #   data_creator,
-  #   optimizer_creator,
-  #   loss_creator=cross_loss,
-  #   train_function=train,
-  #   validation_function=validate,
-  #   config={'lr': 1e-2, 'settings': settings.hyperparameters},
-  #   num_replicas=settings['parallelism'],
-  #   # use_gpu=True,
-  #   batch_size=settings['batch_size'],
-  #   )
-  # for i in range(settings['num_epochs']):
-  #   stats = trainer1.train()  
-  #   # stats = train(model,train_loader, criterion, optimizer, {}) 
-  #   print(stats)
-  #   if i>0 and i%2 == 0:
-  #     stats = trainer1.validate()
-  #     print(stats)
-  # 
+  else:
+    model = model_creator({})
+    optimizer = optimizer_creator(model, {'lr': 1e-2})
+    train_loader, validation_loader = data_creator(settings['batch_size'], {})
+
+    trainer1 = PyTorchTrainer(
+      model_creator,
+      data_creator,
+      optimizer_creator,
+      loss_creator=cross_loss,
+      train_function=train,
+      validation_function=validate,
+      config={'lr': 1e-2, 'settings': settings.hyperparameters},
+      num_replicas=settings['parallelism'],
+      # use_gpu=True,
+      batch_size=settings['batch_size'],
+      )
+    for i in range(settings['num_epochs']):
+      stats = trainer1.train()  
+      # stats = train(model,train_loader, criterion, optimizer, {}) 
+      print(stats)
+      if i>0 and i%2 == 0:
+        stats = trainer1.validate()
+        print(stats)
+    

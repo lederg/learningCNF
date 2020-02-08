@@ -69,10 +69,12 @@ class CapActivity(object):
     G.nodes['clause'].data['clause_labels'][:,3].tanh_()
     return sample
         
-class ZeroLbd(object):
+class ZeroClauseIndex(object):
+  def __init__(self, index):
+    self.index = index
   def __call__(self, sample):
     G = sample['graph']    
-    G.nodes['clause'].data['clause_labels'][:,2] = 0
+    G.nodes['clause'].data['clause_labels'][:,self.index] = 0
     return sample
 
 

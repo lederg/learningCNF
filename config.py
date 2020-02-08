@@ -238,9 +238,10 @@ def cfg():
 
 # Clause prediction
 	cp_use_lbd = True
+	cp_use_activity = True
 	cp_num_samples = 2
 	cp_normalization = None
-
+	smoke_test = False
 
 # Localization
 	max_edges = 20

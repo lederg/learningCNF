@@ -1,9 +1,11 @@
+import ipdb
 import torch
 import torch.nn as nn
 from torch.nn import init as nn_init
 import torch.nn.functional as F
 import utils
 import numpy as np
+import rnn_util
 import dgl
 import dgl.function as fn
 from collections import namedtuple
@@ -11,6 +13,7 @@ from IPython.core.debugger import Tracer
 from settings import *
 from rl_utils import *
 from dgl_layers import *
+from common_components import *
 
 class CNFVarLayer(nn.Module):
   def __init__(self, in_size, clause_size, out_size, activation=None, settings=None, **kwargs):
@@ -71,7 +74,6 @@ class CNFVarLayer(nn.Module):
                         
     return vembs
     
-
 class DGLEncoder(nn.Module):
   def __init__(self, settings=None, **kwargs):
     super(DGLEncoder, self).__init__()
@@ -147,6 +149,47 @@ class CNFVarEncoder(DGLEncoder):
       embs = self.layers[i](G, feat_dict)
     return embs
 
+# Neurosat-style encoder
+
+class NSATEncoder(DGLEncoder):
+  def __init__(self, settings=None, **kwargs):
+    super(NSATEncoder, self).__init__(settings=settings, **kwargs)
+    self.settings = settings if settings else CnfSettings()
+    self.d = self.settings['cp_emb_dim']
+    self.aggregate = fn.sum if self.settings['use_sum'] else fn.mean
+    self.num_layers = self.settings['cp_num_layers']
+    self.LC_msg = MLPModel([self.d]*self.num_layers)
+    self.CL_msg = MLPModel([self.d]*self.num_layers)
+
+    self.L_init = torch.normal(torch.zeros(self.d))
+    self.C_init = torch.normal(torch.zeros(self.d))
+
+    self.L_update = rnn = rnn_util.LayerNormLSTMCell(2*self.d, self.d)
+    self.C_update = rnn = rnn_util.LayerNormLSTMCell(self.d, self.d)
+
+  def flip(self,L):
+    n = int(L.shape[0]/2)
+    return torch.cat([L[n:2*n,:],L[:n,:]],axis=0)
+    
+  def forward(self, G, feat_dict, **kwargs):
+    literals = self.L_init.expand(G.number_of_nodes('literal'), self.d) / np.sqrt(self.d)
+    clauses = self.C_init.expand(G.number_of_nodes('clause'), self.d) / np.sqrt(self.d)
+    
+    L_state = (literals, torch.zeros(1).expand(literals.shape[0], self.d))
+    C_state = (clauses, torch.zeros(1).expand(clauses.shape[0], self.d))
+
+    for i in range(self.max_iters):      
+      G.nodes['literal'].data['l2c_msg'] = self.LC_msg(L_state[0])
+      G['l2c'].update_all(fn.copy_src('l2c_msg', 'm'), self.aggregate('m', 'h'))
+      pre_cembs = G.nodes['clause'].data['h']
+      C_state = self.C_update(pre_cembs, C_state)
+      G.nodes['clause'].data['c2l_msg'] = self.CL_msg(C_state[0])
+      G['c2l'].update_all(fn.copy_src('c2l_msg', 'm'), self.aggregate('m', 'h'))
+      pre_lembs = G.nodes['literal'].data['h']
+      L_state = self.L_update(torch.cat([pre_lembs,self.flip(L_state[0])],axis=1), L_state)
+
+    return L_state[0], C_state[0]
+    
 class CnfAagEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
     super(CnfAagEncoder, self).__init__(settings=settings, **kwargs)

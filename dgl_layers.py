@@ -11,6 +11,7 @@ import dgl.function as fn
 from collections import namedtuple
 from IPython.core.debugger import Tracer
 import cadet_utils
+from common_components import *
 from qbf_data import *
 from qbf_model import *
 from settings import *
@@ -71,3 +72,4 @@ class CNFLayer2(nn.Module):
     G['c2l'].update_all(fn.copy_src('Wh_c2l', 'm'), fn.sum('m', 'h'))
     lembs = self.activation(self.weight['c2l'](G.nodes['literal'].data['h']))                    
     return lembs
+

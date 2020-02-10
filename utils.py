@@ -333,3 +333,7 @@ def load_files(files):
 
 def random_string(n):
   return ''.join([random.choice(string.ascii_letters + string.digits) for _ in xrange(n)])
+
+def repeat_end(val, n, k):
+    return [val for i in range(n)] + [k]
+  

@@ -240,7 +240,11 @@ def cfg():
 	cp_use_lbd = True
 	cp_use_activity = True
 	cp_num_samples = 2
+	cp_num_layers = 3
 	cp_normalization = None
+	cp_encoder_type = 'CNFEncoder'
+	cp_add_labels = True
+	cp_emb_dim = 128
 	smoke_test = False
 
 # Localization

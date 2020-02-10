@@ -6,6 +6,7 @@ import torch.nn as nn
 
 from dgl_layers import *
 from dgl_encoders import *
+from common_components import *
 
 # class NodeApplyModule(nn.Module):
 #     """Update the node feature hv with ReLU(Whv+b)."""
@@ -24,8 +25,12 @@ class ClausePredictionModel(nn.Module):
     super(ClausePredictionModel, self).__init__(**kwargs)
     self.settings = settings if settings else CnfSettings()
     self.gss_dim = self.settings['state_dim']
-    self.encoder = CNFEncoder(settings)
-    self.decision_layer = nn.Linear(self.gss_dim+self.encoder.cemb_dim+self.encoder.clabel_dim,2)
+    encoder_class = eval(self.settings['cp_encoder_type'])
+    self.encoder = encoder_class(settings)
+    if settings['cp_add_labels']:
+      self.decision_layer = nn.Linear(self.gss_dim+self.encoder.cemb_dim+self.encoder.clabel_dim,2)
+    else:
+      self.decision_layer = MLPModel([self.gss_dim+self.encoder.d,256,64,2])
 
   def forward(self, input_dict, **kwargs):
     gss = input_dict['gss']
@@ -36,8 +41,8 @@ class ClausePredictionModel(nn.Module):
       'clause': G.nodes['clause'].data['clause_labels'],        
     }
     # ipdb.set_trace()
-    vembs, cembs = self.encoder(G,feat_dict)
-    out = torch.cat([gss,cembs],dim=1)
+    vembs, cembs = self.encoder(G,feat_dict)    
+    out = torch.cat([gss,cembs],dim=1)    
     logits = self.decision_layer(out)
     # print("model says, pred_idx (out of {}) is:".format(logits.size(0)))
     # print(pred_idx)

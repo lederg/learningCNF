@@ -243,7 +243,7 @@ def clause_prediction_main():
       validation_function=validate,
       config={'lr': 1e-2, 'settings': settings.hyperparameters},
       num_replicas=settings['parallelism'],
-      # use_gpu=True,
+      use_gpu=settings['cp_use_gpu'],
       batch_size=settings['batch_size'],
       )
     for i in range(settings['num_epochs']):

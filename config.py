@@ -245,6 +245,7 @@ def cfg():
 	cp_encoder_type = 'CNFEncoder'
 	cp_add_labels = True
 	cp_emb_dim = 128
+	cp_use_gpu = False
 	smoke_test = False
 
 # Localization

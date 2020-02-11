@@ -98,6 +98,10 @@ class DGLEncoder(nn.Module):
   def forward(self, G, feat_dict, **kwargs):
     raise NotImplementedError
 
+  def output_size(self):
+    raise NotImplementedError
+
+
 class CNFEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
     super(CNFEncoder, self).__init__(settings=settings, **kwargs)
@@ -135,6 +139,9 @@ class CNFEncoder(DGLEncoder):
     cembs = torch.cat([G.nodes['clause'].data['cembs'],feat_dict['clause']], dim=1)    
     return vembs, cembs
 
+  def output_size(self):
+    return self.cemb_dim  
+
 class CNFVarEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
     super(CNFVarEncoder, self).__init__(settings=settings, **kwargs)
@@ -156,6 +163,7 @@ class NSATEncoder(DGLEncoder):
     super(NSATEncoder, self).__init__(settings=settings, **kwargs)
     self.settings = settings if settings else CnfSettings()
     self.d = self.settings['cp_emb_dim']
+    self.use_labels = self.settings['cp_nsat_use_labels']
     self.aggregate = fn.sum if self.settings['use_sum'] else fn.mean
     self.num_layers = self.settings['cp_num_layers']
     self.LC_msg = MLPModel([self.d]*self.num_layers)
@@ -167,6 +175,8 @@ class NSATEncoder(DGLEncoder):
     self.L_update = rnn = rnn_util.LayerNormLSTMCell(2*self.d, self.d)
     self.C_update = rnn = rnn_util.LayerNormLSTMCell(self.d, self.d)
 
+
+    # like tie_literals before the cat
   def flip(self,L):
     n = int(L.shape[0]/2)
     return torch.cat([L[n:2*n,:],L[:n,:]],axis=0)
@@ -174,7 +184,8 @@ class NSATEncoder(DGLEncoder):
   def forward(self, G, feat_dict, **kwargs):
     literals = self.L_init.expand(G.number_of_nodes('literal'), self.d) / np.sqrt(self.d)
     clauses = self.C_init.expand(G.number_of_nodes('clause'), self.d) / np.sqrt(self.d)
-    
+    # if self.use_labels:
+      
     L_state = (literals, torch.zeros(1).expand(literals.shape[0], self.d))
     C_state = (clauses, torch.zeros(1).expand(clauses.shape[0], self.d))
 
@@ -189,7 +200,9 @@ class NSATEncoder(DGLEncoder):
       L_state = self.L_update(torch.cat([pre_lembs,self.flip(L_state[0])],axis=1), L_state)
 
     return L_state[0], C_state[0]
-    
+
+  def output_size(self):
+    return self.d    
 class CnfAagEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
     super(CnfAagEncoder, self).__init__(settings=settings, **kwargs)

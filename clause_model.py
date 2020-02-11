@@ -27,10 +27,12 @@ class ClausePredictionModel(nn.Module):
     self.gss_dim = self.settings['state_dim']
     encoder_class = eval(self.settings['cp_encoder_type'])
     self.encoder = encoder_class(settings)
-    if settings['cp_add_labels']:
-      self.decision_layer = nn.Linear(self.gss_dim+self.encoder.cemb_dim+self.encoder.clabel_dim,2)
-    else:
-      self.decision_layer = MLPModel([self.gss_dim+self.encoder.d,256,64,2])
+    inp_size = self.encoder.output_size()
+    if self.settings['cp_add_labels']:
+      inp_size += self.encoder.clabel_dim
+    if self.settings['cp_add_gss']:
+      inp_size += self.gss_dim
+    self.decision_layer = MLPModel([inp_size,256,64,2])
 
   def forward(self, input_dict, **kwargs):
     gss = input_dict['gss']
@@ -42,7 +44,11 @@ class ClausePredictionModel(nn.Module):
     }
     # ipdb.set_trace()
     vembs, cembs = self.encoder(G,feat_dict)    
-    out = torch.cat([gss,cembs],dim=1)    
+    out = cembs
+    if self.settings['cp_add_labels']:
+      out = torch.cat([out,feat_dict['clause']],dim=1)
+    if self.settings['cp_add_gss']:
+      out = torch.cat([out,gss],dim=1)
     logits = self.decision_layer(out)
     # print("model says, pred_idx (out of {}) is:".format(logits.size(0)))
     # print(pred_idx)

@@ -77,6 +77,14 @@ class ZeroClauseIndex(object):
     G.nodes['clause'].data['clause_labels'][:,self.index] = 0
     return sample
 
+class ZeroLiteralIndex(object):
+  def __init__(self, index):
+    self.index = index
+  def __call__(self, sample):
+    G = sample['graph']    
+    G.nodes['literal'].data['lit_labels'][:,self.index] = 0
+    return sample
+
 
 class CnfGNNDataset(Dataset):
   def __init__(self, fname, transform=lambda x: x, cache_size=1):

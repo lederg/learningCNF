@@ -237,8 +237,10 @@ def cfg():
 	es_naive_stepsize = 1.
 
 # Clause prediction
-	cp_use_lbd = True
-	cp_use_activity = True
+	cp_cmask_features = [2]
+	cp_vmask_features = []
+	cp_invert_cmask = False
+	cp_invert_vmask = False
 	cp_nsat_use_labels = False
 	cp_num_samples = 1
 	cp_num_layers = 3
@@ -246,6 +248,7 @@ def cfg():
 	cp_encoder_type = 'CNFEncoder'
 	cp_add_labels = True
 	cp_add_gss = True
+	cp_add_embedding = True
 	cp_emb_dim = 128
 	cp_use_gpu = False
 	smoke_test = False

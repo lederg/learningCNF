@@ -156,15 +156,16 @@ def optimizer_creator(model, config):
 
 def data_creator(batch_size, config):
   settings = update_settings(config)
-  trans = [CapActivity(),SampleLearntClauses(10)]
-  if not settings['cp_use_lbd']:
-    trans.append(ZeroClauseIndex(2))
-  if not settings['cp_use_activity']:
-    trans.append(ZeroClauseIndex(3))
-
+  cmask_features = settings['cp_cmask_features']
+  vmask_features = settings['cp_vmask_features']
+  if settings['cp_invert_cmask']:
+    cmask_features = set(range(6)).difference(cmask_features)
+  if settings['cp_invert_vmask']:
+    vmask_features = set(range(6)).difference(vmask_features)
+  trans = [CapActivity(),SampleLearntClauses(10)] + [ZeroClauseIndex(x) for x in cmask_features] + [ZeroLiteralIndex(x) for x in vmask_features]
   trans = transforms.Compose(trans)
   ds = CnfGNNDataset(settings['rl_train_data'], transform=trans)
-  validate_ds = CnfGNNDataset(settings['rl_validation_data'], trans)
+  validate_ds = CnfGNNDataset(settings['rl_validation_data'], transform=trans)
   rc1 = torch.utils.data.DataLoader(ds, batch_size=batch_size, collate_fn=sat_collate_fn,shuffle=True, num_workers=3)
   rc2 = torch.utils.data.DataLoader(validate_ds, batch_size=batch_size, collate_fn=sat_collate_fn,shuffle=True, num_workers=2)
   return rc1, rc2

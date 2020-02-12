@@ -27,7 +27,9 @@ class ClausePredictionModel(nn.Module):
     self.gss_dim = self.settings['state_dim']
     encoder_class = eval(self.settings['cp_encoder_type'])
     self.encoder = encoder_class(settings)
-    inp_size = self.encoder.output_size()
+    inp_size = 0
+    if self.settings['cp_add_embedding']:
+      inp_size += self.encoder.output_size()
     if self.settings['cp_add_labels']:
       inp_size += self.encoder.clabel_dim
     if self.settings['cp_add_gss']:
@@ -42,14 +44,16 @@ class ClausePredictionModel(nn.Module):
       'literal': G.nodes['literal'].data['lit_labels'],
       'clause': G.nodes['clause'].data['clause_labels'],        
     }
-    # ipdb.set_trace()
-    vembs, cembs = self.encoder(G,feat_dict)    
-    out = cembs
+
+    out = []
+    if self.settings['cp_add_embedding']:
+      vembs, cembs = self.encoder(G,feat_dict)    
+      out.append(cembs)
     if self.settings['cp_add_labels']:
-      out = torch.cat([out,feat_dict['clause']],dim=1)
+      out.append(feat_dict['clause'])
     if self.settings['cp_add_gss']:
-      out = torch.cat([out,gss],dim=1)
-    logits = self.decision_layer(out)
+      out.append(gss)
+    logits = self.decision_layer(torch.cat(out,dim=1))
     # print("model says, pred_idx (out of {}) is:".format(logits.size(0)))
     # print(pred_idx)
     return logits[pred_idx]

@@ -124,10 +124,8 @@ class CNFEncoder(DGLEncoder):
     vlabels = feat_dict['literal']
     if self.max_iters == 0:
       z = torch.zeros(1)
-      vz = z.expand(G.number_of_nodes('literal'),2*self.vemb_dim)
-      cz = z.expand(G.number_of_nodes('clause'),self.cemb_dim)
-      vembs = torch.cat([vz,vlabels],dim=1)
-      cembs = torch.cat([cz,feat_dict['clause']], dim=1)    
+      vembs = z.expand(G.number_of_nodes('literal'),2*self.vemb_dim)
+      cembs = z.expand(G.number_of_nodes('clause'),self.cemb_dim)      
       return vembs, cembs
     for i in range(self.max_iters):
       pre_embs = self.layers[i](G, feat_dict)
@@ -135,8 +133,8 @@ class CNFEncoder(DGLEncoder):
           pre_embs = self.vnorm_layers[i](pre_embs)
       embs = DGLEncoder.tie_literals(pre_embs)
       feat_dict['literal'] = embs
-    vembs = torch.cat([embs,vlabels],dim=1)
-    cembs = torch.cat([G.nodes['clause'].data['cembs'],feat_dict['clause']], dim=1)    
+    vembs = embs
+    cembs = G.nodes['clause'].data['cembs']
     return vembs, cembs
 
   def output_size(self):
@@ -203,6 +201,7 @@ class NSATEncoder(DGLEncoder):
 
   def output_size(self):
     return self.d    
+
 class CnfAagEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
     super(CnfAagEncoder, self).__init__(settings=settings, **kwargs)

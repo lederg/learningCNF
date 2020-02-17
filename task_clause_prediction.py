@@ -184,12 +184,12 @@ def clause_prediction_main():
   cross_loss = lambda x: nn.CrossEntropyLoss()
   if not settings['smoke_test']:
     config = {    
-      "model_creator": tune.function(model_creator),
-      "data_creator": tune.function(data_creator),
-      "optimizer_creator": tune.function(optimizer_creator),
-      "loss_creator": tune.function(cross_loss),
-      "train_function": tune.function(train),
-      "validation_function": tune.function(validate),
+      "model_creator": model_creator,
+      "data_creator": data_creator,
+      "optimizer_creator": optimizer_creator,
+      "loss_creator": cross_loss,
+      "train_function": train,
+      "validation_function": validate,
       # "initialization_hook": initialization_hook,
       "num_replicas": settings['parallelism'],
       "use_gpu": False,

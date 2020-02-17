@@ -167,8 +167,12 @@ class NSATEncoder(DGLEncoder):
     self.LC_msg = MLPModel([self.d]*self.num_layers)
     self.CL_msg = MLPModel([self.d]*self.num_layers)
 
-    self.L_init = torch.normal(torch.zeros(self.d))
-    self.C_init = torch.normal(torch.zeros(self.d))
+    if self.use_labels:
+      self.literal_features_layer = MLPModel([self.vlabel_dim,self.d,self.d])
+      self.clause_features_layer = MLPModel([self.clabel_dim,self.d,self.d])
+    else:
+      self.L_init = torch.normal(torch.zeros(self.d))
+      self.C_init = torch.normal(torch.zeros(self.d))
 
     self.L_update = rnn = rnn_util.LayerNormLSTMCell(2*self.d, self.d)
     self.C_update = rnn = rnn_util.LayerNormLSTMCell(self.d, self.d)
@@ -180,9 +184,12 @@ class NSATEncoder(DGLEncoder):
     return torch.cat([L[n:2*n,:],L[:n,:]],axis=0)
     
   def forward(self, G, feat_dict, **kwargs):
-    literals = self.L_init.expand(G.number_of_nodes('literal'), self.d) / np.sqrt(self.d)
-    clauses = self.C_init.expand(G.number_of_nodes('clause'), self.d) / np.sqrt(self.d)
-    # if self.use_labels:
+    if self.use_labels:
+      literals = self.literal_features_layer(feat_dict['literal']) / np.sqrt(self.d)
+      clauses = self.clause_features_layer(feat_dict['clause']) / np.sqrt(self.d)
+    else:      
+      literals = self.L_init.expand(G.number_of_nodes('literal'), self.d) / np.sqrt(self.d)
+      clauses = self.C_init.expand(G.number_of_nodes('clause'), self.d) / np.sqrt(self.d)
       
     L_state = (literals, torch.zeros(1).expand(literals.shape[0], self.d))
     C_state = (clauses, torch.zeros(1).expand(clauses.shape[0], self.d))

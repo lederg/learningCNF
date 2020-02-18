@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+import utils
 from settings import *
 from clause_model import *
 from supervised_cnf_dataset import *
@@ -24,7 +25,9 @@ def initialization_hook(runner):
 
 def train(model, train_iterator, criterion, optimizer, config):
   """Runs 1 training epoch"""
+  settings = update_settings(config)  
   print('Beginning epoch')
+  utils.set_lr(optimizer,settings['init_lr'])
   if isinstance(model, collections.Iterable) or isinstance(
       optimizer, collections.Iterable):
     raise ValueError(
@@ -152,7 +155,7 @@ def model_creator(config):
 
 def optimizer_creator(model, config):
   settings = update_settings(config)
-  return torch.optim.SGD(model.parameters(), lr=config['lr'])
+  return torch.optim.SGD(model.parameters(), lr=settings['init_lr'])
 
 def data_creator(batch_size, config):
   settings = update_settings(config)
@@ -182,6 +185,7 @@ def clause_prediction_main():
     # ray.init(num_cpus=settings['parallelism']+1)
   # criterion = torch.nn.CrossEntropyLoss()
   cross_loss = lambda x: nn.CrossEntropyLoss()
+  restore_point = settings['base_model']
   if not settings['smoke_test']:
     config = {    
       "model_creator": model_creator,
@@ -220,10 +224,12 @@ def clause_prediction_main():
       name=settings['name'],
       num_samples=settings['cp_num_samples'],
       # scheduler=pbt,
+      checkpoint_freq=settings['cp_save_every'],
+      restore=restore_point,
       reuse_actors=True,    
       resources_per_trial={'cpu': 6, 'memory': 2**33},
       config=config,
-      stop={"training_iteration": 40},
+      stop={"training_iteration": 120},
       verbose=1)
 
     rc = analysis.get_best_config(metric="validation_loss", mode="min")
@@ -232,7 +238,7 @@ def clause_prediction_main():
 
   else:
     model = model_creator({})
-    optimizer = optimizer_creator(model, {'lr': 1e-2})
+    optimizer = optimizer_creator(model, {'settings': settings})
     train_loader, validation_loader = data_creator(settings['batch_size'], {})
 
     trainer1 = PyTorchTrainer(
@@ -242,11 +248,15 @@ def clause_prediction_main():
       loss_creator=cross_loss,
       train_function=train,
       validation_function=validate,
-      config={'lr': 1e-2, 'settings': settings.hyperparameters},
+      config={'settings': settings.hyperparameters},
       num_replicas=settings['parallelism'],
       use_gpu=settings['cp_use_gpu'],
       batch_size=settings['batch_size'],
       )
+    if restore_point:
+      trainer1.restore(restore_point)
+
+
     for i in range(settings['num_epochs']):
       stats = trainer1.train()  
       # stats = train(model,train_loader, criterion, optimizer, {}) 

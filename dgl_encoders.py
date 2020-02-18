@@ -171,8 +171,8 @@ class NSATEncoder(DGLEncoder):
       self.literal_features_layer = MLPModel([self.vlabel_dim,self.d,self.d])
       self.clause_features_layer = MLPModel([self.clabel_dim,self.d,self.d])
     else:
-      self.L_init = torch.normal(torch.zeros(self.d))
-      self.C_init = torch.normal(torch.zeros(self.d))
+      self.L_init = nn.Parameter(torch.normal(torch.zeros(self.d)))
+      self.C_init = nn.Parameter(torch.normal(torch.zeros(self.d)))
 
     self.L_update = rnn = rnn_util.LayerNormLSTMCell(2*self.d, self.d)
     self.C_update = rnn = rnn_util.LayerNormLSTMCell(self.d, self.d)

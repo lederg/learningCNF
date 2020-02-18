@@ -251,6 +251,7 @@ def cfg():
 	cp_add_embedding = True
 	cp_emb_dim = 128
 	cp_use_gpu = False
+	cp_save_every=5
 	smoke_test = False
 
 # Localization

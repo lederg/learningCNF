@@ -1,4 +1,5 @@
 import os
+import sys
 import ipdb
 import torch
 import pickle
@@ -87,7 +88,7 @@ class ZeroLiteralIndex(object):
 
 
 class CnfGNNDataset(Dataset):
-  def __init__(self, fname, transform=lambda x: x, cache_size=1):
+  def __init__(self, fname, transform=lambda x: x, cap_size=sys.maxsize):
     self.items = load_files(fname)    
     # self.cache = LRU(cache_size)
     self.transform = transform

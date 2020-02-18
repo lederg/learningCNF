@@ -154,7 +154,6 @@ def model_creator(config):
   return ClausePredictionModel(settings)
 
 def optimizer_creator(model, config):
-  ipdb.set_trace()
   settings = update_settings(config)  
   return torch.optim.SGD(model.parameters(), lr=settings['init_lr'])
 

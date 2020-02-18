@@ -181,8 +181,8 @@ class NSATEncoder(DGLEncoder):
 
     # like tie_literals before the cat
   def flip(self,L):
-    n = int(L.shape[0]/2)
-    return torch.cat([L[n:2*n,:],L[:n,:]],axis=0)
+    z = L.view(-1,2,self.d)
+    return z[:,(1,0),:].view(-1,self.d)
     
   def forward(self, G, feat_dict, **kwargs):
     if self.use_labels:

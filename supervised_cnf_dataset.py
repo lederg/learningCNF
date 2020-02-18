@@ -47,7 +47,7 @@ def load_formula(fname):
 def cudaize_sample(sample):
   sample['gss'] = sample['gss'].cuda(non_blocking=True)
   sample['graph'] = sample['graph'].to(torch.device('cuda:0'))
-  
+
   return sample
 
 
@@ -67,7 +67,7 @@ class SampleLearntClauses(object):
     predicted_idx = torch.cat([pos_idx,neg_idx],dim=0)
     predicted_arr = torch.zeros(labels.size(0))
     predicted_arr[predicted_idx] = 1
-    G.nodes['clause'].data['predicted_clauses'] = predicted_arr    
+    G.nodes['clause'].data['predicted_clauses'] = predicted_arr
     return sample
 
 class CapActivity(object):

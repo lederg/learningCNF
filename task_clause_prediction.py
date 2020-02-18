@@ -204,7 +204,7 @@ def clause_prediction_main():
         # "max_iters": tune.grid_search([0,1,2,3,4]),
         # "use_sum": tune.grid_search([True, False]),
         # "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
-        # "settings": settings.hyperparameters,
+        "settings": settings.hyperparameters,
         },
     }
 

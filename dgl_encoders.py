@@ -166,6 +166,7 @@ class NSATEncoder(DGLEncoder):
     self.num_layers = self.settings['cp_num_layers']
     self.LC_msg = MLPModel([self.d]*self.num_layers)
     self.CL_msg = MLPModel([self.d]*self.num_layers)
+    self.my_zero = nn.Parameter(torch.zeros(1),requires_grad=False)
 
     if self.use_labels:
       self.literal_features_layer = MLPModel([self.vlabel_dim,self.d,self.d])
@@ -191,8 +192,8 @@ class NSATEncoder(DGLEncoder):
       literals = self.L_init.expand(G.number_of_nodes('literal'), self.d) / np.sqrt(self.d)
       clauses = self.C_init.expand(G.number_of_nodes('clause'), self.d) / np.sqrt(self.d)
       
-    L_state = (literals, torch.zeros(1).expand(literals.shape[0], self.d))
-    C_state = (clauses, torch.zeros(1).expand(clauses.shape[0], self.d))
+    L_state = (literals, self.my_zero.expand(literals.shape[0], self.d))
+    C_state = (clauses, self.my_zero.expand(clauses.shape[0], self.d))
 
     for i in range(self.max_iters):      
       G.nodes['literal'].data['l2c_msg'] = self.LC_msg(L_state[0])

@@ -137,15 +137,15 @@ def validate(model, val_iterator, criterion, config):
   pprint(stats)  
   return stats
 
+# update_settings sometimes gets all settings from config (in cluster fork case), or just updates
+
+
 def update_settings(config):
   settings = CnfSettings()
   if 'settings' in config:
-    new_settings = config['settings']
-    for k in new_settings.keys():
-      if k in config.keys():
-        settings.hyperparameters[k] = config[k]
-      else:        
-        settings.hyperparameters[k] = new_settings[k]
+    settings.hyperparameters = config.pop('settings')
+  for k in config.keys():
+    settings.hyperparameters[k] = config[k]
   return settings
 
 
@@ -154,7 +154,8 @@ def model_creator(config):
   return ClausePredictionModel(settings)
 
 def optimizer_creator(model, config):
-  settings = update_settings(config)
+  ipdb.set_trace()
+  settings = update_settings(config)  
   return torch.optim.SGD(model.parameters(), lr=settings['init_lr'])
 
 def data_creator(batch_size, config):
@@ -199,12 +200,12 @@ def clause_prediction_main():
       "use_gpu": False,
       "batch_size": settings['batch_size'],
       "config": {
-        "lr": settings['init_lr'],
+        # "init_lr": settings['init_lr'],
         # "lr": tune.grid_search([1e-2,settings['init_lr']]),
         # "max_iters": tune.grid_search([0,1,2,3,4]),
         # "use_sum": tune.grid_search([True, False]),
         # "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
-        "settings": settings.hyperparameters,
+        # "settings": settings.hyperparameters,
         },
     }
 
@@ -237,9 +238,9 @@ def clause_prediction_main():
     print(rc)
 
   else:
-    model = model_creator({})
-    optimizer = optimizer_creator(model, {'settings': settings})
-    train_loader, validation_loader = data_creator(settings['batch_size'], {})
+    # model = model_creator({})
+    # optimizer = optimizer_creator(model, {'settings': settings})
+    # train_loader, validation_loader = data_creator(settings['batch_size'], {})
 
     trainer1 = PyTorchTrainer(
       model_creator,

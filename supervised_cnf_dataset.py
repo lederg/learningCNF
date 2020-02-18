@@ -44,6 +44,13 @@ def load_formula(fname):
   rc['gss'] = torch.Tensor(formula['gss']).expand(rc['cnum'], len(formula['gss']))
   return rc
 
+def cudaize_sample(sample):
+  sample['gss'] = sample['gss'].cuda(non_blocking=True)
+  sample['graph'] = sample['graph'].to(torch.device('cuda:0'))
+  
+  return sample
+
+
 class SampleLearntClauses(object):
   def __init__(self,num):
     self.num = num

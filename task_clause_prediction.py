@@ -54,7 +54,7 @@ def train(model, train_iterator, criterion, optimizer, config):
     # Create non_blocking tensors for distributed training
     with timers["d2h"]:
       if torch.cuda.is_available():
-        features = features.cuda(non_blocking=True)
+        features = cudaize_sample(features)
         target = target.cuda(non_blocking=True)
 
     # compute output
@@ -114,7 +114,7 @@ def validate(model, val_iterator, criterion, config):
     for (features, target) in tqdm(val_iterator):
       labels_bias.update(target.sum().float() / target.size(0), target.size(0))
       if torch.cuda.is_available():
-        features = features.cuda(non_blocking=True)
+        features = cudaize_sample(features)
         target = target.cuda(non_blocking=True)
 
       # compute output

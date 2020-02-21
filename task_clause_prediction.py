@@ -165,7 +165,15 @@ def data_creator(batch_size, config):
     cmask_features = set(range(6)).difference(cmask_features)
   if settings['cp_invert_vmask']:
     vmask_features = set(range(6)).difference(vmask_features)
-  trans = [CapActivity(),SampleLearntClauses(10)] + [ZeroClauseIndex(x) for x in cmask_features] + [ZeroLiteralIndex(x) for x in vmask_features]
+  trans = []
+  if settings['cp_task'] == 'ever_used':
+    trans.append(MakeEverUsedTarget())
+  elif settings['cp_task'] == 'lbd':
+    trans.append(MakeLbdTarget())
+  trans.extend([CapActivity(),SampleLearntClauses(settings['cp_clauses_sampled'],settings['cp_num_categories'])])
+  trans.extend([ZeroClauseIndex(x) for x in cmask_features] + [ZeroLiteralIndex(x) for x in vmask_features])
+  if settings['cp_cap_graph']:
+    trans.append(CapGraph((settings['max_iters']-1)*2+1))
   trans = transforms.Compose(trans)
   ds = CnfGNNDataset(settings['rl_train_data'], transform=trans)
   validate_ds = CnfGNNDataset(settings['rl_validation_data'], transform=trans)

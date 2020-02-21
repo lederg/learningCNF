@@ -34,7 +34,7 @@ class ClausePredictionModel(nn.Module):
       inp_size += self.encoder.clabel_dim
     if self.settings['cp_add_gss']:
       inp_size += self.gss_dim
-    self.decision_layer = MLPModel([inp_size,256,64,2])
+    self.decision_layer = MLPModel([inp_size,256,64,self.settings['cp_num_categories']])
 
   def forward(self, input_dict, **kwargs):
     gss = input_dict['gss']

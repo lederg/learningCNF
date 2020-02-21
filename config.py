@@ -237,7 +237,7 @@ def cfg():
 	es_naive_stepsize = 1.
 
 # Clause prediction
-	cp_cmask_features = [2]
+	cp_cmask_features = [2]		# By default mask lbd
 	cp_vmask_features = []
 	cp_invert_cmask = False
 	cp_invert_vmask = False
@@ -252,6 +252,10 @@ def cfg():
 	cp_emb_dim = 128
 	cp_use_gpu = False
 	cp_save_every=5
+	cp_cap_graph = False
+	cp_num_categories = 2
+	cp_clauses_sampled = 10
+	cp_task = 'ever_used'			# 'ever_used' | 'lbd'
 	smoke_test = False
 
 # Localization

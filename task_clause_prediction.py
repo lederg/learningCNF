@@ -1,5 +1,6 @@
 import os
 import ipdb
+import psutil
 import dgl
 import torch
 import torch.nn as nn
@@ -26,6 +27,7 @@ def initialization_hook(runner):
 def train(model, train_iterator, criterion, optimizer, config):
   """Runs 1 training epoch"""
   settings = update_settings(config)  
+  main_proc = psutil.Process(os.getpid())
   print('Beginning epoch')
   utils.set_lr(optimizer,settings['init_lr'])
   if isinstance(model, collections.Iterable) or isinstance(
@@ -81,6 +83,18 @@ def train(model, train_iterator, criterion, optimizer, config):
     # measure elapsed time
     batch_time.update(time.time() - end)
     end = time.time()
+
+    try:
+      total_mem = main_proc.memory_info().rss / float(2 ** 20)
+      children = main_proc.children(recursive=True)
+      for child in children:
+        child_mem = child.memory_info().rss / float(2 ** 20)
+        total_mem += child_mem
+        print('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
+      print('Total memory on host is {}'.format(total_mem))
+    except:       # A child could already be dead due to a race. Just ignore it this round.
+      print('why like this')
+
 
   stats = {
     "train_accuracy": correct/total,

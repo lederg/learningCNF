@@ -59,7 +59,7 @@ class MakeLbdTarget(object):
     rc[inp>6] += 1
     rc[inp>9] += 1
     rc[inp>12] += 1
-    return rc
+    return rc.long()
 
   def __call__(self, sample):
     G = sample['graph']
@@ -137,17 +137,19 @@ class SampleLearntClauses(object):
     self.num_categories = num_categories
   def __call__(self, sample):
     G = sample['graph']
-    labels = (G.nodes['clause'].data['clause_targets'][:,1] == 0).long()
     learnt = (G.nodes['clause'].data['clause_labels'][:,-1]).int()
     learnt_idx = torch.where(learnt)[0]
+    labels = G.nodes['clause'].data['clause_effective_targets']
     labels_learnt = labels[learnt_idx]
-    labels_pos = torch.where(labels_learnt)[0]
-    labels_neg = torch.where(labels_learnt==0)[0]
-    pos_idx = learnt_idx[labels_pos[torch.torch.randperm(labels_pos.size(0))[:self.num]]]
-    neg_idx = learnt_idx[labels_neg[torch.torch.randperm(labels_neg.size(0))[:self.num]]]
-    predicted_idx = torch.cat([pos_idx,neg_idx],dim=0)
+    predicted_idx = []
+    for i in range(self.num_categories):
+      cat_idx = torch.where(labels_learnt==i)[0]    
+      predicted_idx.append(learnt_idx[cat_idx[torch.torch.randperm(cat_idx.size(0))[:self.num]]])
+    
+    predicted_idx = torch.cat(predicted_idx,dim=0)
     predicted_arr = torch.zeros(labels.size(0))
     predicted_arr[predicted_idx] = 1
+    # ipdb.set_trace()
     G.nodes['clause'].data['predicted_clauses'] = predicted_arr
     return sample
 

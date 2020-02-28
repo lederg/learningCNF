@@ -258,6 +258,11 @@ def cfg():
 	cp_task = 'ever_used'			# 'ever_used' | 'lbd'
 	smoke_test = False
 
+# SharpSAT
+
+	sharp_completion_reward = 1
+
+
 # Localization
 	max_edges = 20
 

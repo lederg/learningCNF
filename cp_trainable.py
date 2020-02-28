@@ -1,4 +1,3 @@
-import ipdb
 import os
 from ray.tune import Trainable
 from ray.experimental.sgd.pytorch.pytorch_trainer import PyTorchTrainer

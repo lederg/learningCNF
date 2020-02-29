@@ -96,18 +96,6 @@ def train(model, train_iterator, criterion, optimizer, config):
           total_mem += child_mem
           print('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
         print('Total memory on host is {}'.format(total_mem))
-        print(" Host RSS memory: {0:.2f}MB".format(self.process.memory_info().rss / float(2 ** 20)))        
-        objects = gc.get_objects()
-        print('Number of objects is {}'.format(len(objects)))
-        del objects
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        print("[ Top 20]")
-        for stat in top_stats[:20]:
-            print(stat)
-        del snapshot
-        del top_stats
-
       except:       # A child could already be dead due to a race. Just ignore it this round.
         print('why like this')
 
@@ -265,7 +253,7 @@ def clause_prediction_main():
       checkpoint_freq=settings['cp_save_every'],
       restore=restore_point,
       reuse_actors=True,    
-      resources_per_trial={'cpu': 6, 'memory': 2**33},
+      resources_per_trial={'cpu': 6},
       config=config,
       stop={"training_iteration": 120},
       verbose=1)

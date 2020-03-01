@@ -20,18 +20,20 @@ from ray.tune.schedulers import PopulationBasedTraining
 
 from tqdm import tqdm
 from pprint import pprint
-
+curr_epoch = 0
 def initialization_hook(runner):
   print('initialization_hook!!')
   print(os.environ)
 
 def train(model, train_iterator, criterion, optimizer, config):
   """Runs 1 training epoch"""
+  global curr_epoch
+  curr_epoch += 1
   settings = update_settings(config)  
   if settings['memory_profiling']:
     tracemalloc.start(25)
   main_proc = psutil.Process(os.getpid())
-  print('Beginning epoch')
+  print('Beginning epoch {}'.format(curr_epoch))
   utils.set_lr(optimizer,settings['init_lr'])
   if isinstance(model, collections.Iterable) or isinstance(
       optimizer, collections.Iterable):

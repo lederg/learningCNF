@@ -25,6 +25,17 @@ def initialization_hook(runner):
   print('initialization_hook!!')
   print(os.environ)
 
+def get_lr(e):
+  rc = 1.
+  if e > 10:
+    rc *= 0.1
+  if e > 20:
+    rc *= 0.1
+  if e > 30:
+    rc *= 0.2
+
+  return rc
+
 def train(model, train_iterator, criterion, optimizer, config):
   """Runs 1 training epoch"""
   global curr_epoch
@@ -33,8 +44,9 @@ def train(model, train_iterator, criterion, optimizer, config):
   if settings['memory_profiling']:
     tracemalloc.start(25)
   main_proc = psutil.Process(os.getpid())
-  print('Beginning epoch {}'.format(curr_epoch))
-  utils.set_lr(optimizer,settings['init_lr'])
+  epoch_lr = get_lr(curr_epoch) * settings['init_lr']
+  print('Beginning epoch {}, lr is {}'.format(curr_epoch,epoch_lr))
+  utils.set_lr(optimizer,epoch_lr)
   if isinstance(model, collections.Iterable) or isinstance(
       optimizer, collections.Iterable):
     raise ValueError(

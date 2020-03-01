@@ -166,7 +166,6 @@ def update_settings(config):
     settings.hyperparameters[k] = config[k]
   return settings
 
-
 def model_creator(config):
   settings = update_settings(config)
   return ClausePredictionModel(settings)
@@ -227,7 +226,7 @@ def clause_prediction_main():
       "config": {
         # "init_lr": settings['init_lr'],
         # "lr": tune.grid_search([1e-2,settings['init_lr']]),
-        # "max_iters": tune.grid_search([0,1,2,3,4]),
+        # "max_iters": tune.grid_search([0,1,2]),
         # "use_sum": tune.grid_search([True, False]),
         # "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
         "settings": settings.hyperparameters,

@@ -86,14 +86,17 @@ class DGLEncoder(nn.Module):
     self.max_iters = self.settings['max_iters']        
     self.non_linearity = eval(self.settings['non_linearity'])
 
-  def tie_literals(embs):    
-    n, vembs = int(embs.shape[0]/2), embs.shape[1]
-    y = embs.view(n, 2, vembs)
-    pos_part = y.transpose(1,2)[:,:,0]
-    neg_part = y.transpose(1,2)[:,:,1]
-    cp = torch.cat([pos_part,neg_part],dim=1)
-    cn = torch.cat([neg_part,pos_part],dim=1)
-    return torch.stack((cp,cn), dim=1).view(2*n, 2*vembs)
+  def tie_literals(embs, interleaved=True, concat_origin=True):
+    feat_size = embs.shape[1]
+    if interleaved:
+      z = embs.view(-1,2,feat_size)
+      rc = z[:,(1,0),:].view(-1,feat_size)
+    else:
+      n = int(embs.shape[0]/2)
+      rc = torch.cat([embs[n:],embs[:n]],dim=0)
+    if concat_origin:
+      rc = torch.cat([embs,rc],dim=1)
+    return rc
 
   def forward(self, G, feat_dict, **kwargs):
     raise NotImplementedError
@@ -105,7 +108,7 @@ class DGLEncoder(nn.Module):
 class CNFEncoder(DGLEncoder):
   def __init__(self, settings=None, **kwargs):
     super(CNFEncoder, self).__init__(settings=settings, **kwargs)
-
+    norm_class = None
     if self.settings['cp_normalization'] == 'batch':
       norm_class = nn.BatchNorm1d
     elif self.settings['cp_normalization'] == 'layer':
@@ -116,7 +119,7 @@ class CNFEncoder(DGLEncoder):
       self.vnorm_layers = nn.ModuleList([norm_class(self.vemb_dim)]) if self.use_norm else nn.ModuleList([])
       self.layers = nn.ModuleList([cnf_layer(self.vlabel_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs)])
       for i in range(1,self.max_iters):
-        self.layers.append(cnf_layer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, **kwargs))
+        self.layers.append(cnf_layer(2*self.vemb_dim, self.cemb_dim, self.vemb_dim, activation=self.non_linearity, norm_class=norm_class, **kwargs))
         if self.use_norm:
           self.vnorm_layers.append(norm_class(self.vemb_dim))
 
@@ -153,6 +156,61 @@ class CNFVarEncoder(DGLEncoder):
     for i in range(1,self.max_iters):      
       embs = self.layers[i](G, feat_dict)
     return embs
+
+
+class GINEncoder(DGLEncoder):
+  def __init__(self, settings=None, **kwargs):
+    super(GINEncoder, self).__init__(settings=settings, **kwargs)
+    self.settings = settings if settings else CnfSettings()    
+    self.aggregate = fn.sum
+    self.d = self.settings['sharp_emb_dim']
+    self.num_layers = self.settings['cp_num_layers']
+    self.epsilon = nn.Parameter(torch.Tensor([0.2]))
+    
+    if self.vlabel_dim:
+      self.literal_features_layer = MLPModel([self.vlabel_dim,self.d,self.d])
+    else:
+      self.L_init = nn.Parameter(torch.normal(torch.zeros(self.d)))
+    if self.clabel_dim:
+      self.clause_features_layer = MLPModel([self.clabel_dim,self.d,self.d])
+    else:
+      self.C_init = nn.Parameter(torch.normal(torch.zeros(self.d)))
+
+    self.L_update = nn.ModuleList([])
+    self.C_update = nn.ModuleList([])
+    for i in range(self.max_iters):  
+      self.L_update.append(MLPModel([2*self.d, self.d, self.d], layernorm=True))
+      self.C_update.append(MLPModel([self.d, self.d, self.d], layernorm=True))
+
+  def forward(self, G, **kwargs):
+    if self.vlabel_dim:
+      literals = self.literal_features_layer(G.nodes['literal'].data['literal_feats']) / np.sqrt(self.d)
+    else:
+      literals = self.L_init.expand(G.number_of_nodes('literal'), self.d) / np.sqrt(self.d)
+    if self.clabel_dim:
+      clauses = self.clause_features_layer(G.nodes['clause'].data['clause_feats']) / np.sqrt(self.d)
+    else:
+      clauses = self.C_init.expand(G.number_of_nodes('clause'), self.d) / np.sqrt(self.d)
+    
+    G.nodes['literal'].data['literal_embs'] = literals
+    G.nodes['clause'].data['clause_embs'] = clauses
+
+    # ipdb.set_trace()
+    for i in range(self.max_iters):        
+      G['l2c'].update_all(fn.copy_src('literal_embs', 'm'), self.aggregate('m', 'h'))
+      pre_cembs = (self.epsilon+1)*G.nodes['clause'].data['clause_embs'] + G.nodes['clause'].data['h']      
+      G.nodes['clause'].data['clause_embs'] = self.C_update[i](pre_cembs)
+      G['c2l'].update_all(fn.copy_src('clause_embs', 'm'), self.aggregate('m', 'h'))
+      pre_lembs = (self.epsilon+1)*G.nodes['literal'].data['literal_embs'] + G.nodes['literal'].data['h']
+      pre_lembs = DGLEncoder.tie_literals(pre_lembs)
+      G.nodes['literal'].data['literal_embs'] = self.L_update[i](pre_lembs)
+
+    return G.nodes['literal'].data['literal_embs'], G.nodes['clause'].data['clause_embs']
+
+  def output_size(self):
+    return self.d    
+
+
 
 # Neurosat-style encoder
 

@@ -5,7 +5,7 @@ from torch.nn import init as nn_init
 import torch.nn.functional as F
 
 class MLPModel(nn.Module):
-  def __init__(self, dims, activation=nn.ReLU, dropout=0, batchnorm=False):
+  def __init__(self, dims, activation=nn.ReLU, dropout=0, batchnorm=False, layernorm=False):
     super().__init__()
     layers = []
     if dropout>0:
@@ -16,6 +16,8 @@ class MLPModel(nn.Module):
         layers.append(activation())
         if batchnorm:
           layers.append(nn.BatchNorm1d(dims[i+1]))
+        elif layernorm:
+          layers.append(nn.LayerNorm(dims[i+1]))          
         if dropout>0:
           layers.append(nn.Dropout(dropout))
 

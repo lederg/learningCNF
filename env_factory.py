@@ -7,6 +7,7 @@ import os
 from settings import *
 from cadet_env import CadetEnv
 from sat_env import *
+from sharp_env import *
 from function_env import *
 from empty_env import *
 from episode_data import *
@@ -30,6 +31,12 @@ class EnvFactory:
       log.info('Starting minisat server')
       satserv.start()
       return satserv.proxy(**kwargs)
+    elif envtype == 'sharpsat':
+      env = SharpActiveEnv(**kwargs)
+      serv = SharpEnvServer(env)
+      log.info('Starting sharpsat server')
+      serv.start()
+      return serv.proxy(**kwargs)
     elif envtype == 'function':
       return FunctionEnv(**kwargs)
     elif envtype == 'empty':

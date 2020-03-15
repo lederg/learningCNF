@@ -17,18 +17,18 @@ from qbf_model import *
 from settings import *
 from policy_base import *
 from rl_utils import *
+from common_components import *
 
 class CNFLayer(nn.Module):
-  def __init__(self, in_size, clause_size, out_size, activation=None, settings=None, **kwargs):
+  def __init__(self, in_size, clause_size, out_size, activation=None, settings=None, norm_class=None, **kwargs):
     super(CNFLayer, self).__init__()
     self.settings = settings if settings else CnfSettings()
-    self.ntypes = ['literal', 'clause']
-    self.etypes = ['l2c', 'c2l']
     # W_r for each relation
     self.weight = nn.ModuleDict({
-      self.etypes[0] : nn.Linear(in_size, clause_size),
-      self.etypes[1] : nn.Linear(clause_size+self.settings['clabel_dim'], out_size)
+      'l2c' : MLPModel(in_size, 128, clause_size),
+      'c2l' : MLPModel(clause_size+self.settings['clabel_dim'], 128, out_size)
     })
+
     self.activation = activation if activation else eval(self.settings['non_linearity'])
     self.aggregate = fn.sum if self.settings['use_sum'] else fn.mean
     

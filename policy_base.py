@@ -9,6 +9,11 @@ class RLLibModel(nn.Module, TorchModelV2):
   def __init__(self, *args, **kwargs):  
     TorchModelV2.__init__(self, *args, **kwargs)
     nn.Module.__init__(self)
+
+    # Make rllib happy
+    self.outputs = None
+    self.state_out = None
+    self._validate_output_shape = lambda: None
     self.settings = kwargs['settings'] if 'settings' in kwargs.keys() else CnfSettings()        
     self.state_dim = self.settings['state_dim']
     self.embedding_dim = self.settings['embedding_dim']
@@ -18,7 +23,8 @@ class RLLibModel(nn.Module, TorchModelV2):
     self.clabel_dim = self.settings['clabel_dim']
     self.policy_dim1 = self.settings['policy_dim1']
     self.policy_dim2 = self.settings['policy_dim2']   
-    self.max_iters = self.settings['max_iters']   
+    self.max_iters = self.settings['max_iters']
+    self.max_vars = self.settings['max_variables']
     self.state_bn = self.settings['state_bn']
     self.use_bn = self.settings['use_bn']
     self.entropy_alpha = self.settings['entropy_alpha']    
@@ -27,7 +33,7 @@ class RLLibModel(nn.Module, TorchModelV2):
     self.lambda_aux = self.settings['lambda_aux']
     self.non_linearity = self.settings['policy_non_linearity']
     self.print_every = self.settings['print_every']
-    self.logger = utils.get_logger(self.settings, 'SatModel')
+    self.logger = utils.get_logger(self.settings, 'RLLibModel')
     if self.non_linearity is not None:
       self.activation = eval(self.non_linearity)
     else:

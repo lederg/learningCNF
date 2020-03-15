@@ -42,6 +42,7 @@ def main():
 	from task_naive_es import naive_es_main
 	from task_sp import sp_main
 	from task_clause_prediction import clause_prediction_main
+	from task_rllib import rllib_main
 
 	from functional_env_test import functional_env_test
 

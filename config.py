@@ -210,7 +210,7 @@ def cfg():
 	minimum_episodes = 2
 	do_lbd = False
 	sat_random_p = 0.5
-	disable_gnn = True 				# Note, disabled by default!!
+	disable_gnn = False
 	threshold_sigma = 1.0
 	threshold_scale = 1.0
 	threshold_shift = 0.
@@ -260,8 +260,13 @@ def cfg():
 
 # SharpSAT
 
+	sharp_relaxed_msg = True
+	sharp_relaxed_update = False
 	sharp_completion_reward = 1
-
+	sharp_encoder_type = 'GINEncoder'
+	sharp_add_labels = False
+	sharp_add_embedding = True
+	sharp_emb_dim = 32
 
 # Localization
 	max_edges = 20

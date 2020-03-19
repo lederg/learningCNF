@@ -219,11 +219,20 @@ class NSATEncoder(DGLEncoder):
     super(NSATEncoder, self).__init__(settings=settings, **kwargs)
     self.settings = settings if settings else CnfSettings()
     self.d = self.settings['cp_emb_dim']
+    self.relaxed_msg = self.settings['cp_nsat_relaxed_msg']
+    self.relaxed_update = self.settings['cp_nsat_relaxed_update']
     self.use_labels = self.settings['cp_nsat_use_labels']
     self.aggregate = fn.sum if self.settings['use_sum'] else fn.mean
     self.num_layers = self.settings['cp_num_layers']
-    self.LC_msg = MLPModel([self.d]*self.num_layers)
-    self.CL_msg = MLPModel([self.d]*self.num_layers)
+    if self.relaxed_msg:      
+      self.LC_msg = nn.ModuleList([])
+      self.CL_msg = nn.ModuleList([])
+      for i in range(self.max_iters):
+        self.LC_msg.append(MLPModel([self.d]*self.num_layers))
+        self.CL_msg.append(MLPModel([self.d]*self.num_layers))
+    else:
+      self.LC_msg = MLPModel([self.d]*self.num_layers)
+      self.CL_msg = MLPModel([self.d]*self.num_layers)
     self.my_zero = nn.Parameter(torch.zeros(1),requires_grad=False)
 
     if self.use_labels:
@@ -233,8 +242,15 @@ class NSATEncoder(DGLEncoder):
       self.L_init = nn.Parameter(torch.normal(torch.zeros(self.d)))
       self.C_init = nn.Parameter(torch.normal(torch.zeros(self.d)))
 
-    self.L_update = rnn = rnn_util.LayerNormLSTMCell(2*self.d, self.d)
-    self.C_update = rnn = rnn_util.LayerNormLSTMCell(self.d, self.d)
+    if self.relaxed_update:
+      self.L_update = nn.ModuleList([])
+      self.C_update = nn.ModuleList([])
+      for i in range(self.max_iters):  
+        self.L_update.append(rnn_util.LayerNormLSTMCell(2*self.d, self.d))
+        self.C_update.append(rnn_util.LayerNormLSTMCell(self.d, self.d))
+    else:
+      self.L_update = rnn_util.LayerNormLSTMCell(2*self.d, self.d)
+      self.C_update = rnn_util.LayerNormLSTMCell(self.d, self.d)
 
 
     # like tie_literals before the cat
@@ -253,15 +269,27 @@ class NSATEncoder(DGLEncoder):
     L_state = (literals, self.my_zero.expand(literals.shape[0], self.d))
     C_state = (clauses, self.my_zero.expand(clauses.shape[0], self.d))
 
-    for i in range(self.max_iters):      
-      G.nodes['literal'].data['l2c_msg'] = self.LC_msg(L_state[0])
+    for i in range(self.max_iters):
+      if self.relaxed_msg:
+        LC_msg = self.LC_msg[i]
+        CL_msg = self.CL_msg[i]
+      else:
+        LC_msg = self.LC_msg
+        CL_msg = self.CL_msg
+      if self.relaxed_update:
+        L_update = self.L_update[i]
+        C_update = self.C_update[i]
+      else:
+        L_update = self.L_update
+        C_update = self.C_update
+      G.nodes['literal'].data['l2c_msg'] = LC_msg(L_state[0])
       G['l2c'].update_all(fn.copy_src('l2c_msg', 'm'), self.aggregate('m', 'h'))
       pre_cembs = G.nodes['clause'].data['h']
-      C_state = self.C_update(pre_cembs, C_state)
-      G.nodes['clause'].data['c2l_msg'] = self.CL_msg(C_state[0])
+      C_state = C_update(pre_cembs, C_state)
+      G.nodes['clause'].data['c2l_msg'] = CL_msg(C_state[0])
       G['c2l'].update_all(fn.copy_src('c2l_msg', 'm'), self.aggregate('m', 'h'))
       pre_lembs = G.nodes['literal'].data['h']
-      L_state = self.L_update(torch.cat([pre_lembs,self.flip(L_state[0])],axis=1), L_state)
+      L_state = L_update(torch.cat([pre_lembs,self.flip(L_state[0])],axis=1), L_state)
 
     return L_state[0], C_state[0]
 

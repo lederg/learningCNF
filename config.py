@@ -14,7 +14,7 @@ def cfg():
 	pyro_name = None   		# This will become the experiment name
 	pyro_port=None
 	pyro_host=None
-	ray_address=None
+	ray_address=None  	  # None | auto
 	save_config = True
 	update_config=None
 	state_dim = 90
@@ -242,6 +242,8 @@ def cfg():
 	cp_invert_cmask = False
 	cp_invert_vmask = False
 	cp_nsat_use_labels = False
+	cp_nsat_relaxed_msg = False
+	cp_nsat_relaxed_update = False
 	cp_num_samples = 1
 	cp_num_layers = 3
 	cp_normalization = None

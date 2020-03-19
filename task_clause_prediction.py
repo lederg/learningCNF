@@ -20,19 +20,33 @@ from ray.tune.schedulers import PopulationBasedTraining
 
 from tqdm import tqdm
 from pprint import pprint
-
+curr_epoch = 0
 def initialization_hook(runner):
   print('initialization_hook!!')
   print(os.environ)
 
+def get_lr(e):
+  rc = 1.
+  if e > 10:
+    rc *= 0.1
+  if e > 20:
+    rc *= 0.1
+  if e > 30:
+    rc *= 0.2
+
+  return rc
+
 def train(model, train_iterator, criterion, optimizer, config):
   """Runs 1 training epoch"""
+  global curr_epoch
+  curr_epoch += 1
   settings = update_settings(config)  
   if settings['memory_profiling']:
     tracemalloc.start(25)
   main_proc = psutil.Process(os.getpid())
-  print('Beginning epoch')
-  utils.set_lr(optimizer,settings['init_lr'])
+  epoch_lr = get_lr(curr_epoch) * settings['init_lr']
+  print('Beginning epoch {}, lr is {}'.format(curr_epoch,epoch_lr))
+  utils.set_lr(optimizer,epoch_lr)
   if isinstance(model, collections.Iterable) or isinstance(
       optimizer, collections.Iterable):
     raise ValueError(
@@ -96,18 +110,6 @@ def train(model, train_iterator, criterion, optimizer, config):
           total_mem += child_mem
           print('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
         print('Total memory on host is {}'.format(total_mem))
-        print(" Host RSS memory: {0:.2f}MB".format(self.process.memory_info().rss / float(2 ** 20)))        
-        objects = gc.get_objects()
-        print('Number of objects is {}'.format(len(objects)))
-        del objects
-        snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
-        print("[ Top 20]")
-        for stat in top_stats[:20]:
-            print(stat)
-        del snapshot
-        del top_stats
-
       except:       # A child could already be dead due to a race. Just ignore it this round.
         print('why like this')
 
@@ -178,7 +180,6 @@ def update_settings(config):
     settings.hyperparameters[k] = config[k]
   return settings
 
-
 def model_creator(config):
   settings = update_settings(config)
   return ClausePredictionModel(settings)
@@ -239,7 +240,7 @@ def clause_prediction_main():
       "config": {
         # "init_lr": settings['init_lr'],
         # "lr": tune.grid_search([1e-2,settings['init_lr']]),
-        # "max_iters": tune.grid_search([0,1,2,3,4]),
+        # "max_iters": tune.grid_search([0,1,2]),
         # "use_sum": tune.grid_search([True, False]),
         # "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
         "settings": settings.hyperparameters,
@@ -265,7 +266,7 @@ def clause_prediction_main():
       checkpoint_freq=settings['cp_save_every'],
       restore=restore_point,
       reuse_actors=True,    
-      resources_per_trial={'cpu': 6, 'memory': 2**33},
+      resources_per_trial={'cpu': 6},
       config=config,
       stop={"training_iteration": 120},
       verbose=1)

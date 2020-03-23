@@ -195,7 +195,7 @@ class RLLibTrainer():
     # config["timesteps_per_iteration"]=10
     config['gamma'] = float(self.settings['gamma'])
     config["model"] = {"custom_model": model_name}
-    # config['use_pytorch'] = True
+    config['use_pytorch'] = True
     config['lr'] = float(self.settings['init_lr'])
     config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data'], 'eval': False}
     if settings['use_seed']:

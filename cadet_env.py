@@ -425,6 +425,7 @@ class CadetEnv(EnvBase):
     #   self.rewards = np.concatenate([rewards, [DQN_DEF_COST]])    # Average action
     #   return None, None, None, None, None, None, DQN_DEF_COST, None, True    
     self.timestep += 1
+    # print('Got action {}'.format(action))
     # ipdb.set_trace()
     self.write_action(self.translate_action(action))
     env_obs = self.read_state_update()

@@ -98,8 +98,32 @@ class SharpModel(RLLibModel):
     if self.settings['sharp_add_labels']:
       out.append(lit_features)
     logits = self.decision_layer(torch.cat(out,dim=1)).t()
+    allowed_actions = self.get_allowed_actions(obs).int().float()
+    inf_mask = torch.max(allowed_actions.log(),torch.Tensor([torch.finfo().min]))
+    logits = logits + inf_mask
     self.outputs = torch.cat([logits,self.pad.expand((1,self.max_vars-logits.shape[1]))], dim=1)
     return self.outputs, []
+
+  def get_allowed_actions(self, obs, **kwargs):
+    def add_other_polarity(indices):
+      pos = torch.where(1-indices%2)[0]
+      neg = torch.where(indices%2)[0]
+      add_pos = indices[pos] + 1
+      add_neg = indices[neg] - 1
+      return torch.cat([indices,add_pos,add_neg],axis=0).unique()
+
+    literal_indices = torch.unique(obs.cmat.coalesce().indices()[1])
+    allowed_indices = add_other_polarity(literal_indices)
+    print('***')
+    print(literal_indices)
+    print('----------------------------------')
+    print(allowed_indices)
+    print('***')
+    allowed_actions = torch.zeros(obs.ground.shape[0])
+    allowed_actions[allowed_indices] = 1
+    return allowed_actions
+
+
 
   def value_function(self):
     return self._value_out.view(-1)

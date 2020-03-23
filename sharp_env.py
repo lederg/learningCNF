@@ -39,7 +39,7 @@ class SharpSpace(gym.Space):
 
 class SharpActiveEnv:
   EnvObservation = namedlist('SharpEnvObservation', 
-                              ['gss', 'vfeatures', 'cfeatures', 'cmat', 'reward', 'done'],
+                              ['gss', 'vfeatures', 'cfeatures', 'row', 'col', 'efeatures', 'reward', 'done'],
                               default=None)
 
   def __init__(self, server=None, settings=None, **kwargs):
@@ -74,16 +74,10 @@ class SharpActiveEnv:
 
   def __callback(self, row, col, data):
     self.current_step += 1
-    if self.disable_gnn:
-      adj_matrix = None
+    if self.disable_gnn:      
       vlabels = None
     else:
-      ipdb.set_trace()
-      return 20
-      vlabels = self.solver.get_lit_labels()
-      print('Number of vars is {}'.format(vlabels.shape[0]))
-      # print(vlabels)
-      adj_matrix = csr_matrix((data, (row, col)),shape=(row.max()+1,len(vlabels)))
+      vlabels = self.solver.get_lit_labels()    
     if not self.server:
       log.info('Running a test version of SharpEnv')
       ind = np.argmax(vlabels[:,1])
@@ -92,7 +86,7 @@ class SharpActiveEnv:
       
     else:
       try:
-        rc = self.server.callback(vlabels, None, adj_matrix)
+        rc = self.server.callback(vlabels, None, row, col, data)
         print('Action is {}'.format(rc))
         return rc
       except Exception as e:
@@ -123,13 +117,18 @@ class SharpEnvProxy(EnvBase):
     if not env_obs or env_obs.done:
       return EmptyDenseState
 
-    # state = torch.from_numpy(env_obs.gss).float().unsqueeze(0)
-    cmat = csr_to_pytorch(env_obs.cmat)
-    ground_embs = torch.from_numpy(env_obs.vfeatures).float()
+    vfeatures = env_obs.vfeatures
+    efeatures = env_obs.efeatures
+    row = env_obs.row
+    col = env_obs.col
+    cmat = csr_matrix((torch.ones(len(efeatures)), (row, col)),shape=(row.max()+1,len(vfeatures)))
+    cmat = csr_to_pytorch(cmat)
+    ground_embs = torch.from_numpy(vfeatures).float()
+    extra_data = torch.from_numpy(efeatures).float()
     vmask = None
     cmask = None
 
-    return densify_obs(State(None,cmat, ground_embs, None, vmask, cmask, None))
+    return densify_obs(State(None,cmat, ground_embs, None, vmask, cmask, extra_data))
 
 
   def step(self, action):    
@@ -141,8 +140,8 @@ class SharpEnvProxy(EnvBase):
     if env_obs.reward:
       self.rewards.append(env_obs.reward)
     self.current_step += 1
-    # if env_obs.done:
-    #   print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
+    if env_obs.done:
+      print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
     return self.process_observation(None,env_obs), env_obs.reward, env_obs.done or self.check_break(), {}
 
   def reset(self):
@@ -243,12 +242,12 @@ class SharpEnvServer(threading.Thread):
         self.queue_out.put((EnvCommands.ACK_EXIT,None))
         break
 
-
-  def callback(self, vfeatures, cfeatures, adj_matrix):
+# adj_matrix = csr_matrix((torch.ones(len(data)), (row, col)),shape=(row.max()+1,len(vlabels)))
+  def callback(self, vfeatures, cfeatures, row, col, efeatures):    
     self.env.current_step += 1
     # print('clabels shape: {}'.format(cfeatures.shape))    
     # print('reward is {}'.format(self.env.get_reward()))
-    msg = self.env.EnvObservation(None, vfeatures, cfeatures, adj_matrix, -self.def_step_cost, False)
+    msg = self.env.EnvObservation(None, vfeatures, cfeatures, row, col, efeatures, -self.def_step_cost, False)
     if self.cmd == EnvCommands.CMD_RESET:
       ack = EnvCommands.ACK_RESET
     elif self.cmd == EnvCommands.CMD_STEP:
@@ -260,8 +259,7 @@ class SharpEnvServer(threading.Thread):
       assert True, 'Invalid last command detected'
 
     self.queue_out.put((ack,tuple(msg)))
-    self.cmd, rc = self.queue_in.get()
-    # ipdb.set_trace()
+    self.cmd, rc = self.queue_in.get()    
     if self.cmd == EnvCommands.CMD_STEP:
       # We got back an action
       return rc

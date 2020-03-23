@@ -154,7 +154,8 @@ class CadetModel(RLLibModel):
       value = None
     allowed_actions = self.get_allowed_actions(obs).int().float()
     inf_mask = torch.max(allowed_actions.log(),torch.Tensor([torch.finfo().min]))
-    # ipdb.set_trace()      
+    # print('logits shape is {}'.format(logits.shape))
+    # print(allowed_actions)
     return logits + inf_mask, []
 
   def get_allowed_actions(self, obs, **kwargs):

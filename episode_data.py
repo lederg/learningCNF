@@ -290,10 +290,11 @@ class BalancedEpisodeProvider(AbstractEpisodeProvider):
     return self.get_next()
 
 class OnePassProvider(AbstractEpisodeProvider):
-  def __init__(self,ds, **kwargs):
+  def __init__(self,ds, auto_move=False, **kwargs):
     super(OnePassProvider, self).__init__(ds) 
     print('items: {}'.format(len(self.items)))
     self.current = 0
+    self.auto_move = auto_move
 
   def sample(self, **kwargs):
     if self.current >= len(self.items):
@@ -306,7 +307,10 @@ class OnePassProvider(AbstractEpisodeProvider):
     self.current += 1
 
   def get_next(self, **kwargs):
-    return self.sample(**kwargs)
+    rc = self.sample(**kwargs)
+    if self.auto_move:
+      self.current += 1
+    return rc
 
   def __len__(self):
     return len(self.items) - self.current

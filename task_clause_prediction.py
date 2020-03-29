@@ -190,12 +190,13 @@ def optimizer_creator(model, config):
 
 def data_creator(batch_size, config):
   settings = update_settings(config)
+  tagged = False
   cmask_features = settings['cp_cmask_features']
   vmask_features = settings['cp_vmask_features']
   if settings['cp_invert_cmask']:
-    cmask_features = set(range(6)).difference(cmask_features)
+    cmask_features = set(range(settings['clabel_dim'])).difference(cmask_features)
   if settings['cp_invert_vmask']:
-    vmask_features = set(range(6)).difference(vmask_features)
+    vmask_features = set(range(settings['vlabel_dim'])).difference(vmask_features)
   trans = []
   if settings['cp_task'] == 'ever_used':
     trans.append(MakeEverUsedTarget())

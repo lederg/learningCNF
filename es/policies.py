@@ -13,7 +13,7 @@ from ray.rllib.utils.filter import get_filter
 from custom_rllib_utils import *
 from settings import *
 
-def rollout(policy, env, timestep_limit=None, add_noise=False):
+def rollout(policy, env, fname=None, timestep_limit=None, add_noise=False):
   """Do a rollout.
 
   If add_noise is True, the rollout will take noisy actions with
@@ -25,7 +25,7 @@ def rollout(policy, env, timestep_limit=None, add_noise=False):
     timestep_limit, env_timestep_limit))
   rews = []
   t = 0
-  observation = env.reset()
+  observation = env.reset(fname=fname)
   for _ in range(timestep_limit or 999999):
     ac = policy.compute(observation, add_noise=add_noise)[0]
     observation, rew, done, _ = env.step(ac)
@@ -33,7 +33,7 @@ def rollout(policy, env, timestep_limit=None, add_noise=False):
     t += 1
     if done:
       break
-  rews = np.array(rews, dtype=np.float32)
+  rews = np.array(rews, dtype=np.float32)  
   return rews, t
 
 

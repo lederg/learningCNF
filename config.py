@@ -235,6 +235,7 @@ def cfg():
 	es_population = 50
 	es_num_formulas = 5
 	es_naive_stepsize = 1.
+	es_train_data = 'data/sat_100'
 
 # Clause prediction
 	cp_cmask_features = [2]		# By default mask lbd
@@ -257,7 +258,7 @@ def cfg():
 	cp_cap_graph = False
 	cp_num_categories = 2
 	cp_clauses_sampled = 10
-	cp_task = 'ever_used'			# 'ever_used' | 'lbd'
+	cp_task = 'ever_used'			# 'ever_used' | lbd'
 	smoke_test = False
 
 # SharpSAT

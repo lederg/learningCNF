@@ -76,6 +76,7 @@ def on_episode_end(info):
 def get_postprocess_fn(reporter):
   def my_postprocess(info):
     global steps_counter
+    ipdb.set_trace()
     settings = CnfSettings()
     batch = info["post_batch"]
     episode = info["episode"]
@@ -179,7 +180,8 @@ class RLLibTrainer():
     elif self.settings['solver'] == 'sharpsat':
       config = es.DEFAULT_CONFIG.copy()
       model_name = 'sharp_model'
-      config["callbacks"] = {'on_postprocess_traj': get_postprocess_fn(reporter), }
+      config["episodes_per_batch"] = self.settings['episodes_per_batch']
+      config["train_batch_size"] = self.settings['episodes_per_batch']*10      
       trainer_class = es.ESTrainer
       envname = 'sharp_env'
     else:
@@ -211,16 +213,17 @@ class RLLibTrainer():
     print('Running for {} iterations..'.format(self.training_steps))
     eval_results = []
     for i in range(self.training_steps):
-      result = trainer.train()
+      result = trainer.train()      
       print(pretty_print(result))     
 
       # Do the uniform style reporting
-      steps_val, reward_val = ray.get(reporter.report_stats.remote())
-      self.result_logger._file_writer.add_scalar("ray/uniform/mean_steps", steps_val, global_step=result.get(TIMESTEPS_TOTAL))
-      self.result_logger._file_writer.add_scalar("ray/uniform/mean_reward", reward_val, global_step=result.get(TIMESTEPS_TOTAL))
-      self.result_logger._file_writer.flush()
-      weights = ray.put({"default_policy": trainer.get_weights()})
+      steps_val, reward_val = ray.get(reporter.report_stats.remote())  
+      if steps_val and reward_val:
+        self.result_logger._file_writer.add_scalar("ray/uniform/mean_steps", steps_val, global_step=result.get(TIMESTEPS_TOTAL))
+        self.result_logger._file_writer.add_scalar("ray/uniform/mean_reward", reward_val, global_step=result.get(TIMESTEPS_TOTAL))
+        self.result_logger._file_writer.flush()
       if i % self.test_every == 0 and i > 0:
+        weights = ray.put({"default_policy": trainer.get_weights()})
         eval_results.append(evaluate.remote(result.get(TIMESTEPS_TOTAL), config, weights))
         ready, _ = ray.wait(eval_results,timeout=0.01)
         for obj in ready:

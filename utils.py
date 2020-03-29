@@ -335,5 +335,14 @@ def random_string(n):
   return ''.join([random.choice(string.ascii_letters + string.digits) for _ in xrange(n)])
 
 def repeat_end(val, n, k):
-    return [val for i in range(n)] + [k]
-  
+  return [val for i in range(n)] + [k]
+
+class OneTimeSwitch(object):
+  def __init__(self, val=True, default=False):
+    self.val = val
+    self.default = default
+
+  def get_val(self):
+    rc = self.val
+    self.val = self.default
+    return rc

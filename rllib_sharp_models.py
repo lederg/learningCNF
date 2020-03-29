@@ -98,9 +98,9 @@ class SharpModel(RLLibModel):
     if self.settings['sharp_add_labels']:
       out.append(lit_features)
     logits = self.decision_layer(torch.cat(out,dim=1)).t()
-    allowed_actions = self.get_allowed_actions(obs).int().float()
-    inf_mask = torch.max(allowed_actions.log(),torch.Tensor([torch.finfo().min]))
-    logits = logits + inf_mask
+    # allowed_actions = self.get_allowed_actions(obs).int().float()
+    # inf_mask = torch.max(allowed_actions.log(),torch.Tensor([torch.finfo().min]))
+    # logits = logits + inf_mask
     self.outputs = torch.cat([logits,self.pad.expand((1,self.max_vars-logits.shape[1]))], dim=1)
     return self.outputs, []
 
@@ -114,11 +114,6 @@ class SharpModel(RLLibModel):
 
     literal_indices = torch.unique(obs.cmat.coalesce().indices()[1])
     allowed_indices = add_other_polarity(literal_indices)
-    print('***')
-    print(literal_indices)
-    print('----------------------------------')
-    print(allowed_indices)
-    print('***')
     allowed_actions = torch.zeros(obs.ground.shape[0])
     allowed_actions[allowed_indices] = 1
     return allowed_actions

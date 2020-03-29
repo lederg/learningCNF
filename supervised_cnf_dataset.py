@@ -71,9 +71,8 @@ class MakeEverUsedTarget(object):
   def __call__(self, sample):
     G = sample['graph']
 
-    G.nodes['clause'].data['clause_effective_targets'] = (G.nodes['clause'].data['clause_targets'][:,1] == 0).long()
+    G.nodes['clause'].data['clause_effective_targets'] = (G.nodes['clause'].data['clause_targets'][:,2] > 0).long()
     return sample
-
 
 class CapGraph(object):
   def __init__(self, n):
@@ -137,26 +136,32 @@ class SampleLearntClauses(object):
     self.num_categories = num_categories
   def __call__(self, sample):
     G = sample['graph']
+    tagged = (G.nodes['clause'].data['clause_targets'][:,0]).int()
     learnt = (G.nodes['clause'].data['clause_labels'][:,-1]).int()
     learnt_idx = torch.where(learnt)[0]
+    tagged_idx = torch.where(tagged)[0]
+    if len(tagged_idx) > 0:           # We use tagging
+      assert len(tagged_idx) > self.num
+      relevant_idx = torch.Tensor(list(set(tagged_idx.tolist()).intersection(learnt_idx.tolist()))).long()
+    else:
+      relevant_idx = learnt_idx
     labels = G.nodes['clause'].data['clause_effective_targets']
-    labels_learnt = labels[learnt_idx]
+    relevant_labels = labels[relevant_idx]
     predicted_idx = []
     for i in range(self.num_categories):
-      cat_idx = torch.where(labels_learnt==i)[0]    
-      predicted_idx.append(learnt_idx[cat_idx[torch.torch.randperm(cat_idx.size(0))[:self.num]]])
+      cat_idx = torch.where(relevant_labels==i)[0]    
+      predicted_idx.append(relevant_idx[cat_idx[torch.torch.randperm(cat_idx.size(0))[:self.num]]])
     
     predicted_idx = torch.cat(predicted_idx,dim=0)
     predicted_arr = torch.zeros(labels.size(0))
     predicted_arr[predicted_idx] = 1
-    # ipdb.set_trace()
     G.nodes['clause'].data['predicted_clauses'] = predicted_arr
     return sample
 
 class CapActivity(object):
   def __call__(self, sample):
     G = sample['graph']
-    G.nodes['literal'].data['lit_labels'][:,3].tanh_()
+    G.nodes['literal'].data['lit_labels'][:,2].tanh_()
     G.nodes['clause'].data['clause_labels'][:,3].tanh_()
     return sample
         

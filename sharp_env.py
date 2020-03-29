@@ -62,8 +62,8 @@ class SharpActiveEnv:
   #   return self.formulas_dict[fname]
 
   def start_solver(self):    
-    def thunk(row, col, data):
-      return self.__callback(row, col, data)
+    def thunk(row, col, data, vlabels):
+      return self.__callback(row, col, data, vlabels)
     if self.solver is None:
       self.solver = SharpSAT(branching_oracle= {"branching_cb": thunk})
     else:
@@ -72,12 +72,8 @@ class SharpActiveEnv:
     self.current_step = 0
     return True
 
-  def __callback(self, row, col, data):
+  def __callback(self, row, col, data, vlabels):
     self.current_step += 1
-    if self.disable_gnn:      
-      vlabels = None
-    else:
-      vlabels = self.solver.get_lit_labels()    
     if not self.server:
       log.info('Running a test version of SharpEnv')
       ind = np.argmax(vlabels[:,1])
@@ -87,7 +83,7 @@ class SharpActiveEnv:
     else:
       try:
         rc = self.server.callback(vlabels, None, row, col, data)
-        print('Action is {}'.format(rc))
+        # print('Action is {}'.format(rc))
         return rc
       except Exception as e:
         print('SharpEnv: Gah, an exception: {}'.format(e))
@@ -140,12 +136,13 @@ class SharpEnvProxy(EnvBase):
     if env_obs.reward:
       self.rewards.append(env_obs.reward)
     self.current_step += 1
-    if env_obs.done:
-      print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
+    # if env_obs.done:
+    #   print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
     return self.process_observation(None,env_obs), env_obs.reward, env_obs.done or self.check_break(), {}
 
-  def reset(self):
-    fname = self.provider.get_next()
+  def reset(self, fname=None):
+    if not fname:
+      fname = self.provider.get_next()
     # print('reset: Got formula: {}'.format(fname))
     self.finished = False
     self.current_step = 0
@@ -221,7 +218,7 @@ class SharpEnvServer(threading.Thread):
         print('Skipping {}'.format(fname))
 
       if self.cmd == EnvCommands.CMD_STEP:
-        last_step_reward = -self.def_step_cost     
+        last_step_reward = self.def_step_cost     
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
         msg = self.env.EnvObservation(gss=np.zeros(self.state_dim), reward=self.winning_reward+last_step_reward, done=True)
         # msg = self.env.EnvObservation(None, None, None, None, None, None, self.winning_reward+last_step_reward, True)
@@ -247,7 +244,7 @@ class SharpEnvServer(threading.Thread):
     self.env.current_step += 1
     # print('clabels shape: {}'.format(cfeatures.shape))    
     # print('reward is {}'.format(self.env.get_reward()))
-    msg = self.env.EnvObservation(None, vfeatures, cfeatures, row, col, efeatures, -self.def_step_cost, False)
+    msg = self.env.EnvObservation(None, vfeatures, cfeatures, row, col, efeatures, self.def_step_cost, False)
     if self.cmd == EnvCommands.CMD_RESET:
       ack = EnvCommands.ACK_RESET
     elif self.cmd == EnvCommands.CMD_STEP:

@@ -11,7 +11,7 @@ import operator
 from torchvision import transforms
 from torch.utils.data import Dataset
 from utils_dir.utils import load_dir, load_files
-from sat_code.supervised import get_graph
+from sat_code.capture import get_graph
 
 CACHE_SIZE = 200
 
@@ -71,7 +71,8 @@ class MakeEverUsedTarget(object):
   def __call__(self, sample):
     G = sample['graph']
 
-    G.nodes['clause'].data['clause_effective_targets'] = (G.nodes['clause'].data['clause_targets'][:,2] > 0).long()
+    effective_val = G.nodes['clause'].data['clause_targets'][:,2] - G.nodes['clause'].data['clause_labels'][:,0]
+    G.nodes['clause'].data['clause_effective_targets'] = (effective_val > 0).long()
     return sample
 
 class CapGraph(object):

@@ -24,8 +24,7 @@ from utils import OneTimeSwitch
 logger = logging.getLogger(__name__)
 
 Result = namedtuple("Result", [
-  "noise_indices", "noisy_returns", "sign_noisy_returns", "noisy_lengths",
-  "eval_returns", "eval_lengths"
+  "noise_indices", "noisy_returns", "sign_noisy_returns", "noisy_lengths"
 ])
 
 # yapf: disable
@@ -79,9 +78,9 @@ class Worker:
     self.config = config
     self.settings = CnfSettings()
     self.settings.hyperparameters = config['env_config']['settings']
-    self.train_uniform_items = OnePassProvider(self.settings['es_train_data']).items
+    # self.train_uniform_items = OnePassProvider(self.settings['es_train_data']).items
     self.policy_params = policy_params
-    self.noise = SharedNoiseTable(noise)
+    self.noise = SharedNoiseTable(noise) if noise is not None else None
 
     self.env = env_creator(config["env_config"])
     from ray.rllib import models
@@ -109,7 +108,9 @@ class Worker:
         f.clear_buffer()
     return return_filters
 
-  def rollout(self, fnames, timestep_limit, add_noise=True):
+  def rollout(self, fnames, timestep_limit, add_noise=True, params=None):
+    if params is not None:
+      self.policy.set_weights(params)
     rews = []
     lens = []
     for fname in fnames:
@@ -123,59 +124,49 @@ class Worker:
       lens.append(rollout_length)
     return rews, lens
 
-  def do_rollouts(self, params, fnames, add_eval=False, timestep_limit=None):
+  # def evaluate(params, fnames)
+
+  def do_rollouts(self, params, fnames, timestep_limit=None):
     # Set the network weights.
     self.policy.set_weights(params)
     noise_indices, returns, sign_returns, lengths = [], [], [], []
     eval_returns, eval_lengths = [], []
-    do_eval = add_eval
 
     # Perform some rollouts with noise.
     task_tstart = time.time()
     while (len(noise_indices) == 0
        or time.time() - task_tstart < self.min_task_runtime):
 
-      if do_eval:
-      # if np.random.uniform() < self.config["eval_prob"]:
-          # Do an evaluation run with no perturbation.
-        self.policy.set_weights(params)
-        rewards, length = self.rollout(self.train_uniform_items, timestep_limit, add_noise=False)                        
-        eval_returns.extend([np.sum(x) for x in rewards])
-        eval_lengths.extend(length)
-        do_eval = False
-      else:
-        # Do a regular run with parameter perturbations.
-        noise_index = self.noise.sample_index(self.policy.num_params)
+      # Do a regular run with parameter perturbations.
+      noise_index = self.noise.sample_index(self.policy.num_params)
 
-        perturbation = self.config["noise_stdev"] * self.noise.get(
-          noise_index, self.policy.num_params)
+      perturbation = self.config["noise_stdev"] * self.noise.get(
+        noise_index, self.policy.num_params)
 
-        # These two sampling steps could be done in parallel on
-        # different actors letting us update twice as frequently.                
-        self.policy.set_weights(params + perturbation)
-        rewards_pos, lengths_pos = self.rollout(fnames, timestep_limit)
-        rewards_pos = [np.sum(x) for x in rewards_pos]
-        lengths_pos = np.sum(lengths_pos)
+      # These two sampling steps could be done in parallel on
+      # different actors letting us update twice as frequently.                
+      self.policy.set_weights(params + perturbation)
+      rewards_pos, lengths_pos = self.rollout(fnames, timestep_limit)
+      rewards_pos = [np.sum(x) for x in rewards_pos]
+      lengths_pos = np.sum(lengths_pos)
 
-        self.policy.set_weights(params - perturbation)
-        rewards_neg, lengths_neg = self.rollout(fnames, timestep_limit)
-        rewards_neg = [np.sum(x) for x in rewards_neg]
-        lengths_neg = np.sum(lengths_neg)
+      self.policy.set_weights(params - perturbation)
+      rewards_neg, lengths_neg = self.rollout(fnames, timestep_limit)
+      rewards_neg = [np.sum(x) for x in rewards_neg]
+      lengths_neg = np.sum(lengths_neg)
 
-        noise_indices.append(noise_index)
-        returns.append([np.sum(rewards_pos), np.sum(rewards_neg)])
-        sign_returns.append(
-          [np.sign(rewards_pos).sum(),
-           np.sign(rewards_neg).sum()])
-        lengths.append([lengths_pos, lengths_neg])
+      noise_indices.append(noise_index)
+      returns.append([np.sum(rewards_pos), np.sum(rewards_neg)])
+      sign_returns.append(
+        [np.sign(rewards_pos).sum(),
+         np.sign(rewards_neg).sum()])
+      lengths.append([lengths_pos, lengths_neg])
 
     return Result(
       noise_indices=noise_indices,
       noisy_returns=returns,
       sign_noisy_returns=sign_returns,
-      noisy_lengths=lengths,
-      eval_returns=eval_returns,
-      eval_lengths=eval_lengths)
+      noisy_lengths=lengths)
 
 
 class ESTrainer(Trainer):
@@ -221,7 +212,6 @@ class ESTrainer(Trainer):
   @override(Trainer)
   def _train(self):
     config = self.config
-
     theta = self.policy.get_weights()
     # assert theta.dtype == np.float32
 
@@ -235,26 +225,18 @@ class ESTrainer(Trainer):
     all_noise_indices = []
     all_training_returns = []
     all_training_lengths = []
-    all_eval_returns = []
-    all_eval_lengths = []
 
     # Loop over the results.
     for result in results:
-      all_eval_returns += result.eval_returns
-      all_eval_lengths += result.eval_lengths
-
       all_noise_indices += result.noise_indices
       all_training_returns += result.noisy_returns
       all_training_lengths += result.noisy_lengths
-
-    assert len(all_eval_returns) == len(all_eval_lengths)
+    
     assert (len(all_noise_indices) == len(all_training_returns) == len(all_training_lengths))
 
     self.episodes_so_far += num_episodes
     
     # Assemble the results.
-    eval_returns = np.array(all_eval_returns)
-    eval_lengths = np.array(all_eval_lengths)
     noise_indices = np.array(all_noise_indices)
     noisy_returns = np.array(all_training_returns)
     noisy_lengths = np.array(all_training_lengths)
@@ -279,9 +261,6 @@ class ESTrainer(Trainer):
                                                 config["l2_coeff"] * theta)
     # Set the new weights in the local copy of the policy.
     self.policy.set_weights(theta)
-    # Store the rewards
-    if len(all_eval_returns) > 0:
-      self.reward_list.append(np.mean(eval_returns))
 
     # Now sync the filters
     FilterManager.synchronize({
@@ -296,12 +275,7 @@ class ESTrainer(Trainer):
       "episodes_so_far": self.episodes_so_far,
     }
 
-    reward_mean = np.mean(self.reward_list[-self.report_length:])
-    if np.isnan(reward_mean):
-      ipdb.set_trace()        
     result = dict(
-      episode_reward_mean=reward_mean,
-      episode_len_mean=eval_lengths.mean(),
       timesteps_this_iter=noisy_lengths.sum(),
       info=info)
 
@@ -320,7 +294,7 @@ class ESTrainer(Trainer):
   def _collect_results(self, theta_id, min_episodes, min_timesteps):
     num_episodes, num_timesteps = 0, 0
     results = []
-    do_eval = OneTimeSwitch()
+    # do_eval = OneTimeSwitch()
     fnames = self.provider.sample(size=self.num_to_sample,replace=False)
     fnames_id = ray.put(fnames)
     while num_episodes < min_episodes or num_timesteps < min_timesteps:
@@ -328,7 +302,7 @@ class ESTrainer(Trainer):
       #     "Collected {} episodes {} timesteps so far this iter".format(
       #         num_episodes, num_timesteps))
       rollout_ids = [
-        worker.do_rollouts.remote(theta_id,fnames_id,add_eval=do_eval.get_val()) for worker in self._workers
+        worker.do_rollouts.remote(theta_id,fnames_id) for worker in self._workers
       ]
       # Get the results of the rollouts.
       for result in ray_get_and_free(rollout_ids):

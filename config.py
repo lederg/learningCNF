@@ -236,6 +236,7 @@ def cfg():
 	es_num_formulas = 5
 	es_naive_stepsize = 1.
 	es_train_data = 'data/sat_100'
+	es_validation_data = 'data/sat_100'
 
 # Clause prediction
 	cp_cmask_features = [2]		# By default mask lbd

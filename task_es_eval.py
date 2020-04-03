@@ -84,15 +84,12 @@ def evaluate(steps, config, weights):
   # return steps, res
   return steps, rc
 
-class ESMainLoop():
+class ESEval():
   def __init__(self):
     self.settings = CnfSettings()   
     self.clock = GlobalTick()
     self.logger = utils.get_logger(self.settings, 'rllib_trainer', 'logs/{}_rllib_trainer.log'.format(log_name(self.settings)))
     self.settings.formula_cache = FormulaCache()
-    self.training_steps = self.settings['training_steps']
-    self.test_every = self.settings['test_every']
-    self.save_every = self.settings['es_save_every']
     register_env("sat_env", env_creator)
     register_env("sharp_env", env_creator)
     register_env("cadet_env", env_creator)
@@ -107,7 +104,6 @@ class ESMainLoop():
       print(self.settings.hyperparameters)
       return
     print('Main pid is {}'.format(os.getpid()))
-    reporter = RLLibEpisodeReporter.remote("{}/{}".format(self.settings['rl_log_dir'], log_name(self.settings)), self.settings)
     config = es.DEFAULT_CONFIG.copy()
     config["episodes_per_batch"] = self.settings['episodes_per_batch']
     config["train_batch_size"] = self.settings['episodes_per_batch']*10      
@@ -124,49 +120,26 @@ class ESMainLoop():
     else:
       assert False, "Unknown solver: {}".format(self.settings['solver'])
     config["num_gpus"] = 0
-    config["num_workers"] = self.settings['parallelism']
     config["eager"] = False
     config["sample_async"] = False
-    config["batch_mode"]='complete_episodes'
-    config["sample_batch_size"]=self.settings['min_timesteps_per_batch']
-    config["train_batch_size"]=self.settings['min_timesteps_per_batch']
     # config["timesteps_per_iteration"]=10
-    config['gamma'] = float(self.settings['gamma'])
     config["model"] = {"custom_model": model_name}
-    config['use_pytorch'] = True
-    config['lr'] = float(self.settings['init_lr'])
-    config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data'], 'eval': False}
+    config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['es_train_data'], 'eval': False}
     if settings['use_seed']:
       config['seed'] = int(settings['use_seed'])
     trainer = trainer_class(config=config, env=envname, logger_creator=get_logger_creator(settings))   
+    assert self.settings['base_model'] != None , "Must provide a saved model"
     if self.settings['base_model']:
       self.logger.info('Loading from {}..'.format(self.settings['base_model']))
       trainer.restore(self.settings['base_model'])    
     self.result_logger = trainer._result_logger._loggers[-1]
-    print('Running for {} iterations..'.format(self.training_steps))
-    eval_results = []
-    for i in range(self.training_steps):
-      result = trainer.train()      
-      print(pretty_print(result))     
+    print('Beginning eval...')
+    weights = ray.put({"default_policy": trainer.get_weights()})
+    rc = evaluate.remote(0, config, weights)
+    t, result = ray.get(rc)
+    print('Adding evaluation result at timestep {}: {}'.format(t,result))
 
-      # Check if async evaluation finished
-      ready, _ = ray.wait(eval_results,timeout=0.01)
-      for obj in ready:
-        t, result = ray_get_and_free(obj)
-        print('Adding evaluation result at timestep {}: {}'.format(t,result))
-        self.result_logger._file_writer.add_scalar("ray/eval/{}".format(self.settings['es_validation_data']), result, global_step=t)
-        self.result_logger._file_writer.flush()
-        eval_results.remove(obj)
-
-      if i % self.test_every == 0 and i > 0:
-        weights = ray.put({"default_policy": trainer.get_weights()})
-        eval_results.append(evaluate.remote(i, config, weights))
-      if i % self.save_every == 0 and i > 0:
-        checkpoint = trainer.save()
-        print("checkpoint saved at", checkpoint)
-
-
-def es_main(): 
+def es_eval_main(): 
   settings = CnfSettings()
   import ray
   address = settings['ray_address']
@@ -175,6 +148,6 @@ def es_main():
     ray.init(address=address, redis_password='blabla')
   else:
     ray.init()
-  es_loop = ESMainLoop()
+  es_loop = ESEval()
   es_loop.main()
 

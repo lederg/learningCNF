@@ -232,6 +232,7 @@ def cfg():
 	weight_decay = 0.
 # ES
 	
+	es_save_every = 10
 	es_population = 50
 	es_num_formulas = 5
 	es_naive_stepsize = 1.

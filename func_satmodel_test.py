@@ -17,7 +17,6 @@ def callback():
 
   probs = magic_function(adj_arrays, cl_label_arr, lit_label_arr, gss)
 
-  ipdb.set_trace()
   return -1
 
 

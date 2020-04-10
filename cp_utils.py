@@ -49,12 +49,13 @@ def wrap_sat_model(trainer_checkpoint, exp_filename):
 	state = all_data['models'][0]
 	model = ClausePredictionModel(settings,prediction=False)
 	model.load_state_dict(state)
+	model.eval()
 	def f(adj_arrays, cl_label_arr, lit_label_arr, gss):
 		exp_gss = gss.expand(len(cl_label_arr),settings['state_dim'])
 		G = runtime_get_graph(adj_arrays, cl_label_arr, lit_label_arr)
 		logits = model({'gss': exp_gss, 'graph': G})
 		rc = torch.softmax(logits,dim=1)
-		return rc[:,0]
+		return rc[:,0].detach().numpy()
 
 	return f
 

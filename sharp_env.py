@@ -83,7 +83,6 @@ class SharpActiveEnv:
     else:
       try:
         rc = self.server.callback(vlabels, None, row, col, data)
-        # print('Action is {}'.format(rc))
         return rc
       except Exception as e:
         print('SharpEnv: Gah, an exception: {}'.format(e))
@@ -212,11 +211,13 @@ class SharpEnvServer(threading.Thread):
       # This call does not return until the episodes is done. Messages are going to be exchanged until then through
       # the __callback method
 
+      t1 = time.time()
       if self.env.start_solver():
         self.env.solver.solve(fname)
       else:
         print('Skipping {}'.format(fname))
 
+      print('Solver finished in {}'.format(time.time()-t1))
       if self.cmd == EnvCommands.CMD_STEP:
         last_step_reward = self.def_step_cost     
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
@@ -241,7 +242,6 @@ class SharpEnvServer(threading.Thread):
 
 # adj_matrix = csr_matrix((torch.ones(len(data)), (row, col)),shape=(row.max()+1,len(vlabels)))
   def callback(self, vfeatures, cfeatures, row, col, efeatures):    
-    self.env.current_step += 1
     # print('clabels shape: {}'.format(cfeatures.shape))    
     # print('reward is {}'.format(self.env.get_reward()))
     msg = self.env.EnvObservation(None, vfeatures, cfeatures, row, col, efeatures, self.def_step_cost, False)
@@ -266,7 +266,7 @@ class SharpEnvServer(threading.Thread):
         self.settings.formula_cache.delete_key(self.current_fname)
       self.current_fname = rc
       self.env.solver.terminate()
-      return None
+      return 1      # This is just an integer, any integer. Solver is going to terminate anyhow.
     elif self.cmd == EnvCommands.CMD_EXIT:
       print('Got CMD_EXIT')
       self.env.solver.terminate()

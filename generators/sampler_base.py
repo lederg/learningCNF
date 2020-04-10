@@ -1,3 +1,9 @@
+from gentypes import FileName
+
 class SamplerBase:
-	def sample(self, config):
+	def __init__(self, config):
+		pass
+
+	# This returns a filename!
+	def sample(self) -> FileName:
 		raise NotImplementedError

@@ -7,6 +7,7 @@ import logging
 import argparse
 import pickle
 import itertools
+import shutil
 import numpy as np
 
 from os import listdir
@@ -14,6 +15,7 @@ from pysat.formula import CNF
 from pysat._fileio import FileObject
 
 from sharp_wrapped_filter import *
+from word_sampler import *
 
 def random_string(n):
   return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(n)])
@@ -38,42 +40,61 @@ def generate_datum(fname, dest, step):
 	return True
 
 def get_sampler(config):
+	if config['sampler'] == 'word':
+		config['size']=3
+		return WordSampler(config)
+	else:
+		assert False, 'WHHAAT?'
 
 def get_filter(config):
-
+	if config['filter'] == 'sharp':
+		return SharpFilter(config)
+	else:
+		assert False, 'WHHAAT?'
 
 @ray.remote
 def generate_from_sampler(config):
-		for sample in sampler:
-			fname = '{}_{}'.format(fname_prefix,random_string(8))
-			print('generated {}'.format(fname))
-			with open('{}/{}.pickle'.format(dest,fname),'wb') as f:
-				pickle.dump(sample,f)
-	except Exception as e:
-		print('capture threw exception')
-		print(e)
-		pass
-	return True
+	sampler = get_sampler(config)
+	fltr = get_filter(config)
+	done = False
+	while not done:	
+		try:
+			candidate = sampler.sample()
+		except Exception as e:
+			print('Gah, Exception:')
+			print(e)
+			continue
+		if fltr.filter(candidate):
+			shutil.move(candidate,config['dir']+'/'+os.path.basename(candidate))
+			done = True
+		else:
+			os.remove(candidate)
 
-def 
-
+	return candidate
 
 def generate_dataset(args):
 	assert args.n, "Must define target number"
 	dst = args.destination_dir
+	config = {
+		'sampler': args.sampler, 
+		'filter': args.filter,
+		'dir': dst
+	}
 	try:
 		os.mkdir(dst)
 	except:
 		pass
-	results = [generate_from_sampler.remote(dst) for _ in range(args.n)]
+	results = [generate_from_sampler.remote(config) for _ in range(args.n)]
 	vals = ray.get(results)
 	print('Finished')
 
 if __name__=='__main__':
 	parser = argparse.ArgumentParser(description='Reject Sampling for CNF files.')
 	# parser.add_argument('params', metavar='N', type=str, nargs='*', help='an integer for the accumulator')
-	parser.add_argument('-d', '--destination_dir', type=str, help='destination directory')
-	parser.add_argument('-n', type=int, default=0, help='hard cap on number of formulas')
+	parser.add_argument('-d', '--destination_dir', type=str, default=os.curdir, help='destination directory')
+	parser.add_argument('-s', '--sampler', type=str, default='word', help='Sampler (generator)')
+	parser.add_argument('-f', '--filter', type=str, default='sharp', help='Filter')
+	parser.add_argument('-n', type=int, default=0, help='Number of formulas to generate')
 	parser.add_argument('-p', '--parallelism', type=int, default=1, help='number of cores to use (Only if not in cluster mode)')
 	parser.add_argument('-c', '--cluster', action='store_true', default=False, help='run in cluster mode')
 	args = parser.parse_args()

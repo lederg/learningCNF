@@ -21,9 +21,10 @@ from common_components import *
 #         return {'h' : h}
 
 class ClausePredictionModel(nn.Module):
-  def __init__(self, settings=None, **kwargs):
+  def __init__(self, settings=None, prediction=True, **kwargs):
     super(ClausePredictionModel, self).__init__(**kwargs)
     self.settings = settings if settings else CnfSettings()
+    self.prediction = prediction
     self.gss_dim = self.settings['state_dim']
     encoder_class = eval(self.settings['cp_encoder_type'])
     self.encoder = encoder_class(settings)
@@ -39,7 +40,8 @@ class ClausePredictionModel(nn.Module):
   def forward(self, input_dict, **kwargs):
     gss = input_dict['gss']
     G = input_dict['graph'].local_var()
-    pred_idx = torch.where(G.nodes['clause'].data['predicted_clauses'])[0]
+    if self.prediction:
+      pred_idx = torch.where(G.nodes['clause'].data['predicted_clauses'])[0]
     feat_dict = {
       'literal': G.nodes['literal'].data['lit_labels'],
       'clause': G.nodes['clause'].data['clause_labels'],        
@@ -54,8 +56,9 @@ class ClausePredictionModel(nn.Module):
     if self.settings['cp_add_gss']:
       out.append(gss)
     logits = self.decision_layer(torch.cat(out,dim=1))
-    # print("model says, pred_idx (out of {}) is:".format(logits.size(0)))
-    # print(pred_idx)
-    return logits[pred_idx]
+    if self.prediction:
+      return logits[pred_idx]
+    else:
+      return logits
 
 

@@ -94,9 +94,9 @@ def random_circuit(size):
       print('    Failed to generate expression; trying again')
 
 class WordSampler(SamplerBase):
-  def __init__(self, config={'size': 5, 'dir': '.'}):
-    self.size = config['size']
-    self.dir = config.get('dir')
+  def __init__(self, config):
+    self.size = int(config.get('size',5))
+    self.dir = config.get('dir', '.')
   def sample(self):
     e = random_circuit(self.size)
     f = tempfile.NamedTemporaryFile()

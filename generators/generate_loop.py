@@ -41,7 +41,6 @@ def generate_datum(fname, dest, step):
 
 def get_sampler(config):
 	if config['sampler'] == 'word':
-		config['size']=3
 		return WordSampler(config)
 	else:
 		assert False, 'WHHAAT?'
@@ -80,6 +79,9 @@ def generate_dataset(args):
 		'filter': args.filter,
 		'dir': dst
 	}
+	for p in args.params:
+		k, v = p.split('=')
+		config[k]=v
 	try:
 		os.mkdir(dst)
 	except:
@@ -90,7 +92,7 @@ def generate_dataset(args):
 
 if __name__=='__main__':
 	parser = argparse.ArgumentParser(description='Reject Sampling for CNF files.')
-	# parser.add_argument('params', metavar='N', type=str, nargs='*', help='an integer for the accumulator')
+	parser.add_argument('params', metavar='N', type=str, nargs='*', help='an integer for the accumulator')
 	parser.add_argument('-d', '--destination_dir', type=str, default=os.curdir, help='destination directory')
 	parser.add_argument('-s', '--sampler', type=str, default='word', help='Sampler (generator)')
 	parser.add_argument('-f', '--filter', type=str, default='sharp', help='Filter')

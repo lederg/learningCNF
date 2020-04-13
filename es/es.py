@@ -6,7 +6,7 @@ import logging
 import numpy as np
 import time
 import ipdb
-
+import itertools
 import ray
 from ray.rllib.agents import Trainer, with_common_config
 
@@ -168,6 +168,32 @@ class Worker:
       sign_noisy_returns=sign_returns,
       noisy_lengths=lengths)
 
+  def do_rollouts_dist(self, params, conf, timestep_limit=None):
+    # Set the network weights.
+    self.policy.set_weights(params)    
+    fname = conf['fname']
+    noise_index = conf['noise_id']
+
+    perturbation = self.config["noise_stdev"] * self.noise.get(
+      noise_index, self.policy.num_params)
+
+    # These two sampling steps could be done in parallel on
+    # different actors letting us update twice as frequently.                
+    self.policy.set_weights(params + perturbation)
+    rewards_pos, lengths_pos = self.rollout([fname], timestep_limit)
+    rewards_pos = [np.sum(x) for x in rewards_pos]
+    lengths_pos = np.sum(lengths_pos)
+
+    self.policy.set_weights(params - perturbation)
+    rewards_neg, lengths_neg = self.rollout([fname], timestep_limit)
+    rewards_neg = [np.sum(x) for x in rewards_neg]
+    lengths_neg = np.sum(lengths_neg)
+
+    returns = [np.sum(rewards_pos), np.sum(rewards_neg)]
+    lengths = [lengths_pos, lengths_neg]
+
+    return conf, (returns,lengths)
+
 
 class ESTrainer(Trainer):
   """Large-scale implementation of Evolution Strategies in Ray."""
@@ -219,8 +245,10 @@ class ESTrainer(Trainer):
     theta_id = ray.put(theta)
     # Use the actors to do rollouts, note that we pass in the ID of the
     # policy weights.
-    results, num_episodes, num_timesteps = self._collect_results(
-      theta_id, config["episodes_per_batch"], config["train_batch_size"])
+    # results, num_episodes, num_timesteps = self._collect_results(
+    #   theta_id, config["episodes_per_batch"], config["train_batch_size"])
+    results, num_episodes, num_timesteps = self._collect_results_dist(
+      theta_id, config["episodes_per_batch"])
 
     all_noise_indices = []
     all_training_returns = []
@@ -313,6 +341,49 @@ class ESTrainer(Trainer):
         num_episodes += sum(len(pair) for pair in result.noisy_lengths)
         num_timesteps += sum(
           sum(pair) for pair in result.noisy_lengths)
+    return results, num_episodes, num_timesteps
+
+  def _collect_results_dist(self, theta_id, sample_size):
+    num_episodes, num_timesteps = 0, 0
+    results = []
+    # do_eval = OneTimeSwitch()
+    fnames = self.provider.sample(size=self.num_to_sample,replace=False)
+    # fnames_id = ray.put(fnames)
+    all_sample_noise = [self.noise.sample_index(self.policy.num_params) for _ in range(sample_size)]
+    confs = list(itertools.product(all_sample_noise,fnames))
+    free_workers = list(range(len(self._workers)))
+    all_results = {i: {} for i in all_sample_noise}
+    rollout_results = []
+  # Collect
+    while confs or rollout_results:
+      # Start new tasks if we have free workers
+      while free_workers and confs:
+        n_id, fname = confs.pop()
+        w_id = free_workers.pop()
+        w = self._workers[w_id]
+        conf_id = ray.put({'noise_id': n_id, 'fname': fname, 'worker_id': w_id})
+        rollout_results.append(w.do_rollouts_dist.remote(theta_id,conf_id))
+
+      # Read anything ready into a dict and free the worker
+      ready, _ = ray.wait(rollout_results,timeout=0.2)
+      for obj in ready:
+        conf, result = ray_get_and_free(obj)        
+        rollout_results.remove(obj)
+        free_workers.append(conf['worker_id'])
+        # print('Saving result for filename {} and index {}'.format(conf['fname'], conf['noise_id']))
+        all_results[conf['noise_id']][conf['fname']] = result
+                
+    # Average returns over different formulas/files
+
+    for nid, val in all_results.items():      
+      returns = np.array([x[0] for x in val.values()]).mean(axis=0).tolist()
+      lengths = np.array([x[1] for x in val.values()]).sum(axis=0).tolist()      
+      results.append(Result(noise_indices=[nid],
+      noisy_returns=[returns],
+      sign_noisy_returns=None,
+      noisy_lengths=[lengths]))
+      num_episodes += 2
+      num_timesteps += sum(lengths)        
 
     return results, num_episodes, num_timesteps
 

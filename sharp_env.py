@@ -217,7 +217,7 @@ class SharpEnvServer(threading.Thread):
       else:
         print('Skipping {}'.format(fname))
 
-      print('Solver finished in {}'.format(time.time()-t1))
+      # print('Solver finished in {}'.format(time.time()-t1))
       if self.cmd == EnvCommands.CMD_STEP:
         last_step_reward = self.def_step_cost     
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.

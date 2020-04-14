@@ -64,6 +64,7 @@ def get_logger_creator(settings):
 def evaluate(steps, config, weights):
   settings = CnfSettings()
   settings.hyperparameters = config['env_config']['settings']
+  settings.hyperparameters['max_step']=2000
   w = es.es.Worker.remote(config, {"action_noise_std": 0.01}, env_creator, None)
   params = ray.put(weights['default_policy'])
   fnames_id = ray.put(OnePassProvider(settings['es_validation_data']).items)
@@ -133,7 +134,7 @@ class ESMainLoop():
     # config["timesteps_per_iteration"]=10
     config['gamma'] = float(self.settings['gamma'])
     config["model"] = {"custom_model": model_name}
-    config['use_pytorch'] = True
+    # config['use_pytorch'] = True
     config['lr'] = float(self.settings['init_lr'])
     config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data'], 'eval': False}
     if settings['use_seed']:

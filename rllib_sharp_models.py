@@ -101,8 +101,10 @@ class SharpModel(RLLibModel):
     # allowed_actions = self.get_allowed_actions(obs).int().float()
     # inf_mask = torch.max(allowed_actions.log(),torch.Tensor([torch.finfo().min]))
     # logits = logits + inf_mask
-    self.outputs = torch.cat([logits,self.pad.expand((1,self.max_vars-logits.shape[1]))], dim=1)
-    return self.outputs, []
+    
+    # self.outputs = torch.cat([logits,self.pad.expand((1,self.max_vars-logits.shape[1]))], dim=1)
+    # return self.outputs, []
+    return logits, []
 
   def get_allowed_actions(self, obs, **kwargs):
     def add_other_polarity(indices):

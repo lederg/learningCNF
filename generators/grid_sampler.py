@@ -5,10 +5,8 @@ import aiger_bv as BV
 import aiger_coins as C
 import aiger_gridworld as GW
 import aiger_ptltl as LTL
-import aiger_cnf as ACNF
 import funcy as fn
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 from generators.gentypes import FileName
 from bidict import bidict
@@ -95,7 +93,7 @@ class GridSampler(SamplerBase):
     spec = self.make_spec()
     MONITOR = spec2monitor(spec)
     circuit = DYN >> SENSOR >> MONITOR
-    unrolled_circuit = circuit.unroll(self.horizon)
+    unrolled_circuit = circuit.unroll(self.horizon+random.choice([-1,0,1]))
     dongle = A.and_gate(unrolled_circuit.outputs)
     rc = unrolled_circuit >> BV.aig2aigbv(dongle)
 

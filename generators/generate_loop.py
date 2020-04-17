@@ -48,6 +48,10 @@ def get_sampler(config):
 def get_filter(config):
 	if config['filter'] == 'sharp':
 		return SharpFilter(config)
+	elif config['filter'] == 'true':
+		return TrueFilter(config)
+	elif config['filter'] == 'false':
+		return FalseFilter(config)
 	else:
 		assert False, 'WHHAAT?'
 

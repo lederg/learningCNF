@@ -122,6 +122,8 @@ class Worker:
         add_noise=add_noise)
       rews.append(rollout_rewards)
       lens.append(rollout_length)
+      if params is not None:
+        print('Eval finished {} with {} steps'.format(fname,rollout_length))
     return rews, lens
 
   # def evaluate(params, fnames)

@@ -1,9 +1,9 @@
 import os
 import tempfile
-from sampler_base import *
+from generators.sampler_base import *
 from random import randint, seed
-from aigerbv.aigbv import AIGBV
-from aigerbv.expr import SignedBVExpr, atom
+import aiger_bv as BV
+from aiger_bv.expr import SignedBVExpr, atom
 import aiger_analysis as aa
 
 word_length = 8
@@ -95,8 +95,8 @@ def random_circuit(size):
 
 class WordSampler(SamplerBase):
   def __init__(self, config):
+    SamplerBase.__init__(self, config)
     self.size = int(config.get('size',5))
-    self.dir = config.get('dir', '.')
   def sample(self):
     e = random_circuit(self.size)
     f = tempfile.NamedTemporaryFile()

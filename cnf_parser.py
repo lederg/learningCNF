@@ -3,7 +3,7 @@
 import sys
 from os import listdir
 from os.path import isfile, join
-from cnf_tools import *
+from generators.cnf_tools import *
 # import ipdb
 
 def simplify_clause(c):

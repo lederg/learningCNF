@@ -332,7 +332,7 @@ def load_files(files):
   return only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([load_dir(x) for x in only_dirs]))
 
 def random_string(n):
-  return ''.join([random.choice(string.ascii_letters + string.digits) for _ in xrange(n)])
+  return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(n)])
 
 def repeat_end(val, n, k):
   return [val for i in range(n)] + [k]

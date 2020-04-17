@@ -1,6 +1,9 @@
 from gentypes import FileName
 
 class FilterBase:
+	def __init__(self, config):
+		pass
+
 	def filter(self, fname: FileName) -> bool:
 		raise NotImplementedError
 

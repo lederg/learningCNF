@@ -16,32 +16,13 @@ from pysat._fileio import FileObject
 
 from sharp_wrapped_filter import *
 from word_sampler import *
-
-def random_string(n):
-  return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(n)])
-
-@ray.remote
-def generate_datum(fname, dest, step):
-	from utils.supervised import capture
-	# with FileObject(fname, mode='r', compression='use_ext') as fobj:
-	# 	formula_str = fobj.fp.read()
-	# 	formula = CNF(from_string=formula_str)
-
-	print('generate_darum called with {}'.format(fname))
-	cnf = CNF(from_file=fname)
-	try:
-		rc = capture(cnf,step)
-		print('capture finished')
-		with open('{}/{}_step_{}.pickle'.format(dest,os.path.basename(fname),step),'wb') as f:
-			pickle.dump(rc,f)
-	except Exception as e:
-		print('capture threw exception')
-		pass
-	return True
+from grid_sampler import *
 
 def get_sampler(config):
 	if config['sampler'] == 'word':
 		return WordSampler(config)
+	elif config['sampler'] == 'grid':
+		return GridSampler(config)
 	else:
 		assert False, 'WHHAAT?'
 

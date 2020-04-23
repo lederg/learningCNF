@@ -189,7 +189,7 @@ def cfg():
 	fixed_bn_mean = 4.
 	fixed_bn_std = 10.
 	hp_normalize_shift = True	
-
+	env_as_process = False
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated
 	EPS_DECAY = 2000  # deprecated

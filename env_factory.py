@@ -6,8 +6,6 @@ import os
 
 from settings import *
 from cadet_env import CadetEnv
-from sat_env import *
-from sharp_env import *
 from function_env import *
 from empty_env import *
 from episode_data import *
@@ -20,6 +18,9 @@ class EnvFactory:
     self.settings = settings
 
   def create_env(self, envtype=None, **kwargs):
+    from sat_env import SatActiveEnv, SatEnvServer
+    from sharp_env import SharpActiveEnv, SharpEnvServer
+
     if not envtype:
       envtype = self.settings['solver']
     kwargs['settings'] = self.settings
@@ -28,13 +29,13 @@ class EnvFactory:
     elif envtype == 'minisat':
       satenv = SatActiveEnv(**kwargs)
       satserv = SatEnvServer(satenv)
-      log.info('Starting minisat server')
+      # log.info('Starting minisat server')
       satserv.start()
       return satserv.proxy(**kwargs)
     elif envtype == 'sharpsat':
       env = SharpActiveEnv(**kwargs)
       serv = SharpEnvServer(env)
-      log.info('Starting sharpsat server')
+      # log.info('Starting sharpsat server')
       serv.start()
       return serv.proxy(**kwargs)
     elif envtype == 'function':

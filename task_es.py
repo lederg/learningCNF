@@ -22,7 +22,6 @@ from ray.rllib.evaluation.rollout_worker import *
 from ray.rllib.evaluation.worker_set import *
 from ray.tune.logger import *
 from ray.tune.result import TIMESTEPS_TOTAL
-from ray.rllib.utils.numpy import sigmoid, softmax
 from ray.rllib.utils.memory import ray_get_and_free
 
 from custom_rllib_utils import *

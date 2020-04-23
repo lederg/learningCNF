@@ -10,6 +10,8 @@ import time
 import logging
 import pickle
 import tracemalloc
+import queue
+import threading
 import torch.multiprocessing as mp
 import utils
 import pysolvers
@@ -160,7 +162,7 @@ class SatEnvProxy(EnvBase):
       self.rewards.append(r)    
     # if env_obs.done:
     #   print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
-    return env_obs.state, r, env_obs.done or self.check_break(), {'testval': np.random.rand(5)}
+    return env_obs.state, r, env_obs.done or self.check_break(), {}
 
   def reset(self):
     fname = self.provider.get_next()
@@ -230,15 +232,16 @@ class SatEnvProxy(EnvBase):
 
     return State(state,cmat, vlabels, clabels, vmask, cmask, (num_orig_clauses,num_orig_clauses+num_learned_clauses))
 
-class SatEnvServer(mp.Process):
+class SatEnvServer(mp.Process if CnfSettings()['env_as_process'] else threading.Thread):
   def __init__(self, env, settings=None):
     super(SatEnvServer, self).__init__()
     self.settings = settings if settings else CnfSettings()
     self.state_dim = self.settings['state_dim']    
     self.env = env
+    self.is_process = self.settings['env_as_process']
     self.env.server = self
-    self.queue_in = mp.Queue()
-    self.queue_out = mp.Queue()
+    self.queue_in = mp.Queue() if self.is_process else queue.Queue()
+    self.queue_out = mp.Queue() if self.is_process else queue.Queue()
     self.cmd = None
     self.current_fname = None
     self.last_reward = 0

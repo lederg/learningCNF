@@ -70,6 +70,9 @@ class TorchGNNPolicy:
     return action
 
   def get_weights(self):
+    return self.get_flat_weights()
+    
+  def get_flat_weights(self):
     pre_flat = {k: v.cpu() for k, v in self.model.state_dict().items()}
     rc = torch.cat([v.view(-1) for k,v in self.model.state_dict().items()],dim=0)
     return rc.numpy()

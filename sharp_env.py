@@ -169,15 +169,16 @@ class SharpEnvProxy(EnvBase):
   def new_episode(self, fname, **kwargs):    
     return self.reset(fname)        
 
-class SharpEnvServer(threading.Thread):
+class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threading.Thread):
   def __init__(self, env, settings=None):
     super(SharpEnvServer, self).__init__()
     self.settings = settings if settings else CnfSettings()
     self.state_dim = self.settings['state_dim']    
     self.env = env
+    self.is_process = self.settings['env_as_process']    
     self.env.server = self
-    self.queue_in = queue.Queue()
-    self.queue_out = queue.Queue()
+    self.queue_in = mp.Queue() if self.is_process else queue.Queue()
+    self.queue_out = mp.Queue() if self.is_process else queue.Queue()
     self.cmd = None
     self.current_fname = None
     self.last_reward = 0

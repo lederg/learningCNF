@@ -37,6 +37,10 @@ class SharpSpace(gym.Space):
   def shape(self):
     return ()
 
+  @shape.setter
+  def shape(self, value):  
+    pass
+
 class SharpActiveEnv:
   EnvObservation = namedlist('SharpEnvObservation', 
                               ['gss', 'vfeatures', 'cfeatures', 'row', 'col', 'efeatures', 'reward', 'done'],

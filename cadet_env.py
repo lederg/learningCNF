@@ -32,7 +32,11 @@ class CadetSpace(gym.Space):
   @property
   def shape(self):
     return ()
-  
+    
+  @shape.setter
+  def shape(self, value):  
+    pass
+
 
 # Cadet actions are 1-based. The CadetEnv exposes 0-based actions
     

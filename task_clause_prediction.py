@@ -3,6 +3,7 @@ import ipdb
 import psutil
 import tracemalloc
 import dgl
+import inspect
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,9 +13,10 @@ from settings import *
 from clause_model import *
 from supervised_cnf_dataset import *
 from ray import tune
-from ray.experimental.sgd.pytorch import utils as pytorch_utils
-from ray.experimental.sgd.utils import TimerStat
-from ray.experimental.sgd.pytorch.pytorch_trainer import PyTorchTrainer
+from ray.util.sgd import utils as pytorch_utils
+from ray.util.sgd.utils import TimerStat
+from ray.util.sgd import TorchTrainer
+from ray.util.sgd.torch import TrainingOperator
 from cp_trainable import ClausePredictionTrainable
 from ray.tune.schedulers import PopulationBasedTraining
 
@@ -36,96 +38,105 @@ def get_lr(e):
 
   return rc
 
-def train(model, train_iterator, criterion, optimizer, config):
-  """Runs 1 training epoch"""
-  global curr_epoch
-  curr_epoch += 1
-  settings = update_settings(config)  
-  if settings['memory_profiling']:
-    tracemalloc.start(25)
-  main_proc = psutil.Process(os.getpid())
-  epoch_lr = get_lr(curr_epoch) * settings['init_lr']
-  print('Beginning epoch {}, lr is {}'.format(curr_epoch,epoch_lr))
-  utils.set_lr(optimizer,epoch_lr)
-  if isinstance(model, collections.Iterable) or isinstance(
-      optimizer, collections.Iterable):
-    raise ValueError(
-        "Need to provide custom training function if using multi-model "
-        "or multi-optimizer training.")
 
-  batch_time = pytorch_utils.AverageMeter()
-  data_time = pytorch_utils.AverageMeter()
-  losses = pytorch_utils.AverageMeter()
-  labels_bias = pytorch_utils.AverageMeter()
+class CPTrainingOperator(TrainingOperator):
+  def __init__(self, *args, **kwargs):
+    super(CPTrainingOperator, self).__init__(*args, **kwargs)
+# def train(model, train_iterator, criterion, optimizer, config):
+  def train_epoch(self, train_iterator, info):
+    settings = CnfSettings()  
+    optimizer = self.optimizer
+    model = self.model
+    criterion = self.criterion
+    """Runs 1 training epoch"""
+    global curr_epoch
+    curr_epoch += 1
 
-  timers = {k: TimerStat() for k in ["d2h", "fwd", "grad", "apply"]}
-  correct = 0
-  total = 0
-  # switch to train mode
-  model.train()
+    if settings['memory_profiling']:
+      tracemalloc.start(25)
+    main_proc = psutil.Process(os.getpid())
+    epoch_lr = get_lr(curr_epoch) * settings['init_lr']
+    print('Beginning epoch {}, lr is {}'.format(curr_epoch,epoch_lr))
+    utils.set_lr(optimizer,epoch_lr)
+    if isinstance(model, collections.Iterable) or isinstance(
+        optimizer, collections.Iterable):
+      raise ValueError(
+          "Need to provide custom training function if using multi-model "
+          "or multi-optimizer training.")
 
-  end = time.time()
-  for (features, target) in tqdm(train_iterator):
-  # for (features, target) in train_iterator:
-    # measure data loading time
-    data_time.update(time.time() - end)
-    labels_bias.update(target.sum().float() / target.size(0), target.size(0))
-    # Create non_blocking tensors for distributed training
-    with timers["d2h"]:
-      if torch.cuda.is_available():
-        features = cudaize_sample(features)
-        target = target.cuda(non_blocking=True)
+    batch_time = pytorch_utils.AverageMeter()
+    data_time = pytorch_utils.AverageMeter()
+    losses = pytorch_utils.AverageMeter()
+    labels_bias = pytorch_utils.AverageMeter()
 
-    # compute output
-    with timers["fwd"]:
-      output = model(features)
-      loss = criterion(output, target)
-      _, predicted = torch.max(output.data, 1)
-      total += target.size(0)
-      correct += (predicted == target).sum().item()
-      # print(output)
-      # print('predicted variability: {}/{}'.format(predicted.sum().float(),predicted.size(0)))
-      # measure accuracy and record loss
-      losses.update(loss.item(), output.size(0))
+    timers = {k: TimerStat() for k in ["d2h", "fwd", "grad", "apply"]}
+    correct = 0
+    total = 0
+    # switch to train mode
+    model.train()
 
-    with timers["grad"]:
-      # compute gradients in a backward pass
-      optimizer.zero_grad()      
-      loss.backward()
-
-    with timers["apply"]:
-      # Call step of optimizer to update model params
-      optimizer.step()
-
-    # measure elapsed time
-    batch_time.update(time.time() - end)
     end = time.time()
+    for (features, target) in tqdm(train_iterator):
+    # for (features, target) in train_iterator:
+      # measure data loading time
+      data_time.update(time.time() - end)
+      labels_bias.update(target.sum().float() / target.size(0), target.size(0))
+      # Create non_blocking tensors for distributed training
+      with timers["d2h"]:
+        if torch.cuda.is_available():
+          features = cudaize_sample(features)
+          target = target.cuda(non_blocking=True)
 
-    if settings['memory_profiling']:    
-      try:
-        total_mem = main_proc.memory_info().rss / float(2 ** 20)
-        children = main_proc.children(recursive=True)
-        for child in children:
-          child_mem = child.memory_info().rss / float(2 ** 20)
-          total_mem += child_mem
-          print('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
-        print('Total memory on host is {}'.format(total_mem))
-      except:       # A child could already be dead due to a race. Just ignore it this round.
-        print('why like this')
+      # compute output
+      with timers["fwd"]:
+        output = model(features)
+        loss = criterion(output, target)
+        _, predicted = torch.max(output.data, 1)
+        total += target.size(0)
+        correct += (predicted == target).sum().item()
+        # print(output)
+        # print('predicted variability: {}/{}'.format(predicted.sum().float(),predicted.size(0)))
+        # measure accuracy and record loss
+        losses.update(loss.item(), output.size(0))
+
+      with timers["grad"]:
+        # compute gradients in a backward pass
+        optimizer.zero_grad()      
+        loss.backward()
+
+      with timers["apply"]:
+        # Call step of optimizer to update model params
+        optimizer.step()
+
+      # measure elapsed time
+      batch_time.update(time.time() - end)
+      end = time.time()
+
+      if settings['memory_profiling']:    
+        try:
+          total_mem = main_proc.memory_info().rss / float(2 ** 20)
+          children = main_proc.children(recursive=True)
+          for child in children:
+            child_mem = child.memory_info().rss / float(2 ** 20)
+            total_mem += child_mem
+            print('Child pid is {}, name is {}, mem is {}'.format(child.pid, child.name(), child_mem))
+          print('Total memory on host is {}'.format(total_mem))
+        except:       # A child could already be dead due to a race. Just ignore it this round.
+          print('why like this')
 
 
-  stats = {
-    "train_accuracy": correct/total,
-    "labels_bias": labels_bias.avg,
-    "batch_time": batch_time.avg,
-    "batch_processed": losses.count,
-    "train_loss": losses.avg,
-    "data_time": data_time.avg,
-  }
-  stats.update({k: t.mean for k, t in timers.items()})
-  print('train(): Stats are:')
-  pprint(stats)
-  return stats
+    stats = {
+      "train_accuracy": correct/total,
+      "labels_bias": labels_bias.avg,
+      "batch_time": batch_time.avg,
+      "batch_processed": losses.count,
+      "train_loss": losses.avg,
+      "data_time": data_time.avg,
+    }
+    stats.update({k: t.mean for k, t in timers.items()})
+    print('train(): Stats are:')
+    pprint(stats)
+    return stats
 
 def validate(model, val_iterator, criterion, config):
   print('Beginning validation')
@@ -188,7 +199,8 @@ def optimizer_creator(model, config):
   settings = update_settings(config)  
   return torch.optim.SGD(model.parameters(), lr=settings['init_lr'])
 
-def data_creator(batch_size, config):
+def data_creator(config):
+  batch_size = config["*batch_size"]
   settings = update_settings(config)
   tagged = False
   cmask_features = settings['cp_cmask_features']
@@ -226,24 +238,28 @@ def clause_prediction_main():
   # criterion = torch.nn.CrossEntropyLoss()
   cross_loss = lambda x: nn.CrossEntropyLoss()
   restore_point = settings['base_model']
+
+
+
   if not settings['smoke_test']:
     config = {    
       "model_creator": model_creator,
       "data_creator": data_creator,
       "optimizer_creator": optimizer_creator,
       "loss_creator": cross_loss,
-      "train_function": train,
-      "validation_function": validate,
+      "training_operator_cls": CPTrainingOperator,
+      # "train_function": train,
+      # "validation_function": validate,
       # "initialization_hook": initialization_hook,
-      "num_replicas": settings['parallelism'],
+      "num_workers": settings['parallelism'],
       "use_gpu": False,
-      "batch_size": settings['batch_size'],
       "config": {
         # "init_lr": settings['init_lr'],
         # "lr": tune.grid_search([1e-2,settings['init_lr']]),
         # "max_iters": tune.grid_search([0,1,2]),
         # "use_sum": tune.grid_search([True, False]),
         # "non_linearity": tune.grid_search(['torch.tanh', 'torch.relu']),
+        ray.util.sgd.utils.BATCH_SIZE: settings['batch_size'],
         "settings": settings.hyperparameters,
         },
     }
@@ -277,21 +293,15 @@ def clause_prediction_main():
     print(rc)
 
   else:
-    # model = model_creator({})
-    # optimizer = optimizer_creator(model, {'settings': settings})
-    # train_loader, validation_loader = data_creator(settings['batch_size'], {})
-
-    trainer1 = PyTorchTrainer(
-      model_creator,
-      data_creator,
-      optimizer_creator,
+    trainer1 = TorchTrainer(
+      model_creator=model_creator,
+      data_creator=data_creator,
+      optimizer_creator=optimizer_creator,
+      training_operator_cls=CPTrainingOperator,
       loss_creator=cross_loss,
-      train_function=train,
-      validation_function=validate,
-      config={'settings': settings.hyperparameters},
-      num_replicas=settings['parallelism'],
+      config={'settings': settings.hyperparameters, ray.util.sgd.utils.BATCH_SIZE: settings['batch_size']},
+      num_workers=settings['parallelism'],
       use_gpu=settings['cp_use_gpu'],
-      batch_size=settings['batch_size'],
       )
     if restore_point:
       trainer1.restore(restore_point)

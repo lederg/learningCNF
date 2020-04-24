@@ -1,7 +1,8 @@
 import os
 from ray.tune import Trainable
-from ray.experimental.sgd.pytorch.pytorch_trainer import PyTorchTrainer
+from ray.util.sgd import TorchTrainer
 from ray.tune.trial import Resources
+
 
 class ClausePredictionTrainable(Trainable):
     # @classmethod
@@ -14,7 +15,7 @@ class ClausePredictionTrainable(Trainable):
     #         extra_gpu=int(config["use_gpu"]) * config["num_replicas"])
 
     def _setup(self, config):
-        self._trainer = PyTorchTrainer(**config)
+        self._trainer = TorchTrainer(**config)
 
     def _train(self):
         train_stats = self._trainer.train()

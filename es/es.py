@@ -126,6 +126,7 @@ class Worker:
       lens.append(rollout_length)
       if params is not None:
         print('Eval finished {} with {} steps'.format(fname,rollout_length))
+      env.exit()
     return rews, lens
 
   # def evaluate(params, fnames)

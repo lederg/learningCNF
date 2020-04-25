@@ -256,7 +256,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
       ack = EnvCommands.ACK_STEP
     elif self.cmd == EnvCommands.CMD_EXIT:
       print('self.cmd is CMD_EXIT, yet we are in the callback again!')
-      return None
+      return 0
     else:
       assert True, 'Invalid last command detected'
 
@@ -271,9 +271,9 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
         self.settings.formula_cache.delete_key(self.current_fname)
       self.current_fname = rc
       self.env.solver.terminate()
-      return 1      # This is just an integer, any integer. Solver is going to terminate anyhow.
+      return 0      # This is just an integer, any integer. Solver is going to terminate anyhow.
     elif self.cmd == EnvCommands.CMD_EXIT:
       print('Got CMD_EXIT')
       self.env.solver.terminate()
-      return None
+      return 0
 

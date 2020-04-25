@@ -197,7 +197,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
     return SharpEnvProxy(config)
 
   def run(self):
-    print('Env {} on pid {}'.format(self.env.name, os.getpid()))
+    # print('Env {} on pid {}'.format(self.env.name, os.getpid()))
     while True:
       if self.cmd == EnvCommands.CMD_RESET:
         # We get here only after a CMD_RESET aborted a running episode and requested a new file.
@@ -205,7 +205,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
       else:
         self.cmd, fname = self.queue_in.get()
         if self.cmd == EnvCommands.CMD_EXIT:
-          print('Got CMD_EXIT 1')
+          # print('Got CMD_EXIT 1')
           self.queue_out.put((EnvCommands.ACK_EXIT,None))
           break
         assert self.cmd == EnvCommands.CMD_RESET, 'Unexpected command {}'.format(self.cmd)
@@ -241,7 +241,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
           pass
           # We are here because the episode was aborted. We can just move on, the client already has everything.
       elif self.cmd == EnvCommands.CMD_EXIT:
-        print('Got CMD_EXIT 2')
+        # print('Got CMD_EXIT 2')
         self.queue_out.put((EnvCommands.ACK_EXIT,None))
         break
 

@@ -63,8 +63,8 @@ def env_creator(env_config):
     if settings['preload_formulas']:
         settings.formula_cache.load_files(provider.items)  
     env = envfac.create_env(provider=provider, oracletype='lbd_threshold')
-    hostname = socket.gethostname()
-    IPAddr = socket.gethostbyname(hostname)
-    print(hostname,IPAddr,os.getpid())
+    # hostname = socket.gethostname()
+    # IPAddr = socket.gethostbyname(hostname)
+    # print(hostname,IPAddr,os.getpid())
 
     return env

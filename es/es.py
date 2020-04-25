@@ -81,7 +81,7 @@ class Worker:
     # self.train_uniform_items = OnePassProvider(self.settings['es_train_data']).items
     self.policy_params = policy_params
     self.noise = SharedNoiseTable(noise) if noise is not None else None
-
+    self.env_creator = env_creator
     self.env = env_creator(config["env_config"])
     from ray.rllib import models
     self.preprocessor = models.ModelCatalog.get_preprocessor(
@@ -114,9 +114,11 @@ class Worker:
     rews = []
     lens = []
     for fname in fnames:
+      env = self.env_creator(self.config["env_config"])
       rollout_rewards, rollout_length = policies.rollout(
         self.policy,
-        self.env,
+        env,
+        # self.env,        
         fname=fname,
         timestep_limit=timestep_limit,
         add_noise=add_noise)

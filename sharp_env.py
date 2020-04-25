@@ -273,7 +273,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
       self.env.solver.terminate()
       return 0      # This is just an integer, any integer. Solver is going to terminate anyhow.
     elif self.cmd == EnvCommands.CMD_EXIT:
-      print('Got CMD_EXIT')
+      # print('Got CMD_EXIT')
       self.env.solver.terminate()
       return 0
 

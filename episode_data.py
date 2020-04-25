@@ -5,6 +5,7 @@ import torch.multiprocessing as mp
 import time
 import pickle
 import itertools
+import funcy
 import logging
 from collections import namedtuple
 from namedlist import namedlist
@@ -173,11 +174,16 @@ class QbfCurriculumDataset(Dataset):
 
 class AbstractEpisodeProvider(AbstractProvider):
   def __init__(self,flist):
-    self.items = AbstractEpisodeProvider.load_files(flist)
+    fnames = AbstractEpisodeProvider.load_files(flist)
+    self.items = funcy.select(AbstractEpisodeProvider.filter,fnames)
     self.settings = CnfSettings()
     self.logger = logging.getLogger('episode_provider')
     self.logger.setLevel(eval(self.settings['loglevel']))
     ObserverDispatcher().register('new_batch',self)
+
+  def filter(fname):
+    f = os.path.basename(fname)
+    return (f.endswith('cnf') or f.endswith('dimacs'))
 
   def load_dir(directory):
     return AbstractEpisodeProvider.load_files([join(directory, f) for f in listdir(directory)])

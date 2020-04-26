@@ -39,7 +39,6 @@ from rllib_sharp_models import *
 steps_counter = 0
 settings = CnfSettings(cfg())
 
-
 def get_logger_creator(settings):
   import tempfile
   from ray.tune.logger import UnifiedLogger, TBXLogger
@@ -73,6 +72,8 @@ def evaluate(steps, config, weights):
   results = ray.get(res_all)
   rewards, lengths = zip(*results)
   rc = np.mean(np.concatenate(lengths))
+  for w in workers:
+    del w
 
   return steps, rc
 

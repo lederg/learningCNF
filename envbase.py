@@ -3,6 +3,21 @@ import torch.multiprocessing as mp
 from enum import Enum
 from utils import set_proc_name
 import gym
+# from gym import *
+from gym import spaces
+
+
+class TrivialSpace(gym.Space):
+  def contains(self, x):
+    return True
+
+  @property
+  def shape(self):
+    return ()
+
+  @shape.setter
+  def shape(self, value):  
+    pass
 
 class EnvCommands(Enum):
 	CMD_RESET = 1

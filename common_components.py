@@ -1,8 +1,8 @@
 import torch
 import ipdb
 import torch.nn as nn
-from torch.nn import init as nn_init
 import torch.nn.functional as F
+from torch.nn import init as nn_init
 
 class MLPModel(nn.Module):
   def __init__(self, dims, activation=nn.ReLU, dropout=0, batchnorm=False, layernorm=False):

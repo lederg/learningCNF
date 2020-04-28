@@ -43,8 +43,10 @@ class ClausePredictionModel(nn.Module):
     if self.prediction:
       pred_idx = torch.where(G.nodes['clause'].data['predicted_clauses'])[0]
     feat_dict = {
-      'literal': G.nodes['literal'].data['lit_labels'],
-      'clause': G.nodes['clause'].data['clause_labels'],        
+      'literal': G.nodes['literal'].data['literal_feats'],
+      'clause': G.nodes['clause'].data['clause_feats'],        
+      # 'literal': G.nodes['literal'].data['lit_labels'],
+      # 'clause': G.nodes['clause'].data['clause_labels'],        
     }
 
     out = []

@@ -250,7 +250,7 @@ def cfg():
 	cp_num_samples = 1
 	cp_num_layers = 3
 	cp_normalization = None
-	cp_encoder_type = 'CNFEncoder'
+	cp_encoder_type = 'NSATEncoder'
 	cp_add_labels = True
 	cp_add_gss = True
 	cp_add_embedding = True

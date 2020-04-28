@@ -16,24 +16,9 @@ from ray.rllib.policy.sample_batch import SampleBatch
 from dgl_layers import *
 from dgl_encoders import *
 from common_components import *
-
-
-def graph_from_adj(lit_features, adj_matrix):
-    ind = adj_matrix.coalesce().indices().t().tolist()
-    ind_t = adj_matrix.t().coalesce().indices().t().tolist()
-
-    G = dgl.heterograph(
-                {('literal', 'l2c', 'clause') : ind_t,
-                 ('clause', 'c2l', 'literal') : ind},
-                {'literal': adj_matrix.shape[1],
-                 'clause': adj_matrix.shape[0]})
-    
-    G.nodes['literal'].data['literal_feats'] = lit_features
-    return G
-
-
+from graph_utils import graph_from_adj
   
-class SharpModel(RLLibModel):
+class SharpModel(PolicyBase):
   def __init__(self, *args, **kwargs):
     super(SharpModel, self).__init__(*args)
     encoder_class = eval(self.settings['sharp_encoder_type'])
@@ -89,7 +74,7 @@ class SharpModel(RLLibModel):
     else:
       obs = obs_from_input_dict(input_dict)       # This is an experience rollout
     lit_features = obs.ground
-    G = graph_from_adj(lit_features, obs.cmat)
+    G = graph_from_adj(lit_features, None, obs.cmat)
     self._value_out = torch.zeros(1).expand(len(lit_features))
     out = []
     if self.settings['sharp_add_embedding']:

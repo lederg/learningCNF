@@ -19,6 +19,7 @@ class EnvFactory:
 
   def create_env(self, envtype=None, **kwargs):
     from sat_env import SatActiveEnv, SatEnvServer
+    from sat_es_env import SatActiveESEnv, SatESEnvServer
     from sharp_env import SharpActiveEnv, SharpEnvServer
 
     if not envtype:
@@ -32,6 +33,11 @@ class EnvFactory:
       # log.info('Starting minisat server')
       satserv.start()
       return satserv.proxy(**kwargs)
+    elif envtype == 'sat_es':
+      env = SatActiveESEnv(**kwargs)
+      serv = SatESEnvServer(env)
+      serv.start()
+      return serv.proxy(**kwargs)
     elif envtype == 'sharpsat':
       env = SharpActiveEnv(**kwargs)
       serv = SharpEnvServer(env)

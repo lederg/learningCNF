@@ -87,10 +87,10 @@ class Worker:
     self.preprocessor = models.ModelCatalog.get_preprocessor(
       self.env, config["model"])
 
-    self.policy = policies.TorchGNNPolicy(
-      self.env.action_space, self.env.observation_space,
-      self.preprocessor, config["observation_filter"], config["model"],
-      **policy_params)
+    if self.settings['solver'] == 'sharpsat':
+      self.policy = policies.SharpPolicy(self.preprocessor, config["observation_filter"])
+    elif self.settings['solver'] == 'sat_es':
+      self.policy = policies.SATPolicy(self.preprocessor, config["observation_filter"])
 
   @property
   def filters(self):
@@ -218,9 +218,10 @@ class ESTrainer(Trainer):
     from ray.rllib import models
     preprocessor = models.ModelCatalog.get_preprocessor(env)
 
-    self.policy = policies.TorchGNNPolicy(
-      env.action_space, env.observation_space, preprocessor,
-      config["observation_filter"], config["model"], **policy_params)
+    if self.settings['solver'] == 'sharpsat':
+      self.policy = policies.SharpPolicy(preprocessor, config["observation_filter"])
+    elif self.settings['solver'] == 'sat_es':
+      self.policy = policies.SATPolicy(preprocessor, config["observation_filter"])
     self.optimizer = optimizers.Adam(self.policy, config["stepsize"])
     self.report_length = config["report_length"]
 
@@ -316,7 +317,7 @@ class ESTrainer(Trainer):
 
   @override(Trainer)
   def compute_action(self, observation):
-    return self.policy.compute(observation, update=False)[0]
+    return self.policy.compute(observation)[0]
 
   @override(Trainer)
   def _stop(self):

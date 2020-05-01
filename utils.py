@@ -32,7 +32,7 @@ def pprint_vectors(vecs_dict):
     print(x)
 
 def where(cond, x_1, x_2):
-    cond = cond.float()    
+    cond = cond.float()
     return (cond * x_1) + ((1-cond) * x_2)
 
 def copy_model_weights(model1, model2):
@@ -60,7 +60,7 @@ class Singleton(type):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
-    
+
 
 def convert_var(v, reverse=False):
     s = sign(v)
@@ -69,7 +69,7 @@ def convert_var(v, reverse=False):
 def log_name(settings):
     return 'exp_{}'.format(settings['name'])
 
-# Get a distribution p, return (1-eps)*p + eps*U 
+# Get a distribution p, return (1-eps)*p + eps*U
 def epsilonize(p, eps):
     n = len(p)
     U = np.ones(n) / n
@@ -84,9 +84,9 @@ def normalize(input, p=2, dim=1, eps=1e-20):
 
 def formula_to_input(formula):
     try:
-        return [[Variable(x, requires_grad=False) for x in y] for y in formula]    
+        return [[Variable(x, requires_grad=False) for x in y] for y in formula]
     except:
-        return [[Variable(torch.LongTensor([x]), requires_grad=False) for x in y] for y in formula]    
+        return [[Variable(torch.LongTensor([x]), requires_grad=False) for x in y] for y in formula]
 
 
 def permute_seq(inp):
@@ -141,7 +141,7 @@ def cleanup_process(pid):
 # cross-product
 
 def dict_product(dicts):
-    """    
+    """
     >>> list(dict_product(dict(number=[1,2], character='ab')))
     [{'character': 'a', 'number': 1},
      {'character': 'a', 'number': 2},
@@ -150,7 +150,7 @@ def dict_product(dicts):
     """
     return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
 
-    
+
 class EnvIdGen(metaclass=Singleton):
     def __init__(self, initial_id=10000):
         self.initial_id = initial_id
@@ -222,7 +222,7 @@ def csr_to_pytorch(m, split=False, size=None):
 # Indices and vals are numpy arrays. Indices is Rx2
 # Return value is pytorch sparse matrix
 
-def create_sparse_adjacency(indices, vals, size, split=False):    
+def create_sparse_adjacency(indices, vals, size, split=False):
     if not split:
         return torch.sparse.FloatTensor(torch.from_numpy(indices.transpose()),torch.from_numpy(vals),size)
     else:
@@ -269,21 +269,21 @@ def concat_sparse(t1,t2):
 def make_one_hot(labels, C=2):
     '''
     Converts an integer label torch.autograd.Variable to a one-hot Variable.
-    
+
     Parameters
     ----------
     labels : Tensor sized N
-    C : integer. 
+    C : integer.
         number of classes in labels.
-    
+
     Returns
     -------
     Tensor sizes NxC
     '''
-    
+
     y = torch.eye(C)
     return y[labels]
-    
+
 def unsig(y):
     return -np.log(1/y-1)
 
@@ -293,7 +293,7 @@ def statedict_to_numpy(state_dict):
         z[k] = state_dict[k].numpy()
     return z
 
-def numpy_into_statedict(state_dict, np_dict):    
+def numpy_into_statedict(state_dict, np_dict):
     for k in state_dict.keys():
         state_dict[k] = torch.from_numpy(np_dict[k])
 
@@ -306,9 +306,9 @@ def get_logger(settings, logger_name, filename=None):
         fh = logging.FileHandler(filename, mode='w')
         fh.setFormatter(formatter)
         fh.setLevel(logging.DEBUG)
-        logger.addHandler(fh)    
+        logger.addHandler(fh)
     # ch = logging.StreamHandler()
-    # ch.setFormatter(formatter)        
+    # ch.setFormatter(formatter)
     # logger.addHandler(ch)
 
     return logger
@@ -319,7 +319,7 @@ def seed_all(settings, name):
       torch.manual_seed(int(time.time())+abs(hash(name)) % 1000)
     else:
       np.random.seed(settings['use_seed'])
-      torch.manual_seed(settings['use_seed'])      
+      torch.manual_seed(settings['use_seed'])
 
 def load_dir(directory):
   return load_files([os.path.join(directory, f) for f in os.listdir(directory)])
@@ -330,9 +330,6 @@ def load_files(files):
   only_files = [x for x in files if os.path.isfile(x)]
   only_dirs = [x for x in files if os.path.isdir(x)]
   return only_files if not only_dirs else only_files + list(itertools.chain.from_iterable([load_dir(x) for x in only_dirs]))
-
-def random_string(n):
-  return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(n)])
 
 def repeat_end(val, n, k):
   return [val for i in range(n)] + [k]

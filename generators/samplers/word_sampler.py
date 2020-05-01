@@ -1,6 +1,6 @@
 import os
 import tempfile
-from generators.sampler_base import *
+from samplers.sampler_base import SamplerBase
 from random import randint, seed
 import aiger_bv as BV
 from aiger_bv.expr import SignedBVExpr, atom
@@ -26,7 +26,7 @@ def variable():
 def constant_expr():
   if randint(0, 4) == 0:
     c = atom(word_length, randint(- 2**(word_length-1), 2**(word_length-1) - 1), signed=True)
-  else: 
+  else:
     c = atom(word_length, 1, signed=True)
   return c
 
@@ -90,14 +90,15 @@ def random_circuit(size):
     e = aa.simplify(e)
     if e is not None:
       return e
-    else: 
+    else:
       print('    Failed to generate expression; trying again')
 
 class WordSampler(SamplerBase):
-  def __init__(self, config):
-    SamplerBase.__init__(self, config)
-    self.size = int(config.get('size',5))
-  def sample(self):
+  def __init__(self, size = 5, **kwargs):
+    SamplerBase.__init__(self, **kwargs)
+    self.size = int(size)
+
+  def sample(self, stats_dict: dict):
     e = random_circuit(self.size)
     f = tempfile.NamedTemporaryFile()
     f.write(str(e).encode())

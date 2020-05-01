@@ -8,12 +8,12 @@ import aiger_ptltl as LTL
 import funcy as fn
 import matplotlib.pyplot as plt
 
-from generators.gentypes import FileName
+from gen_types import FileName
 from bidict import bidict
-from sampler_base import SamplerBase
+from samplers.sampler_base import SamplerBase
 from random import randint, seed
-from utils import *
 
+from gen_utils import random_string
 
 def create_sensor(aps):
   sensor = BV.aig2aigbv(A.empty())
@@ -29,16 +29,16 @@ def spec2monitor(spec):
   return monitor
 
 class GridSampler(SamplerBase):
-  def __init__(self, config):
-    SamplerBase.__init__(self, config)    
-    self.size = int(config.get('size',8))
-    self.horizon = int(config.get('horizon',2))
+  def __init__(self, size=8, horizon=2, **kwargs):
+    SamplerBase.__init__(self, **kwargs)
+    self.size = int(size)
+    self.horizon = int(horizon)
     self.X = BV.atom(self.size, 'x', signed=False)
     self.Y = BV.atom(self.size, 'y', signed=False)
 
   def encode_state(x, y):
     x, y = [BV.encode_int(self.size, 1 << (v - 1), signed=False) for v in (x, y)]
-    return {'x': tuple(x), 'y': tuple(y)}    
+    return {'x': tuple(x), 'y': tuple(y)}
 
 
   def make_spec(self):
@@ -98,10 +98,11 @@ class GridSampler(SamplerBase):
     rc = unrolled_circuit >> BV.aig2aigbv(dongle)
 
     return rc
-    
-  def sample(self) -> FileName:
+
+  def sample(self, stats_dict: dict) -> FileName:
     e = self.make_grid()
     fname = '/tmp/{}.cnf'.format(random_string(16))
+    # self.log.info(f"Sampled {cnf_id}") Add somt info about the new sample
     self.write_expression(e, fname)
     return fname
 

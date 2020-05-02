@@ -19,9 +19,10 @@ sample usage:
 >>> filter.filter(file_path)
 """
 class SharpSATFilter(FilterBase):
-    def __init__(self, steps_min = 30, time_min = 0.15, time_max = 2, **kwargs):
+    def __init__(self, steps_min = 30, time_min = 0.15, time_max = 2, steps_max=1000, **kwargs):
         FilterBase.__init__(self, **kwargs)
         self.steps_min = int(steps_min)
+        self.steps_max = int(steps_max)
         self.time_min = float(time_min)
         self.time_max = int(time_max)
 
@@ -41,6 +42,9 @@ class SharpSATFilter(FilterBase):
         res = True
         if (sharpSAT.reward() < self.steps_min):
             message = f"{fname}: Too easy! Steps < {self.steps_min}"
+            res = False
+        if (sharpSAT.reward() > self.steps_max):
+            message = f"{fname}: Too hard! Steps > {self.steps_max}"
             res = False
         if (sharpSAT.time() < self.time_min):
             message = f"{fname}: Too easy! Time < {self.time_min}s"

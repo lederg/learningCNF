@@ -1,6 +1,9 @@
 import os
 import random
+import time
 import noise
+import functools
+import numpy as np
 import aiger as A
 import aiger_bv as BV
 import aiger_coins as C
@@ -15,7 +18,6 @@ from gen_types import FileName
 from bidict import bidict
 from samplers.sampler_base import SamplerBase
 from random import randint, seed
-from utils import *
 from gen_utils import random_string
 
 def get_mask_test(X, Y):
@@ -136,6 +138,7 @@ class GridSampler(SamplerBase):
     self.horizon = int(horizon)
     self.X = BV.atom(self.size, 'x', signed=False)
     self.Y = BV.atom(self.size, 'y', signed=False)
+    self.mask_test = get_mask_test(self.X, self.Y)
 
   def encode_state(x, y):
     x, y = [BV.encode_int(self.size, 1 << (v - 1), signed=False) for v in (x, y)]
@@ -232,7 +235,7 @@ class GridSampler(SamplerBase):
     circuit = DYN >> SENSOR >> MONITOR
     return mdp2cnf(circuit,self.horizon+random.choice([-1,0,1])), seed
     
-  def sample(self) -> FileName:
+  def sample(self, stats_dict) -> FileName:
     fcnf, seed = self.make_grid()
     fname = '/tmp/{}_{}.cnf'.format(random_string(16),seed)
     self.write_expression(fcnf, fname, is_cnf=True)

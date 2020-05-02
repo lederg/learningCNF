@@ -17,8 +17,9 @@ sample usage:
 >>> filter.filter(sharpSAT, cnf_id)
 """
 class SharpSATFilter:
-    def __init__(self, steps_min = 30, time_min = 0.15, time_max = 2):
+    def __init__(self, steps_min = 30, steps_max=1000, time_min = 0.15, time_max = 2):
         self.steps_min = steps_min
+        self.steps_max = steps_max
         self.time_min = time_min
         self.time_max = time_max
 
@@ -29,6 +30,9 @@ class SharpSATFilter:
         res = False
         if (sharpSAT.reward() < self.steps_min):
             message = f"{cnf_id}: Too easy! Steps < {self.steps_min}"
+            res = True
+        if (sharpSAT.reward() > self.steps_max):
+            message = f"{cnf_id}: Too Hard! Steps > {self.steps_max}"
             res = True
         if (sharpSAT.time() < self.time_min):
             message = f"{cnf_id}: Too easy! Time < {self.time_min}s"
@@ -42,3 +46,4 @@ class SharpSATFilter:
             self.log.info(message)
 
         return res
+

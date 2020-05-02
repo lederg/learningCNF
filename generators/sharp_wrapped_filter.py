@@ -4,7 +4,9 @@ from pysat.solvers import SharpSAT
 
 class SharpFilter(FilterBase):
   def __init__(self, config):
-    self._filter = SharpSATFilter()
+  	time_max = int(config.get('time_max', 2))
+  	steps_max = int(config.get('steps_max', 1000))
+  	self._filter = SharpSATFilter(time_max=time_max, steps_max=steps_max)
     
   def filter(self, fname: FileName) -> bool:
   	# Check for degenerate

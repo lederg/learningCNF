@@ -5,7 +5,6 @@ from collections import namedtuple
 import logging
 import numpy as np
 import time
-import ipdb
 import itertools
 import ray
 from ray.rllib.agents import Trainer, with_common_config

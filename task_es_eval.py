@@ -64,24 +64,18 @@ def get_logger_creator(settings):
 def evaluate(steps, config, weights):
   settings = CnfSettings()
   settings.hyperparameters = config['env_config']['settings']
-  w = es.es.Worker.remote(config, {"action_noise_std": 0.01}, env_creator, None)
+  n = settings['test_parallelism']
+  workers = [es.es.Worker.remote(config, {"action_noise_std": 0.01}, env_creator, None) for _ in range(n)]
   params = ray.put(weights['default_policy'])
-  fnames_id = ray.put(OnePassProvider(settings['es_validation_data']).items)
-  res = w.rollout.remote(fnames_id,None,add_noise=False,params=params)
-  rewards, lengths = ray.get(res)
-  rc = np.mean(lengths)
+  fnames = OnePassProvider(settings['es_validation_data']).items
+  parts_ids = [ray.put(list(x)) for x in np.array_split(np.array(fnames), n)]
+  res_all = [w.rollout.remote(part,None,add_noise=False,params=params) for (w, part) in zip(workers, parts_ids)]
+  results = ray.get(res_all)
+  rewards, lengths = zip(*results)
+  rc = np.mean(np.concatenate(lengths))
+  for w in workers:
+    del w
 
-  # results = []
-  # for (i, _) in enumerate(OrderedProvider(settings['rl_test_data']).items):
-  #   a = w.sample()
-  #   results.append(a['rewards'].sum())
-  #   # if (i % 10) == 0:
-  #   #   print('Eval {}'.format(i))
-  # res = np.mean(results)
-  # print('Evaluate finished with reward {}'.format(res))
-  # # w.stop()
-  # del w
-  # return steps, res
   return steps, rc
 
 class ESEval():

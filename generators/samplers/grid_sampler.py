@@ -199,7 +199,7 @@ class GridSampler(SamplerBase):
     if pairs_only:
       return feat_mask_tuples
     if not len(feat_mask_tuples):
-      ipdb.set_trace()
+      return mask_func(0,0)
     else:   # Return the actual circuit for the mask
       return functools.reduce(lambda x,y: x | y,fn.map(lambda tup: mask_func(*tup), feat_mask_tuples))
 

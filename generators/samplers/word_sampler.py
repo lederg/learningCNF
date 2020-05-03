@@ -4,7 +4,7 @@ from samplers.sampler_base import SamplerBase
 from random import randint, seed
 import aiger_bv as BV
 from aiger_bv.expr import SignedBVExpr, atom
-import aiger_analysis as aa
+# import aiger_analysis as aa
 
 word_length = 8
 
@@ -87,7 +87,7 @@ def random_bool_expr(size):
 def random_circuit(size):
   while True:
     e = random_bool_expr(size)
-    e = aa.simplify(e)
+    # e = aa.simplify(e)
     if e is not None:
       return e
     else:

@@ -1,3 +1,4 @@
+import ipdb
 import os
 import random
 import time
@@ -180,25 +181,27 @@ class GridSampler(SamplerBase):
     # return {k: v for (v,k) in zip(SPECS,SPEC_NAMES)}
 
   def get_feature_mask(self, feat, world, pairs_only=False):
-      size = world.shape[1]
-      mask_func = self.mask_test
-      feat_rows = [feat in x for x in world]
-      if np.sum([feat in x for x in world.transpose()]) < np.sum(feat_rows):
-          feat_mask_tuples= self.get_feature_mask(feat,world.transpose(), pairs_only=True)
-          flip = lambda f: lambda *a: f(*reversed(a))
-          mask_func = flip(mask_func)
-      else:
-          def to_int(row, size):
-              return int(sum([2**i for (x,i) in zip(reversed(row),np.arange(size)) if x]))
-          
-          feat_mask_tuples = []
-          for (x,row) in zip(np.where(feat_rows)[0]+1, (world[feat_rows]==feat)):
-              row_mask = (int(1 << x-1), to_int(row, size))
-              feat_mask_tuples.append(row_mask)
-      if pairs_only:
-          return feat_mask_tuples
-      else:   # Return the actual circuit for the mask
-          return functools.reduce(lambda x,y: x | y,fn.map(lambda tup: mask_func(*tup), feat_mask_tuples))
+    size = world.shape[1]
+    mask_func = self.mask_test
+    feat_rows = [feat in x for x in world]
+    if np.sum([feat in x for x in world.transpose()]) < np.sum(feat_rows):
+      feat_mask_tuples= self.get_feature_mask(feat,world.transpose(), pairs_only=True)
+      flip = lambda f: lambda *a: f(*reversed(a))
+      mask_func = flip(mask_func)
+    else:
+      def to_int(row, size):
+        return int(sum([2**i for (x,i) in zip(reversed(row),np.arange(size)) if x]))
+        
+      feat_mask_tuples = []
+      for (x,row) in zip(np.where(feat_rows)[0]+1, (world[feat_rows]==feat)):
+        row_mask = (int(1 << x-1), to_int(row, size))
+        feat_mask_tuples.append(row_mask)
+    if pairs_only:
+      return feat_mask_tuples
+    if not len(feat_mask_tuples):
+      ipdb.set_trace()
+    else:   # Return the actual circuit for the mask
+      return functools.reduce(lambda x,y: x | y,fn.map(lambda tup: mask_func(*tup), feat_mask_tuples))
 
 
   def get_random_masks(self, seed):
@@ -237,7 +240,7 @@ class GridSampler(SamplerBase):
     
   def sample(self, stats_dict) -> FileName:
     fcnf, seed = self.make_grid()
-    fname = '/tmp/{}_{}.cnf'.format(random_string(16),seed)
+    fname = '/tmp/{}_{}.cnf'.format(random_string(16),seed+os.getpid())
     self.write_expression(fcnf, fname, is_cnf=True)
     return fname
 

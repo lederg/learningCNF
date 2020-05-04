@@ -9,6 +9,7 @@ import ray.experimental.tf_utils
 from ray.rllib.evaluation.sampler import _unbatch_tuple_actions
 from ray.rllib.models import ModelCatalog
 from ray.rllib.utils.filter import get_filter
+from ray.util.sgd.utils import TimerStat
 from custom_rllib_utils import *
 from rllib_sharp_models import SharpModel
 from clause_model import ClausePredictionModel
@@ -21,16 +22,20 @@ def rollout(policy, env, fname=None, timestep_limit=None, add_noise=False):
   If add_noise is True, the rollout will take noisy actions with
   noise drawn from that stream. Otherwise, no action noise will be added.
   """
+  timers = {k: TimerStat() for k in ["reset", "compute", "step"]}
 
   env_timestep_limit = policy.settings['max_step']+10
   timestep_limit = (env_timestep_limit if timestep_limit is None else min(
     timestep_limit, env_timestep_limit))
   rews = []
   t = 0
-  observation = env.reset(fname=fname)
+  with timers['reset']:
+    observation = env.reset(fname=fname)
   for _ in range(timestep_limit or 999999):
-    ac = policy.compute(observation)[0]
-    observation, rew, done, _ = env.step(ac)
+    with timers['compute']:
+      ac = policy.compute(observation)[0]
+    with timers['step']:
+      observation, rew, done, _ = env.step(ac)
     rews.append(rew)
     t += 1
     if done:

@@ -21,6 +21,7 @@ from filters.glucose_filter import *
 # from samplers.word_sampler import *
 from samplers.grid_sampler import *
 from samplers.ecarev_sampler import *
+from samplers.sudoku_sampler import *
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s')
 log = logging.getLogger(__name__)
@@ -32,6 +33,8 @@ def get_sampler(config):
 
     if config['sampler'] == 'grid':
         return GridSampler(**config)
+    if config['sampler'] == 'sudoku':
+        return SudokuSampler(**config)
     if config['sampler'] == 'ecarev':
         return EcarevSampler(**config)
     else:
@@ -58,11 +61,11 @@ def generate_from_sampler(config):
     attempts_so_far = 0
     while (attempts_so_far < config['max_attempts']):
         try:
-            candidate = sampler.sample(stats_dict)
             attempts_so_far += 1
+            candidate = sampler.sample(stats_dict)
         except Exception as e:
             log.error('Gah, Exception:')
-            log.error(e)
+            log.error(e, exc_info=True)
             stats_dict = {}
             continue
 

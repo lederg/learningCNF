@@ -16,7 +16,7 @@ from clause_model import ClausePredictionModel
 from settings import *
 from graph_utils import *
 
-def rollout(policy, env, fname=None, timestep_limit=None, add_noise=False):
+def rollout(policy, env, fname, timestep_limit=None, add_noise=False):
   """Do a rollout.
 
   If add_noise is True, the rollout will take noisy actions with

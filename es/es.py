@@ -118,7 +118,7 @@ class Worker:
         self.policy,
         env,
         # self.env,        
-        fname=fname,
+        fname,
         timestep_limit=timestep_limit,
         add_noise=add_noise)
       rews.append(rollout_rewards)

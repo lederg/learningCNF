@@ -21,5 +21,5 @@ class SamplerBase:
         write_to_file(maxvar, c.clauses, fname)
 
     # This returns a filename!
-    def sample(self, stats_dict: dict) -> FileName:
+    def sample(self, stats_dict: dict) -> (FileName, FileName):
         raise NotImplementedError

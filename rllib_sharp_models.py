@@ -1,4 +1,5 @@
 import ipdb
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,11 +18,15 @@ from dgl_layers import *
 from dgl_encoders import *
 from common_components import *
 from graph_utils import graph_from_adj
-  
+sys.path.append('./generators')
+from samplers.sudoku_sampler import SudokuCNF, var2rcn, rcn2var
+
 class SharpModel(PolicyBase):
   def __init__(self, *args, **kwargs):
     super(SharpModel, self).__init__(*args)
     encoder_class = eval(self.settings['sharp_encoder_type'])
+    self.decode = self.settings['sharp_decode']    
+    self.decode_size = self.settings['sharp_decode_size']
     self.encoder = encoder_class(self.settings)
     inp_size = 0
     if self.settings['sharp_add_embedding']:
@@ -73,9 +78,18 @@ class SharpModel(PolicyBase):
       obs = undensify_obs(input_dict)
     else:
       obs = obs_from_input_dict(input_dict)       # This is an experience rollout
-    lit_features = obs.ground
+    lit_features = obs.ground[:,1:]
+    literal_mapping = obs.ground[:,0]
     G = graph_from_adj(lit_features, None, obs.cmat)
     self._value_out = torch.zeros(1).expand(len(lit_features))
+    if self.decode:
+      grid = torch.zeros(size=(self.decode_size,)*3)
+      literal_stack = obs.ext_data[1]
+      indices = [var2rcn(self.decode_size,v) for v in literal_stack]
+      vals = [sign(v) for v in literal_stack]
+      for (i,v) in zip(indices,vals):
+        grid[i]=v
+      ipdb.set_trace()
     out = []
     if self.settings['sharp_add_embedding']:
       vembs, cembs = self.encoder(G)    

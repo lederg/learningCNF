@@ -267,6 +267,8 @@ def cfg():
 
 	sharp_relaxed_msg = True
 	sharp_relaxed_update = False
+	sharp_decode = False
+	sharp_decode_size = 9
 	sharp_completion_reward = 1
 	sharp_encoder_type = 'GINEncoder'
 	sharp_add_labels = False

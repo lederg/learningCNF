@@ -6,6 +6,8 @@ This program is released into the public domain.
 Revision 3
 """
 import os
+import time
+import pickle
 import random, copy
 import numpy as np
 
@@ -18,6 +20,19 @@ import itertools
 
 def negate(literal):
     return literal*(-1)
+
+def rcn2var(size,row,col,num):
+    """Return the variable which represents a (row,col,num)."""
+    var = row * size**2 + col * size + num + 1 # +1 to avoid 0    
+    return int(var)
+
+def var2rcn(size, var):
+    var = int(abs(var))-1
+    res = int(var % size**2)
+    row = int((var - res) / size**2)
+    num = res % size
+    col = int((res - num) / size)
+    return row, col, num
 
 class CNF_formula:
     def __init__(self,encoding_nvars):
@@ -67,30 +82,38 @@ class CNF_formula:
     def addclause(self,cl):
         self.clauses.append(cl)
 
-    def exacly_one(self,B):
+    def exacly_one(self,B, classic=True):
         """ Exacly one restriction.
         """
-        n = len(B)
-        R = list(range(self.nvars,self.nvars + n))
-        R[0]=None
-        self.nvars += (n - 1)
-        #Rn -> Rn-1
-        for i in range(2,n):self.implies(R[i],R[i-1])
-        #B1 <-> no(R2)
-        self.biimplies(B[0],negate(R[1]))
-        #Bn <-> Rn
-        self.biimplies(B[-1],R[-1])
-        #Bi <-> Ri and no(Ri+1)
-        for i in range(1,n - 1):
-            self.clauses.extend([[negate(B[i]),R[i]],
-                        [negate(B[i]), negate(R[i+1])],
-                        [negate(R[i]),R[i+1],B[i]]])
+
+        if classic:
+            self.at_least_one(B)
+            self.at_most_one(B)
+
+        else:
+            n = len(B)
+            R = list(range(self.nvars,self.nvars + n))
+            R[0]=None
+            print('Increasing nvars by {} to {}'.format(n-1,self.nvars))
+            self.nvars += (n - 1)
+            #Rn -> Rn-1
+            for i in range(2,n):self.implies(R[i],R[i-1])
+            #B1 <-> no(R2)
+            self.biimplies(B[0],negate(R[1]))
+            #Bn <-> Rn
+            self.biimplies(B[-1],R[-1])
+            #Bi <-> Ri and no(Ri+1)
+            for i in range(1,n - 1):
+                self.clauses.extend([[negate(B[i]),R[i]],
+                            [negate(B[i]), negate(R[i+1])],
+                            [negate(R[i]),R[i+1],B[i]]])
 
 class SudokuCNF:
-    def __init__(self, order, puzzle):
+    def __init__(self, order, puzzle, classic=False):
         self.order = order
         self.size  = order**2
         self.sudoku = puzzle
+        self.classic = classic
         self.var2rcn = {}
 
     def variable(self,row,col,num):
@@ -106,11 +129,11 @@ class SudokuCNF:
         for i in range(self.size):
             for j in range(self.size):
                 A = [  self.variable(i,j,k) for k in range(self.size)]
-                cnff.exacly_one(A)# Cell restrictions
+                cnff.exacly_one(A, self.classic)# Cell restrictions
                 B = [  self.variable(i,k,j) for k in range(self.size)]
-                cnff.exacly_one(B)# Row restrictions
+                cnff.exacly_one(B, self.classic)# Row restrictions
                 C = [  self.variable(k,i,j) for k in range(self.size)]
-                cnff.exacly_one(C)# Col restrictions
+                cnff.exacly_one(C, self.classic)# Col restrictions
                 if self.sudoku[i][j] != -1: #Fixed variables restrictions
                     cnff.addclause([self.variable(i,j,int(self.sudoku[i][j]))])
 
@@ -120,7 +143,7 @@ class SudokuCNF:
             for num in range(self.size):
                 D = [ self.variable(i+i_inc,j+j_inc,num)  for i_inc in range(self.order)
                       for j_inc in range(self.order) ]
-                cnff.exacly_one(D)
+                cnff.exacly_one(D, self.classic)
 
         return cnff,[i for i in range((self.size**3)+1)]
 
@@ -142,20 +165,26 @@ class SudokuCNF:
             assert(decoded[row][col] == -1), f"ERROR: Reassigning puzzle[{row}][{col}] = {decoded[row][col]} to {num}"
             decoded[row][col] = num
 
-        return SudokuCNF(self.order, decoded)
+        return SudokuCNF(self.order, decoded, classic=self.classic)
 
     def pluck(self, count):
         ind = np.hstack(([0] * count, [1] * (self.size**2 - count)))
         np.random.shuffle(ind)
         mask = ind.reshape((self.size, self.size))
         puzzle = mask * (self.sudoku + 1) - 1
-        return SudokuCNF(self.order, puzzle)
+        return SudokuCNF(self.order, puzzle, classic=self.classic)
 
 class SudokuSampler(SamplerBase):
-    def __init__(self, order=3, num_filled=None, seed=None, **kwargs):
+    def __init__(self, order=3, num_filled=None, seed=None, use_classic=True, **kwargs):
         SamplerBase.__init__(self, **kwargs)
+        if seed is None:
+            seed = int(time.time())
+        else:
+            seed = int(seed)
         random.seed(seed)
+        np.random.seed(seed)
 
+        self.use_classic = use_classic
         self.order = int(order)
         self.size = self.order**2
         self.num_filled = int(num_filled) if (num_filled) else self.size
@@ -165,7 +194,7 @@ class SudokuSampler(SamplerBase):
             seed_puzzle = np.hstack((np.random.choice(self.size, self.order), [-1] * (self.size**2 - self.order)))
             np.random.shuffle(seed_puzzle)
             seed_puzzle = seed_puzzle.reshape((self.size, self.size))
-            sudokuCNF = SudokuCNF(self.order, seed_puzzle)
+            sudokuCNF = SudokuCNF(self.order, seed_puzzle, classic=self.use_classic)
             cnf = sudokuCNF.encode()
 
             glucose = Glucose3(gc_freq="fixed")
@@ -184,14 +213,12 @@ class SudokuSampler(SamplerBase):
             # plucked.display()
             # print("========")
             ######## END OF TESTING ########
+            return sudokuCNF.fit(glucose.get_model()).pluck(self.size**2 - self.num_filled)
 
-            return sudokuCNF.fit(glucose.get_model()).pluck(self.size**2 - self.num_filled).encode()
 
-
-    def sample(self, stats_dict: dict) -> FileName:
+    def sample(self, stats_dict: dict) -> (FileName, FileName):
         cnf_id = "sudoku-%ix%i-%i-%s" % (self.size, self.size, self.num_filled, random_string(8))
         fname = os.path.join("/tmp", f"{cnf_id}.cnf")
-
         puzzle = self.rand_puzzle()
         puzzle.print_dimacs(fname)
         stats_dict.update({

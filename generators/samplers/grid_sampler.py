@@ -66,6 +66,14 @@ def world_from_noise(noise_grid):
             world[i][j] = map_perlin_to_colors(noise_grid[i][j])
     return world    
 
+def world_to_features(world, start):
+  num_feats = np.max(world)
+  start_feat = np.zeros_like(world).astype(int)
+  start_feat
+  np.stack([(world==i).astype(int) for i in range(num_feats)],axis=0)
+
+
+
 def spec2monitor(spec):
   monitor = spec.aig | A.sink(['red', 'yellow', 'brown', 'blue'])
   monitor = BV.aig2aigbv(monitor)
@@ -132,10 +140,11 @@ def mdp2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
     return ACNF.cnf.CNF(clauses, in2lit, outlits, None)
 
 class GridSampler(SamplerBase):
-  def __init__(self, size=8, horizon=2, **kwargs):
+  def __init__(self, size=8, horizon=2,  gridinfo=False, **kwargs):
     SamplerBase.__init__(self, **kwargs)
     self.size = int(size)
     self.horizon = int(horizon)
+    self.gridinfo = gridinfo
     self.X = BV.atom(self.size, 'x', signed=False)
     self.Y = BV.atom(self.size, 'y', signed=False)
     self.mask_test = get_mask_test(self.X, self.Y)

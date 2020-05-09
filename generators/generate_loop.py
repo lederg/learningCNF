@@ -62,7 +62,7 @@ def generate_from_sampler(config):
     while (attempts_so_far < config['max_attempts']):
         try:
             attempts_so_far += 1
-            candidate = sampler.sample(stats_dict)
+            candidate, extra_data = sampler.sample(stats_dict)
         except Exception as e:
             log.error('Gah, Exception:')
             log.error(e, exc_info=True)
@@ -72,10 +72,14 @@ def generate_from_sampler(config):
         if fltr.filter(candidate, stats_dict):
             with suppress(FileNotFoundError):
                 shutil.move(candidate,os.path.join(config['dir'], os.path.basename(candidate)))
+                if extra_data is not None:
+                	shutil.move(extra_data,os.path.join(config['dir'], os.path.basename(extra_data)))
             break
         else:
             with suppress(FileNotFoundError):
                 os.remove(candidate)
+                if extra_data is not None:                
+	                os.remove(extra_data)
             stats_dict = {}
 
     return stats_dict

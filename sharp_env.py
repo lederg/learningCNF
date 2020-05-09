@@ -43,7 +43,7 @@ class SharpSpace(gym.Space):
 
 class SharpActiveEnv:
   EnvObservation = namedlist('SharpEnvObservation', 
-                              ['gss', 'vfeatures', 'cfeatures', 'row', 'col', 'efeatures', 'reward', 'done'],
+                              ['gss', 'vfeatures', 'cfeatures', 'row', 'col', 'efeatures', 'reward', 'done', 'partial'],
                               default=None)
 
   def __init__(self, server=None, settings=None, **kwargs):
@@ -51,7 +51,7 @@ class SharpActiveEnv:
     self.solver = None
     self.server = server
     self.current_step = 0    
-    self.disable_gnn = self.settings['disable_gnn']
+    self.disable_gnn = self.settings['disable_gnn']    
     self.formulas_dict = {}
     self._name = 'SharpEnv'
 
@@ -66,8 +66,8 @@ class SharpActiveEnv:
   #   return self.formulas_dict[fname]
 
   def start_solver(self):    
-    def thunk(row, col, data, vlabels):
-      return self.__callback(row, col, data, vlabels)
+    def thunk(row, col, data, vlabels, lit_stack):
+      return self.__callback(row, col, data, vlabels, lit_stack)
     if self.solver is None:
       self.solver = SharpSAT(branching_oracle= {"branching_cb": thunk})
     else:
@@ -76,7 +76,7 @@ class SharpActiveEnv:
     self.current_step = 0
     return True
 
-  def __callback(self, row, col, data, vlabels):
+  def __callback(self, row, col, data, vlabels, lit_stack):
     self.current_step += 1
     if not self.server:
       log.info('Running a test version of SharpEnv')
@@ -86,7 +86,7 @@ class SharpActiveEnv:
       
     else:
       try:
-        rc = self.server.callback(vlabels, None, row, col, data)
+        rc = self.server.callback(vlabels, None, row, col, data, lit_stack)
         return rc
       except Exception as e:
         print('SharpEnv: Gah, an exception: {}'.format(e))
@@ -98,6 +98,7 @@ class SharpEnvProxy(EnvBase):
     if not self.settings:
       self.settings = CnfSettings()
     self.state_dim = self.settings['state_dim']
+    self.decode = self.settings['sharp_decode']
     self.observation_space = SharpSpace()
     self.action_space = spaces.Discrete(self.settings['max_variables'])
     self.queue_in = config['queue_in']
@@ -119,11 +120,11 @@ class SharpEnvProxy(EnvBase):
     vfeatures = env_obs.vfeatures
     efeatures = env_obs.efeatures
     row = env_obs.row
-    col = env_obs.col
+    col = env_obs.col    
     cmat = csr_matrix((torch.ones(len(efeatures)), (row, col)),shape=(row.max()+1,len(vfeatures)))
     cmat = csr_to_pytorch(cmat)
-    ground_embs = torch.from_numpy(vfeatures).float()
-    extra_data = torch.from_numpy(efeatures).float()
+    ground_embs = torch.from_numpy(vfeatures.to_numpy()[:, 1:]).float()
+    extra_data = torch.from_numpy(efeatures).float(), env_obs.partial
     vmask = None
     cmask = None
 
@@ -174,6 +175,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
     super(SharpEnvServer, self).__init__()
     self.settings = settings if settings else CnfSettings()
     self.state_dim = self.settings['state_dim']    
+    self.decode = self.settings['sharp_decode']    
     self.env = env
     self.is_process = self.settings['env_as_process']    
     self.env.server = self
@@ -246,10 +248,11 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
         break
 
 # adj_matrix = csr_matrix((torch.ones(len(data)), (row, col)),shape=(row.max()+1,len(vlabels)))
-  def callback(self, vfeatures, cfeatures, row, col, efeatures):    
+  def callback(self, vfeatures, cfeatures, row, col, efeatures, lit_stack):
     # print('clabels shape: {}'.format(cfeatures.shape))    
     # print('reward is {}'.format(self.env.get_reward()))
-    msg = self.env.EnvObservation(None, vfeatures, cfeatures, row, col, efeatures, self.def_step_cost, False)
+    partial = lit_stack if self.decode else None
+    msg = self.env.EnvObservation(None, vfeatures, cfeatures, row, col, efeatures, self.def_step_cost, False, partial)
     if self.cmd == EnvCommands.CMD_RESET:
       ack = EnvCommands.ACK_RESET
     elif self.cmd == EnvCommands.CMD_STEP:

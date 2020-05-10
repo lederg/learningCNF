@@ -122,6 +122,16 @@ class SudokuCNF:
         self.var2rcn[var] = (row, col, num)
         return var
 
+    def as_features(self, encoding='binary'):
+        assert encoding=='binary'
+        puz = self.sudoku.copy()
+        puz[puz==-1]=self.size
+        return np.stack([puz==i for i in range(self.size+1)], axis=2)
+
+    def save_annotation(self, fname):
+        with open(fname, 'wb+') as f:
+            pickle.dump(self.sudoku,f)
+
     def extended_translate_to_CNF(self):
         """ Translate to CNF all restrictions with all variales"""
 
@@ -220,7 +230,7 @@ class SudokuSampler(SamplerBase):
         cnf_id = "sudoku-%ix%i-%i-%s" % (self.size, self.size, self.num_filled, random_string(8))
         fname = os.path.join("/tmp", f"{cnf_id}.cnf")
         puzzle = self.rand_puzzle()
-        puzzle.print_dimacs(fname)
+        puzzle.encode().print_dimacs(fname)
         stats_dict.update({
             'file': cnf_id,
             'order': self.order,
@@ -229,4 +239,4 @@ class SudokuSampler(SamplerBase):
 
         self.log.info(f"Sampled {cnf_id}")
 
-        return fname
+        return fname, None

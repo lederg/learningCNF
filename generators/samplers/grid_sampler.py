@@ -246,9 +246,11 @@ class GridSampler(SamplerBase):
     circuit = DYN >> SENSOR >> MONITOR
     return mdp2cnf(circuit,self.horizon+random.choice([-1,0,1])), seed
     
-  def sample(self, stats_dict) -> FileName:
+  def sample(self, stats_dict: dict) -> (FileName, FileName):
     fcnf, seed = self.make_grid()
-    fname = '/tmp/{}_{}.cnf'.format(random_string(16),seed+os.getpid())
+    name = '{}_{}.cnf'.format(random_string(16),seed+os.getpid())
+    fname = '/tmp/{name}.cnf'
+
     self.write_expression(fcnf, fname, is_cnf=True)
-    return fname
+    return fname, None
 

@@ -24,14 +24,14 @@ def negate(literal):
 def rcn2var(size,row,col,num):
     """Return the variable which represents a (row,col,num)."""
     var = row * size**2 + col * size + num + 1 # +1 to avoid 0    
-    return int(var)
+    return var
 
 def var2rcn(size, var):
-    var = int(abs(var))-1
-    res = int(var % size**2)
-    row = int((var - res) / size**2)
+    var = var.abs() - 1
+    res = var % size**2
+    row = (var - res) / size**2
     num = res % size
-    col = int((res - num) / size)
+    col = (res - num) / size
     return row, col, num
 
 class CNF_formula:

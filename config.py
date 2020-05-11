@@ -274,6 +274,7 @@ def cfg():
 	sharp_add_labels = False
 	sharp_add_embedding = True
 	sharp_emb_dim = 32
+	sharp_decoded_emb_dim = 32
 
 # Localization
 	max_edges = 20

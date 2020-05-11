@@ -18,6 +18,8 @@ from dgl_layers import *
 from dgl_encoders import *
 from common_components import *
 from graph_utils import graph_from_adj
+from sudoku_models import *
+
 sys.path.append('./generators')
 from samplers.sudoku_sampler import SudokuCNF, var2rcn, rcn2var
 
@@ -27,10 +29,14 @@ class SharpModel(PolicyBase):
     encoder_class = eval(self.settings['sharp_encoder_type'])
     self.decode = self.settings['sharp_decode']    
     self.decode_size = self.settings['sharp_decode_size']
+    self.decoded_dim = self.settings['sharp_decoded_emb_dim']
+    self.decoded_module = SudokuModel1(self.decode_size)
     self.encoder = encoder_class(self.settings)
     inp_size = 0
     if self.settings['sharp_add_embedding']:
       inp_size += self.encoder.output_size()
+    if self.settings['sharp_decode']:
+      inp_size += self.decoded_dim
     if self.settings['sharp_add_labels']:
       inp_size += self.encoder.vlabel_dim
     self.decision_layer = MLPModel([inp_size,256,64,1])
@@ -62,8 +68,6 @@ class SharpModel(PolicyBase):
       states.append(train_batch["state_in_{}".format(i)])
       i += 1
     return self.__call__(input_dict, states, train_batch.get("seq_lens"))
-
-
   
   # state is just a (batched) vector of fixed size state_dim which should be expanded. 
   # ground_embeddings are batch * max_vars * ground_embedding
@@ -78,22 +82,29 @@ class SharpModel(PolicyBase):
       obs = undensify_obs(input_dict)
     else:
       obs = obs_from_input_dict(input_dict)       # This is an experience rollout
+    self.decoded_module.eval()
+    self.encoder.eval()      
     lit_features = obs.ground[:,1:]
     literal_mapping = obs.ground[:,0]
     G = graph_from_adj(lit_features, None, obs.cmat)
     self._value_out = torch.zeros(1).expand(len(lit_features))
-    if self.decode:
-      grid = torch.zeros(size=(self.decode_size,)*3)
-      literal_stack = obs.ext_data[1]
-      indices = [var2rcn(self.decode_size,v) for v in literal_stack]
-      vals = [sign(v) for v in literal_stack]
-      for (i,v) in zip(indices,vals):
-        grid[i]=v
-      ipdb.set_trace()
+    if self.decode and len(obs.ext_data[1]):
+      grid = torch.zeros(size=(self.decode_size,)*3, requires_grad=False)
+      literal_stack = torch.from_numpy(obs.ext_data[1])
+      indices = torch.stack(var2rcn(self.decode_size,literal_stack),dim=1).long()
+      comp_indices = torch.stack(var2rcn(self.decode_size,literal_mapping),dim=1).long()
+      vals = literal_stack.sign()
+      patch_grid(grid.numpy(),indices.numpy(),vals.numpy())
+      decoded_embs = self.decoded_module(grid)
+      decoded_vembs = torch.from_numpy(get_from_grid(decoded_embs.detach().numpy(),comp_indices.numpy()))
+    elif self.decode:
+      decoded_vembs = torch.zeros(len(lit_features),self.decoded_dim)
     out = []
     if self.settings['sharp_add_embedding']:
       vembs, cembs = self.encoder(G)    
       out.append(vembs)
+    if self.settings['sharp_decode']:
+      out.append(decoded_vembs)      
     if self.settings['sharp_add_labels']:
       out.append(lit_features)
     logits = self.decision_layer(torch.cat(out,dim=1)).t()

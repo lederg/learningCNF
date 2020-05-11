@@ -188,7 +188,8 @@ class SudokuSampler(SamplerBase):
     def __init__(self, order=3, num_filled=None, seed=None, use_classic=True, **kwargs):
         SamplerBase.__init__(self, **kwargs)
         if seed is None:
-            seed = int(time.time())
+            random.seed(os.getpid())
+            seed = int(time.time()) + random.randint(1,10000000)
         else:
             seed = int(seed)
         random.seed(seed)

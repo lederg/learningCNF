@@ -251,7 +251,10 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
   def callback(self, vfeatures, cfeatures, row, col, efeatures, lit_stack):
     # print('clabels shape: {}'.format(cfeatures.shape))    
     # print('reward is {}'.format(self.env.get_reward()))
-    partial = lit_stack if self.decode else None
+    partial = None
+    if self.decode:
+      units = self.env.solver.get_problem_units()
+      partial = np.concatenate([units,lit_stack])
     msg = self.env.EnvObservation(None, vfeatures, cfeatures, row, col, efeatures, self.def_step_cost, False, partial)
     if self.cmd == EnvCommands.CMD_RESET:
       ack = EnvCommands.ACK_RESET

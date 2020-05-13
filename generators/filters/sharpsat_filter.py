@@ -19,12 +19,13 @@ sample usage:
 >>> filter.filter(file_path)
 """
 class SharpSATFilter(FilterBase):
-    def __init__(self, steps_min = 30, time_min = 0.15, time_max = 2, steps_max=1000, **kwargs):
+    def __init__(self, steps_min = 30, time_min = 0.15, time_max = 2, steps_max=1000, count_max=-1, **kwargs):
         FilterBase.__init__(self, **kwargs)
         self.steps_min = int(steps_min)
         self.steps_max = int(steps_max)
         self.time_min = float(time_min)
         self.time_max = int(time_max)
+        self.count_max = int(count_max)
 
     def filter(self, fname: FileName, stats_dict: dict) -> bool:
         # Check for degenerate (because sharpSAT's pysat port does not support CNF object yet)
@@ -52,19 +53,23 @@ class SharpSATFilter(FilterBase):
         if (self.time_max <= sharpSAT.time()):
             message = f"{fname}: Too hard! Time > {self.time_max}s"
             res = False
+        if (self.count_max >= 0 and count != None and count > self.count_max):
+            message = f"{fname}: Too many models! {count} > {self.count_max}s"
+            res = False
 
         if (res): # Instance accepted. Save the stats about the new instance
             message = f"{fname}: Accepted"
-            stats_dict.update({
-                'var_len': sharpSAT.nof_vars(),
-                'cla_len': sharpSAT.nof_clauses(),
-                'op_cnt' : sharpSAT.reward(),
-                'time'   : f"{sharpSAT.time():.2f}",
-                'model_cnt' : count
-            })
 
         message += f" (step/time/pid: {sharpSAT.reward()}/{sharpSAT.time():.2f}/{os.getpid()})"
         self.log.info(message)
-        # self.log.info(f"{fname}: {res}")
+
+        stats_dict.update({
+            'var_len': sharpSAT.nof_vars(),
+            'cla_len': sharpSAT.nof_clauses(),
+            'steps' : sharpSAT.reward(),
+            'time'   : f"{sharpSAT.time():.2f}",
+            'model_cnt' : count
+        })
+        sharpSAT.delete()
 
         return res

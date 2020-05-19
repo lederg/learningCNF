@@ -153,7 +153,7 @@ class EcarevSampler(SamplerBase):
         Benchmark.print_dimacs(Benchmark(R, n, f, r, s), open(fname, "w"))
         stats_dict.update({
             'file': cnf_id,
-            'R': R,
+            'rule': R,
             'n': n,
             'f': f,
             'r': r,
@@ -162,4 +162,4 @@ class EcarevSampler(SamplerBase):
 
         self.log.info(f"Sampled {cnf_id}")
 
-        return fname
+        return fname, None

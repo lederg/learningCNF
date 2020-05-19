@@ -4,6 +4,7 @@ import itertools
 
 from gen_types import FileName
 from samplers.sampler_base import SamplerBase
+from gen_utils import random_string
 
 class Rule:
     def __init__(self, rule_id):
@@ -140,14 +141,12 @@ class EcarevSampler(SamplerBase):
         random.seed(seed)
 
         self.ranges = list(itertools.product(R_range, n_range, f_range, r_range))
-        self.samples_so_far = 0
 
     def sample(self, stats_dict: dict) -> FileName:
-        self.samples_so_far += 1
 
         (R, n, f, r) = random.choice(self.ranges)
         s = random.randrange(2, pow(2, n))
-        cnf_id = "ecarev-%i-%i-%i-%i-%i" % (R, n, f, r, self.samples_so_far)
+        cnf_id = "ecarev-%i-%i-%i-%i-%s" % (R, n, f, r, random_string(8))
 
         fname = os.path.join("/tmp", f"{cnf_id}.cnf")
         Benchmark.print_dimacs(Benchmark(R, n, f, r, s), open(fname, "w"))

@@ -20,6 +20,27 @@ from samplers.sampler_base import SamplerBase
 from random import randint, seed
 from gen_utils import random_string
 
+
+COLOR_ALIAS = {
+    'yellow': '#ffff8c', 'brown': '#ffb081',
+    'red': '#ff5454', 'blue': '#9595ff'
+}
+
+def tile(color='black'):
+    color = COLOR_ALIAS.get(color, color)
+    s = '&nbsp;'*4
+    return f"<text style='border: solid 1px;background-color:{color}'>{s}</text>"
+
+def ap_at_state(x, y, sensor, in_ascii=False):
+    """Use sensor to create colored tile."""
+    state = encode_state(x, y)
+    obs = sensor(state)[0]   # <----------   
+
+    for k in COLOR_ALIAS.keys():
+        if obs[k][0]:
+            return tile(k)
+    return tile('white')
+
 def get_mask_test(X, Y):
   def f(xmask, ymask):
     return ((X & xmask) !=0) & ((Y & ymask) != 0)
@@ -140,16 +161,16 @@ def mdp2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
     return ACNF.cnf.CNF(clauses, in2lit, outlits, None)
 
 class GridSampler(SamplerBase):
-  def __init__(self, size=8, horizon=2,  gridinfo=False, **kwargs):
+  def __init__(self, size=8, horizon=2,  annotate=False, **kwargs):
     SamplerBase.__init__(self, **kwargs)
     self.size = int(size)
     self.horizon = int(horizon)
-    self.gridinfo = gridinfo
+    self.annotate = annotate
     self.X = BV.atom(self.size, 'x', signed=False)
     self.Y = BV.atom(self.size, 'y', signed=False)
     self.mask_test = get_mask_test(self.X, self.Y)
 
-  def encode_state(x, y):
+  def encode_state(self, x, y):
     x, y = [BV.encode_int(self.size, 1 << (v - 1), signed=False) for v in (x, y)]
     return {'x': tuple(x), 'y': tuple(y)}
 
@@ -221,9 +242,7 @@ class GridSampler(SamplerBase):
     
     return random_aps
   
-
-
-  def make_grid(self, seed=None):
+  def make_grid(self, seed=None, cutoff=False):
     if not seed:
       seed = int(time.time())+os.getpid()
     random.seed(seed)
@@ -241,6 +260,8 @@ class GridSampler(SamplerBase):
     # }
 
     SENSOR = create_sensor(APS)
+    if cutoff:
+      return SENSOR
     spec = self.make_spec()
     MONITOR = spec2monitor(spec)
     circuit = DYN >> SENSOR >> MONITOR
@@ -250,7 +271,6 @@ class GridSampler(SamplerBase):
     fcnf, seed = self.make_grid()
     name = '{}_{}.cnf'.format(random_string(16),seed+os.getpid())
     fname = '/tmp/{name}.cnf'
-
     self.write_expression(fcnf, fname, is_cnf=True)
     return fname, None
 

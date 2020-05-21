@@ -13,8 +13,12 @@ import numpy as np
 
 from gen_types import FileName
 from samplers.sampler_base import SamplerBase
+from filters.sharpsat_filter import *
 from gen_utils import random_string
+
+from pysat.solvers import SharpSAT
 from pysat.solvers import Glucose3
+from pysat.formula import CNF
 
 import itertools
 
@@ -23,7 +27,7 @@ def negate(literal):
 
 def rcn2var(size,row,col,num):
     """Return the variable which represents a (row,col,num)."""
-    var = row * size**2 + col * size + num + 1 # +1 to avoid 0    
+    var = row * size**2 + col * size + num + 1 # +1 to avoid 0
     return var
 
 def var2rcn(size, var):
@@ -94,7 +98,6 @@ class CNF_formula:
             n = len(B)
             R = list(range(self.nvars,self.nvars + n))
             R[0]=None
-            print('Increasing nvars by {} to {}'.format(n-1,self.nvars))
             self.nvars += (n - 1)
             #Rn -> Rn-1
             for i in range(2,n):self.implies(R[i],R[i-1])
@@ -109,12 +112,20 @@ class CNF_formula:
                             [negate(R[i]),R[i+1],B[i]]])
 
 class SudokuCNF:
-    def __init__(self, order, puzzle, classic=False):
+    def __init__(self, order, puzzle, classic=True):
         self.order = order
         self.size  = order**2
         self.sudoku = puzzle
         self.classic = classic
         self.var2rcn = {}
+
+    def __eq__(self, other):
+        if (other == None): return False
+        if (self.order != other.order): return False
+        for (i, j) in itertools.product(range(self.size), range(self.size)):
+            if (self.sudoku[i, j] != other.sudoku[i, j]): return False
+
+        return True
 
     def variable(self,row,col,num):
         """Return the variable which represents a (row,col,num)."""
@@ -161,12 +172,32 @@ class SudokuCNF:
         for row in self.sudoku:
             print(' '.join([f'{n+1:>2}' if n+1 else '--' for n in row]))
 
+    def solve(self):
+        cnf = self.encode()
+        glucose = Glucose3()
+        glucose.append_formula(cnf.get_clauses())
+        glucose.solve()
+        model = glucose.get_model()
+
+        if (model): return self.fit(model)
+
+        return None
+
     def encode(self):
         cnf, decoding_map = self.extended_translate_to_CNF()
 
         return cnf
 
+    def fit_partial(self, partial_model):
+        model = np.full(self.size**3, -1)
+        for lit in partial_model:
+            model[abs(lit) - 1] = lit
+
+        return self.fit(model)
+
     def fit(self, model):
+        self.encode()
+
         decoded = np.full((self.size, self.size), -1, dtype=int)
         for var in range(self.size**3):
             if (model[var] < 0): continue # The variable is False
@@ -175,17 +206,30 @@ class SudokuCNF:
             assert(decoded[row][col] == -1), f"ERROR: Reassigning puzzle[{row}][{col}] = {decoded[row][col]} to {num}"
             decoded[row][col] = num
 
-        return SudokuCNF(self.order, decoded, classic=self.classic)
+        return SudokuCNF(self.order, decoded)
 
     def pluck(self, count):
         ind = np.hstack(([0] * count, [1] * (self.size**2 - count)))
         np.random.shuffle(ind)
         mask = ind.reshape((self.size, self.size))
         puzzle = mask * (self.sudoku + 1) - 1
-        return SudokuCNF(self.order, puzzle, classic=self.classic)
+        return SudokuCNF(self.order, puzzle)
+
+    # def pluck(self, count): # This implementatoin makes sure to only pluck the non-empty cells
+    #     full_idx = np.where(self.sudoku != -1)
+    #     if (len(full_idx) == 0): return self # Nothing to pluck
+    #     print("num to pluck", min(len(full_idx[0]), count))
+    #     pluck_idx = np.random.choice(len(full_idx[0]), min(len(full_idx[0]), count), replace=False)
+    #     pluck_row, pluck_col = full_idx[0][pluck_idx], full_idx[1][pluck_idx]
+    #     print(pluck_row)
+    #     print(pluck_col)
+
+    #     res = SudokuCNF(self.order, self.sudoku)
+    #     res.sudoku[[pluck_row], [pluck_col]] = -1
+    #     return res
 
 class SudokuSampler(SamplerBase):
-    def __init__(self, order=3, num_filled=None, seed=None, use_classic=True, **kwargs):
+    def __init__(self, order=3, num_filled=None, seed=None, use_classic=True, newspaper=False, **kwargs):
         SamplerBase.__init__(self, **kwargs)
         if seed is None:
             random.seed(os.getpid())
@@ -196,21 +240,20 @@ class SudokuSampler(SamplerBase):
         np.random.seed(seed)
 
         self.use_classic = use_classic
+        self.newspaper = newspaper
         self.order = int(order)
         self.size = self.order**2
         self.num_filled = int(num_filled) if (num_filled) else self.size
 
-    def rand_puzzle(self):
+    def __rand_full_puzzle(self):
         while(True):
             seed_puzzle = np.hstack((np.random.choice(self.size, self.order), [-1] * (self.size**2 - self.order)))
             np.random.shuffle(seed_puzzle)
             seed_puzzle = seed_puzzle.reshape((self.size, self.size))
-            sudokuCNF = SudokuCNF(self.order, seed_puzzle, classic=self.use_classic)
-            cnf = sudokuCNF.encode()
 
-            glucose = Glucose3(gc_freq="fixed")
-            glucose.append_formula(cnf.get_clauses())
-            if (not glucose.solve()): # The seed_puzzle is not solvable. Try again!
+            answer = SudokuCNF(self.order, seed_puzzle).solve()
+
+            if (answer == None): # The seed_puzzle is not solvable. Try again!
                 continue
 
             ######## UNCOMMENT FOR TESTING ########
@@ -224,19 +267,62 @@ class SudokuSampler(SamplerBase):
             # plucked.display()
             # print("========")
             ######## END OF TESTING ########
-            return sudokuCNF.fit(glucose.get_model()).pluck(self.size**2 - self.num_filled)
 
+            return answer
 
-    def sample(self, stats_dict: dict) -> (FileName, FileName):
+    """
+        Turn a random puzzle with only 1 solution (like the ones in the papers)
+    """
+    def __get_newspaper_puzzle(self, full_puzzle):
+        self.log.info("Sampling random puzzle with only 1 solution (like the ones in the papers.)")
+
+        tmp_file = f'/tmp/sudoku_gen_{random_string(8)}.cnf'
+        fltr = SharpSATFilter(steps_min=0, time_min=0, time_max=2000, count_max=1)
+
+        puzzle = copy.deepcopy(full_puzzle)
+        idx = np.mgrid[0:self.size, 0:self.size].reshape(2,-1).T
+        np.random.shuffle(idx)
+        num_plucked = 0
+        pop = len(idx)
+        stats = {}
+
+        while (pop != 0):
+            num_plucked += 1
+            pop -= 1
+            elem, idx = idx[pop], idx[:pop] # pop the last index
+
+            val = puzzle.sudoku[elem[0], elem[1]] # remember the value of the cell before plucking
+            puzzle.sudoku[elem[0], elem[1]] = -1
+            puzzle.encode().print_dimacs(tmp_file)
+
+            if (not fltr.filter(tmp_file, stats)): # more than one model (backtrack)
+                puzzle.sudoku[elem[0], elem[1]] = val
+                num_plucked -= 1
+
+        return puzzle, num_plucked
+
+    def sample_board(self, stats_dict: dict = {}) -> SudokuCNF:
+        full_puzzle = self.__rand_full_puzzle()
+        if (self.newspaper):
+            puzzle, num_plucked = self.__get_newspaper_puzzle(full_puzzle)
+            self.num_filled = self.size**2 - num_plucked
+            stats_dict.update({'num_plucked': num_plucked})
+        else:
+            puzzle = full_puzzle.pluck(self.size**2 - self.num_filled)
+
+        return puzzle
+
+    def sample(self, stats_dict: dict = {}) -> (FileName, FileName):
+        puzzle = self.sample_board(stats_dict)
         cnf_id = "sudoku-%ix%i-%i-%s" % (self.size, self.size, self.num_filled, random_string(8))
         fname = os.path.join("/tmp", f"{cnf_id}.cnf")
-        puzzle = self.rand_puzzle()
-        puzzle.encode().print_dimacs(fname)
         stats_dict.update({
             'file': cnf_id,
             'order': self.order,
             'num_filled': self.num_filled
         })
+
+        puzzle.encode().print_dimacs(fname)
 
         self.log.info(f"Sampled {cnf_id}")
 

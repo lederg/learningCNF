@@ -70,5 +70,6 @@ class GlucoseFilter(FilterBase):
 
         message += f" (op_cnt/step/time/pid: {glucose.reward()}/{glucose.nof_gc()}/{glucose.time():.2f}/{os.getpid()})"
         self.log.info(message)
+        glucose.delete()
 
         return res

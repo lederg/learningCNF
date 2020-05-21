@@ -343,3 +343,16 @@ class OneTimeSwitch(object):
     rc = self.val
     self.val = self.default
     return rc
+
+def patch_grid(grid, indices, vals):
+  np.put(grid,np.ravel_multi_index(indices.T,grid.shape),vals)
+
+
+# indices is array of dimension 3 indices, grid is dimension 4, where 4th dimension is embedding
+# return indices.shape[0] x grid.shape[-1]
+def get_from_grid(grid, indices):
+  embdim = grid.shape[-1]
+  ind = np.ravel_multi_index(indices.T,grid.shape[:-1])
+  a = grid.reshape(-1, embdim)
+  return a[ind,:]
+

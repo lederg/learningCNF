@@ -19,18 +19,17 @@ from dgl_encoders import *
 from common_components import *
 from graph_utils import graph_from_adj
 from sudoku_models import *
-
-sys.path.append('./generators')
-from samplers.sudoku_sampler import SudokuCNF, var2rcn, rcn2var
+from cellular_models import *
 
 class SharpModel(PolicyBase):
   def __init__(self, *args, **kwargs):
     super(SharpModel, self).__init__(*args)
     encoder_class = eval(self.settings['sharp_encoder_type'])
+    decode_class = eval(self.settings['sharp_decode_class'])
     self.decode = self.settings['sharp_decode']    
     self.decode_size = self.settings['sharp_decode_size']
     self.decoded_dim = self.settings['sharp_decoded_emb_dim']
-    self.decoded_module = SudokuModel1(self.decode_size)
+    self.decode_module = decode_class(self.decode_size)
     self.encoder = encoder_class(self.settings)
     inp_size = 0
     if self.settings['sharp_add_embedding']:
@@ -82,21 +81,14 @@ class SharpModel(PolicyBase):
       obs = undensify_obs(input_dict)
     else:
       obs = obs_from_input_dict(input_dict)       # This is an experience rollout
-    self.decoded_module.eval()
+    self.decode_module.eval()
     self.encoder.eval()      
     lit_features = obs.ground[:,1:]
     literal_mapping = obs.ground[:,0]
     G = graph_from_adj(lit_features, None, obs.cmat)
     self._value_out = torch.zeros(1).expand(len(lit_features))
-    if self.decode and len(obs.ext_data[1]):
-      grid = torch.zeros(size=(self.decode_size,)*3, requires_grad=False)
-      literal_stack = torch.from_numpy(obs.ext_data[1])
-      indices = torch.stack(var2rcn(self.decode_size,literal_stack),dim=1).long()
-      comp_indices = torch.stack(var2rcn(self.decode_size,literal_mapping),dim=1).long()
-      vals = literal_stack.sign()
-      patch_grid(grid.numpy(),indices.numpy(),vals.numpy())
-      decoded_embs = self.decoded_module(grid)
-      decoded_vembs = torch.from_numpy(get_from_grid(decoded_embs.detach().numpy(),comp_indices.numpy()))
+    if self.decode and len(obs.ext_data[1]): 
+      decoded_vembs = self.decode_module.decode(obs.ext_data[1], literal_mapping)
     elif self.decode:
       decoded_vembs = torch.zeros(len(lit_features),self.decoded_dim)
     out = []

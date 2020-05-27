@@ -15,7 +15,7 @@ from common_components import *
 def world_to_features(world, start):
   num_feats = int(np.max(world))
   start_feat = np.zeros_like(world).astype(int)
-  start_feat[start[0]][start[1]]=1.
+  start_feat[start[0]-1][start[1]-1]=1.
   return np.stack([(world==i).astype(int) for i in range(num_feats)]+[start_feat],axis=0)
 
 class GridModelBase(nn.Module):

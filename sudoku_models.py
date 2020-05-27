@@ -25,7 +25,7 @@ class SudokuModel1(nn.Module):
       nn.ReLU()) 
 
 
-  def decode(self, data, literal_mapping):
+  def decode(self, data, literal_mapping, *_):
     grid = torch.zeros(size=(self.size,)*3, requires_grad=False)
     literal_stack = torch.from_numpy(data)
     indices = torch.stack(var2rcn(self.size,literal_stack),dim=1).long()

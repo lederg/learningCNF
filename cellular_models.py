@@ -34,7 +34,7 @@ class CellularModel1(nn.Module):
   # I know.
 
 
-  def decode(self, data, literal_mapping):    
+  def decode(self, data, literal_mapping, *_):    
     literal_stack = torch.from_numpy(data)
     maxvar = torch.max(literal_stack.long().abs().max(),literal_mapping.long().abs().max()).detach().numpy()
     res = maxvar % self.size

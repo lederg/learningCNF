@@ -23,7 +23,7 @@ def rollout(policy, env, fname, timestep_limit=None, add_noise=False):
   noise drawn from that stream. Otherwise, no action noise will be added.
   """
   timers = {k: TimerStat() for k in ["reset", "compute", "step"]}
-
+  policy.model.curr_fname = fname           # This is an ugly hack for the extra high level information awareness
   env_timestep_limit = policy.settings['max_step']+10
   timestep_limit = (env_timestep_limit if timestep_limit is None else min(
     timestep_limit, env_timestep_limit))
@@ -85,6 +85,10 @@ class SharpPolicy(TorchGNNPolicy):
     self.settings = CnfSettings()
 
   def compute(self, observation):
+    if self.settings['sharp_vanilla_policy']:
+      return [-1]    
+    if self.settings['sharp_random_policy']:
+      return [np.random.randint(observation.ground.shape[0])]
     logits, _ = self.model(observation, state=None, seq_lens=None)
     dist = TorchCategoricalArgmax(logits, self.model)
     action = dist.sample().numpy()

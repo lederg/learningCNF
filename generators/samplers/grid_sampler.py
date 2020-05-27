@@ -1,8 +1,10 @@
 import os
+import ipdb
 import random
 import time
 import noise
 import functools
+import pickle
 import numpy as np
 import aiger as A
 import aiger_bv as BV
@@ -84,16 +86,8 @@ def world_from_noise(noise_grid):
     world = np.zeros(noise_grid.shape)
     for i in range(world.shape[0]):
         for j in range(world.shape[1]):
-            world[i][j] = map_perlin_to_colors(noise_grid[i][j])
+            world[i][j] = map_perlin_to_colors(noise_grid[i][j])    
     return world    
-
-def world_to_features(world, start):
-  num_feats = np.max(world)
-  start_feat = np.zeros_like(world).astype(int)
-  start_feat
-  np.stack([(world==i).astype(int) for i in range(num_feats)],axis=0)
-
-
 
 def spec2monitor(spec):
   monitor = spec.aig | A.sink(['red', 'yellow', 'brown', 'blue'])
@@ -128,13 +122,14 @@ def mdp2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
         
     in2lit = bidict()
     outlits= []
-    
+    timestep_mapping = {}
     for time in range(horizon):
         # Only remember states.        
         gate2lit = ACNF.cnf.SymbolTable(fresh,fn.project(gate2lit, state_inputs))
+        start_len = len(gate2lit)
         for gate in cmn.eval_order(step.aig):
             if isinstance(gate, A.aig.Inverter):
-                gate2lit[gate] = -gate2lit[gate.input]
+                gate2lit[gate] = -gate2lit[gate.input]                
             elif isinstance(gate, A.aig.AndGate):
                 clauses.append((-gate2lit[gate.left], -gate2lit[gate.right],  gate2lit[gate]))  # noqa
                 clauses.append((gate2lit[gate.left],                         -gate2lit[gate]))  # noqa
@@ -149,7 +144,8 @@ def mdp2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
         for s in states:
             assert step.aig.node_map[s] in gate2lit.keys()
             gate2lit[A.aig.Input(s)] = gate2lit[step.aig.node_map[s]]
-    
+        for v in gate2lit.values():          
+          timestep_mapping[abs(v)] = time
     if truth_strategy == 'all':
         for lit in outlits:
             clauses.append((lit,))
@@ -158,7 +154,7 @@ def mdp2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
     else:
         raise "Help!"
 
-    return ACNF.cnf.CNF(clauses, in2lit, outlits, None)
+    return ACNF.cnf.CNF(clauses, in2lit, outlits, None), timestep_mapping
 
 class GridSampler(SamplerBase):
   def __init__(self, size=8, horizon=2,  annotate=False, **kwargs):
@@ -233,8 +229,7 @@ class GridSampler(SamplerBase):
       return functools.reduce(lambda x,y: x | y,fn.map(lambda tup: mask_func(*tup), feat_mask_tuples))
 
 
-  def get_random_masks(self, seed):
-    world = world_from_noise(get_noise_grid(shape=(self.size, self.size),base=seed, persistence=5.0, lacunarity=2.0, scale=100))
+  def get_random_masks(self, world):
     random_aps = {
       'yellow': self.get_feature_mask(1, world), 'red': self.get_feature_mask(3,world), 
       'blue': self.get_feature_mask(4,world), 'brown': self.get_feature_mask(2,world)
@@ -247,10 +242,11 @@ class GridSampler(SamplerBase):
       seed = int(time.time())+os.getpid()
     random.seed(seed)
     base = random.randint(1,2**16)
+    world = world_from_noise(get_noise_grid(shape=(self.size, self.size),base=base, persistence=5.0, lacunarity=2.0, scale=100))
     x = random.randint(1,self.size)
     y = random.randint(1,self.size)
     DYN = GW.gridworld(self.size, start=(x, y), compressed_inputs=True)
-    APS = self.get_random_masks(base)
+    APS = self.get_random_masks(world)
     # APS = {       #            x-axis       y-axis
     #   'yellow': self.mask_test(0b1000_0001, 0b1000_0001),
     #   'blue':   self.mask_test(0b0001_1000, 0b0011100),
@@ -265,12 +261,27 @@ class GridSampler(SamplerBase):
     spec = self.make_spec()
     MONITOR = spec2monitor(spec)
     circuit = DYN >> SENSOR >> MONITOR
-    return mdp2cnf(circuit,self.horizon+random.choice([-1,0,1])), seed
+    horizon = self.horizon+random.choice([-1,0,1])
+    # if self.annotate:
+
+    #   def timed_fresh(_):
+    #     nonlocal max_var
+    #     max_var += 1
+    #     return max_var
+
+    cnf, step_mapping = mdp2cnf(circuit,horizon)
+    return cnf, step_mapping, world, (x,y), horizon, seed
     
   def sample(self, stats_dict: dict) -> (FileName, FileName):
-    fcnf, seed = self.make_grid()
-    name = '{}_{}.cnf'.format(random_string(16),seed+os.getpid())
-    fname = '/tmp/{name}.cnf'
+    fcnf, step_mapping, world, start_pos, eff_horizon, seed = self.make_grid()
+    name = 'grid_{}_{}_{}_{}'.format(self.size,eff_horizon,random_string(8),seed+os.getpid())
+    fname = '/tmp/{}.cnf'.format(name)
     self.write_expression(fcnf, fname, is_cnf=True)
-    return fname, None
+    if self.annotate:
+      annotation_fname = '/tmp/{}.annt'.format(name)
+      with open(annotation_fname,'wb') as f:
+        pickle.dump((world, start_pos, step_mapping), f)
+    else:
+      annotation_fname = None
+    return fname, annotation_fname
 

@@ -51,7 +51,7 @@ class SharpActiveEnv:
     self.solver = None
     self.server = server
     self.current_step = 0    
-    self.disable_gnn = self.settings['disable_gnn']    
+    self.disable_gnn = self.settings['disable_gnn']        
     self.formulas_dict = {}
     self._name = 'SharpEnv'
 
@@ -98,7 +98,7 @@ class SharpEnvProxy(EnvBase):
     if not self.settings:
       self.settings = CnfSettings()
     self.state_dim = self.settings['state_dim']
-    self.decode = self.settings['sharp_decode']
+    self.decode = self.settings['sharp_decode']    
     self.observation_space = SharpSpace()
     self.action_space = spaces.Discrete(self.settings['max_variables'])
     self.queue_in = config['queue_in']
@@ -223,6 +223,12 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
         self.env.solver.solve(fname)
       else:
         print('Skipping {}'.format(fname))
+      if self.settings['sharp_log_actions']:
+        actions = self.env.solver.get_branching_seq()
+        with open('eval_logs/{}_log_actions_{}.txt'.format(self.settings['name'],os.path.basename(fname)),'w') as f:
+          for x in actions:
+            f.write('{}\n'.format(x))
+
 
       # print('Solver finished in {}'.format(time.time()-t1))
       if self.cmd == EnvCommands.CMD_STEP:

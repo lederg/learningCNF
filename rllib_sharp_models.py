@@ -13,6 +13,7 @@ from settings import *
 from policy_base import *
 from rl_utils import *
 from ray.rllib.policy.sample_batch import SampleBatch
+from ray.util.sgd.utils import TimerStat
 
 from dgl_layers import *
 from dgl_encoders import *
@@ -20,6 +21,7 @@ from common_components import *
 from graph_utils import graph_from_adj
 from sudoku_models import *
 from cellular_models import *
+from mc_models import *
 
 class SharpModel(PolicyBase):
   def __init__(self, *args, **kwargs):
@@ -31,6 +33,7 @@ class SharpModel(PolicyBase):
     self.decoded_dim = self.settings['sharp_decoded_emb_dim']
     self.decode_module = decode_class(self.decode_size)
     self.encoder = encoder_class(self.settings)
+    self.curr_fname = None
     inp_size = 0
     if self.settings['sharp_add_embedding']:
       inp_size += self.encoder.output_size()
@@ -40,6 +43,7 @@ class SharpModel(PolicyBase):
       inp_size += self.encoder.vlabel_dim
     self.decision_layer = MLPModel([inp_size,256,64,1])
     self.pad = torch.Tensor([torch.finfo().min])
+    self.timers = {k: TimerStat() for k in ["make_graph", "encoder", "decode", "decision"]}
 
   def from_batch(self, train_batch, is_training=True):
     """Convenience function that calls this model with a tensor batch.
@@ -77,29 +81,34 @@ class SharpModel(PolicyBase):
       z = list(input_dict.items())
       z1 = list(z[0][1][0])
       return undensify_obs(DenseState(*z1))
-    if es:
-      obs = undensify_obs(input_dict)
-    else:
-      obs = obs_from_input_dict(input_dict)       # This is an experience rollout
-    self.decode_module.eval()
-    self.encoder.eval()      
-    lit_features = obs.ground[:,1:]
-    literal_mapping = obs.ground[:,0]
-    G = graph_from_adj(lit_features, None, obs.cmat)
-    self._value_out = torch.zeros(1).expand(len(lit_features))
-    if self.decode and len(obs.ext_data[1]): 
-      decoded_vembs = self.decode_module.decode(obs.ext_data[1], literal_mapping)
-    elif self.decode:
-      decoded_vembs = torch.zeros(len(lit_features),self.decoded_dim)
+
+    with self.timers['make_graph']:
+      if es:
+        obs = undensify_obs(input_dict)
+      else:
+        obs = obs_from_input_dict(input_dict)       # This is an experience rollout
+      self.decode_module.eval()
+      self.encoder.eval()      
+      lit_features = obs.ground[:,1:]
+      literal_mapping = obs.ground[:,0]
+      G = graph_from_adj(lit_features, None, obs.cmat)
+      self._value_out = torch.zeros(1).expand(len(lit_features))
+    with self.timers['encoder']:
+      vembs, cembs = self.encoder(G)    
+    with self.timers['decode']:
+      if self.decode and len(obs.ext_data[1]): 
+        decoded_vembs = self.decode_module.decode(obs.ext_data[1], literal_mapping, vembs, self.curr_fname)
+      elif self.decode:
+        decoded_vembs = torch.zeros(len(lit_features),self.decoded_dim)
     out = []
     if self.settings['sharp_add_embedding']:
-      vembs, cembs = self.encoder(G)    
       out.append(vembs)
-    if self.settings['sharp_decode']:
+    if self.decode:
       out.append(decoded_vembs)      
     if self.settings['sharp_add_labels']:
       out.append(lit_features)
-    logits = self.decision_layer(torch.cat(out,dim=1)).t()
+    with self.timers['decision']:
+      logits = self.decision_layer(torch.cat(out,dim=1)).t()
     # allowed_actions = self.get_allowed_actions(obs).int().float()
     # inf_mask = torch.max(allowed_actions.log(),torch.Tensor([torch.finfo().min]))
     # logits = logits + inf_mask

@@ -276,7 +276,9 @@ def cfg():
 	sharp_add_embedding = True
 	sharp_emb_dim = 32
 	sharp_decoded_emb_dim = 32
-
+	sharp_log_actions = False
+	sharp_vanilla_policy = False
+	sharp_random_policy = False
 # Localization
 	max_edges = 20
 

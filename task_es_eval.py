@@ -122,7 +122,7 @@ class ESEval():
     if settings['use_seed']:
       config['seed'] = int(settings['use_seed'])
     trainer = trainer_class(config=config, env=envname, logger_creator=get_logger_creator(settings))   
-    assert self.settings['base_model'] != None , "Must provide a saved model"
+    # assert self.settings['base_model'] != None , "Must provide a saved model"
     if self.settings['base_model']:
       self.logger.info('Loading from {}..'.format(self.settings['base_model']))
       trainer.restore(self.settings['base_model'])    

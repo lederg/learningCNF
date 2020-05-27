@@ -42,7 +42,7 @@ class SharpModel(PolicyBase):
     if self.settings['sharp_add_labels']:
       inp_size += self.encoder.vlabel_dim
     self.decision_layer = MLPModel([inp_size,256,64,1])
-    self.pad = torch.Tensor([torch.finfo().min])
+    # self.pad = torch.Tensor([torch.finfo().min])
     self.timers = {k: TimerStat() for k in ["make_graph", "encoder", "decode", "decision"]}
 
   def from_batch(self, train_batch, is_training=True):

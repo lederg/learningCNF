@@ -15,6 +15,7 @@ from os import listdir
 from pysat.formula import CNF
 from pysat._fileio import FileObject
 
+from filters.filter_base import *
 from filters.sharpsat_filter import *
 from filters.glucose_filter import *
 

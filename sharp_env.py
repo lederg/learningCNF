@@ -225,10 +225,11 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
         print('Skipping {}'.format(fname))
       if self.settings['sharp_log_actions']:
         actions = self.env.solver.get_branching_seq()
-        with open('eval_logs/{}_log_actions_{}.txt'.format(self.settings['name'],os.path.basename(fname)),'w') as f:
-          for x in actions:
-            f.write('{}\n'.format(x))
+        stats = self.env.solver.get_stats()
+        units = self.env.solver.get_problem_units()
 
+        with open('eval_logs/{}_episode_log_{}.pickle'.format(self.settings['name'],os.path.basename(fname)),'wb') as f:
+          pickle.dump({'actions': actions, 'stats': stats, 'units': units}, f)
 
       # print('Solver finished in {}'.format(time.time()-t1))
       if self.cmd == EnvCommands.CMD_STEP:

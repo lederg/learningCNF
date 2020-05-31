@@ -229,7 +229,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
         units = self.env.solver.get_problem_units()
 
         with open('eval_logs/{}_episode_log_{}.pickle'.format(self.settings['name'],os.path.basename(fname)),'wb') as f:
-          pickle.dump({'actions': actions, 'stats': stats, 'units': units}, f)
+          pickle.dump({'actions': actions, 'stats': stats, 'units': units, 'time': time.time()-t1}, f)
 
       # print('Solver finished in {}'.format(time.time()-t1))
       if self.cmd == EnvCommands.CMD_STEP:

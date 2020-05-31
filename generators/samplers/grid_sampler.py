@@ -238,8 +238,9 @@ class GridSampler(SamplerBase):
     return random_aps
   
   def make_grid(self, seed=None, cutoff=False):
+    bignum = 2**16
     if not seed:
-      seed = int(time.time())+os.getpid()
+      seed = (int(time.time()) % bignum) * (os.getpid() % bignum)
     random.seed(seed)
     base = random.randint(1,2**16)
     world = world_from_noise(get_noise_grid(shape=(self.size, self.size),base=base, persistence=5.0, lacunarity=2.0, scale=100))

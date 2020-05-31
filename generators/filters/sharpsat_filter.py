@@ -41,6 +41,9 @@ class SharpSATFilter(FilterBase):
 
         message = ""
         res = True
+        if (count == 0):
+            message = f"{fname}: UNSAT"
+            res = False
         if (sharpSAT.reward() < self.steps_min):
             message = f"{fname}: Too easy! Steps < {self.steps_min}"
             res = False

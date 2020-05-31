@@ -157,10 +157,11 @@ def mdp2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
     return ACNF.cnf.CNF(clauses, in2lit, outlits, None), timestep_mapping
 
 class GridSampler(SamplerBase):
-  def __init__(self, size=8, horizon=2,  annotate=False, **kwargs):
+  def __init__(self, size=8, horizon_min=2, horizon_max=2, annotate=False, **kwargs):
     SamplerBase.__init__(self, **kwargs)
     self.size = int(size)
-    self.horizon = int(horizon)
+    self.horizon_min = int(horizon_min)
+    self.horizon_max = int(horizon_max)
     self.annotate = annotate
     self.X = BV.atom(self.size, 'x', signed=False)
     self.Y = BV.atom(self.size, 'y', signed=False)
@@ -262,7 +263,7 @@ class GridSampler(SamplerBase):
     spec = self.make_spec()
     MONITOR = spec2monitor(spec)
     circuit = DYN >> SENSOR >> MONITOR
-    horizon = self.horizon+random.choice([-1,0,1])
+    horizon = random.randint(self.horizon_min,self.horizon_max)
     # if self.annotate:
 
     #   def timed_fresh(_):

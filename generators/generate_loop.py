@@ -19,7 +19,7 @@ from filters.filter_base import *
 from filters.sharpsat_filter import *
 from filters.glucose_filter import *
 
-# from samplers.word_sampler import *
+from samplers.word_sampler import *
 from samplers.grid_sampler import *
 from samplers.ecarev_sampler import *
 from samplers.sudoku_sampler import *
@@ -28,10 +28,8 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s %
 log = logging.getLogger(__name__)
 
 def get_sampler(config):
-    # if config['sampler'] == 'word':
-    #   return WordSampler(config)
-    # el
-
+    if config['sampler'] == 'word':
+      return WordSampler(**config)
     if config['sampler'] == 'grid':
         return GridSampler(**config)
     if config['sampler'] == 'sudoku':

@@ -1,7 +1,13 @@
 import os
+import ipdb
+import time
 import tempfile
-from samplers.sampler_base import SamplerBase
+import random
+import itertools
 from random import randint, seed
+from samplers.sampler_base import SamplerBase
+from gen_types import FileName
+from gen_utils import random_string
 import aiger_bv as BV
 from aiger_bv.expr import SignedBVExpr, atom
 # import aiger_analysis as aa
@@ -33,7 +39,7 @@ def constant_expr():
 
 def leaf_expr(size):  # constant or variable
   assert size == 1
-  return variable() if randint(0, 1) == 0 else constant_expr()
+  return variable() if (randint(0, 1) == 0 and len(variables)) else constant_expr()
 
 
 def unary_expr(size):
@@ -73,9 +79,6 @@ def bitwise_expr(size):
   return op(left, right)
 
 def random_bool_expr(size):
-  global variables
-  variables = ['2 y1', '1 x1', '2 y2', '1 x2']
-
   assert size > 2
   op = cmp_ops[randint(0, len(cmp_ops)-1)]
   split = randint(1, size - 2)  # at least one operation on either side
@@ -94,16 +97,28 @@ def random_circuit(size):
       print('    Failed to generate expression; trying again')
 
 class WordSampler(SamplerBase):
-  def __init__(self, size = 5, **kwargs):
+  def __init__(self, size=5, numvars=4, seed=None, wordsize=8, **kwargs):
     SamplerBase.__init__(self, **kwargs)
     self.size = int(size)
+    self.numvars = int(numvars)
+    self.wordsize = wordsize
 
-  def sample(self, stats_dict: dict):
+    bignum = 2**16
+    if not seed:
+      seed = (int(time.time()) % bignum) * (os.getpid() % bignum)
+    random.seed(seed)    
+
+  def sample(self, stats_dict: dict) -> (FileName, FileName):
+    global variables
+    global word_length
+    variables = [f'x{i}' for i in range(self.numvars)]
+    word_length = self.wordsize
     e = random_circuit(self.size)
+    name = 'bv_expr_{}_{}_{}_{}'.format(self.size, self.numvars, self.wordsize, random_string(8))
+    cnfname = '/tmp/{}.cnf'.format(name)
     f = tempfile.NamedTemporaryFile()
-    f.write(str(e).encode())
+    f.write(str(e.aig).encode())
     f.seek(0)
-    rc = f.name+'.cnf'
-    os.system('aigtocnf {} {}'.format(f.name,rc))
-    return rc
+    os.system('aigtocnf {} {}'.format(f.name,cnfname))
+    return cnfname, None
 

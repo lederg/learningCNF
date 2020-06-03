@@ -279,6 +279,7 @@ def cfg():
 	sharp_log_actions = False
 	sharp_vanilla_policy = False
 	sharp_random_policy = False
+	sharp_time_random = False
 # Localization
 	max_edges = 20
 

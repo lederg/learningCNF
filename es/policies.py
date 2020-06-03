@@ -83,6 +83,7 @@ class SharpPolicy(TorchGNNPolicy):
 
     super(SharpPolicy, self).__init__(SharpModel(), preprocessor, observation_filter)
     self.settings = CnfSettings()
+    self.time_hack = self.settings['sharp_time_random']
 
   def compute(self, observation):
     if self.settings['sharp_vanilla_policy']:
@@ -90,8 +91,13 @@ class SharpPolicy(TorchGNNPolicy):
     if self.settings['sharp_random_policy']:
       return [np.random.randint(observation.ground.shape[0])]
     logits, _ = self.model(observation, state=None, seq_lens=None)
-    dist = TorchCategoricalArgmax(logits, self.model)
-    action = dist.sample().numpy()
+    l = logits.detach().numpy()
+    if self.time_hack:
+      indices = np.where(l.reshape(-1)==l.max())[0]
+      action = [np.random.choice(indices)]
+    else:
+      dist = TorchCategoricalArgmax(logits, self.model)    
+      action = dist.sample().numpy()
     return action
 
 class SATPolicy(TorchGNNPolicy):

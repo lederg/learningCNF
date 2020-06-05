@@ -36,7 +36,7 @@ DEFAULT_CONFIG = with_common_config({
   "eval_prob": 0.003,
   "return_proc_mode": "centered_rank",
   "num_workers": 10,
-  "stepsize": 0.01,
+  "stepsize": 0.01,             # NOTE: This overrides settings['init_lr'] !!!
   "observation_filter": "MeanStdFilter",
   "noise_size": 250000000,
   "report_length": 10,
@@ -221,6 +221,7 @@ class ESTrainer(Trainer):
       self.policy = policies.SharpPolicy(preprocessor, config["observation_filter"])
     elif self.settings['solver'] == 'sat_es':
       self.policy = policies.SATPolicy(preprocessor, config["observation_filter"])
+    print('step size is: {}'.format(config["stepsize"]))
     self.optimizer = optimizers.Adam(self.policy, config["stepsize"])
     self.report_length = config["report_length"]
 

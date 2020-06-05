@@ -101,7 +101,7 @@ class WordSampler(SamplerBase):
     SamplerBase.__init__(self, **kwargs)
     self.size = int(size)
     self.numvars = int(numvars)
-    self.wordsize = wordsize
+    self.wordsize = int(wordsize)
 
     bignum = 2**16
     if not seed:

@@ -27,7 +27,7 @@ from rl_utils import *
 from reduce_base_provider import *
 
 LOG_SIZE = 200
-DEF_STEP_REWARD = -0.01     # Temporary reward until Pash sends something from minisat
+DEF_STEP_REWARD = -0.01
 
 class SharpSpace(gym.Space):
   def contains(self, x):
@@ -38,34 +38,34 @@ class SharpSpace(gym.Space):
     return ()
 
   @shape.setter
-  def shape(self, value):  
+  def shape(self, value):
     pass
 
 class SharpActiveEnv:
-  EnvObservation = namedlist('SharpEnvObservation', 
+  EnvObservation = namedlist('SharpEnvObservation',
                               ['gss', 'vfeatures', 'cfeatures', 'row', 'col', 'efeatures', 'reward', 'done', 'partial'],
                               default=None)
 
   def __init__(self, server=None, settings=None, **kwargs):
-    self.settings = settings if settings else CnfSettings()        
+    self.settings = settings if settings else CnfSettings()
     self.solver = None
     self.server = server
-    self.current_step = 0    
-    self.disable_gnn = self.settings['disable_gnn']        
+    self.current_step = 0
+    self.disable_gnn = self.settings['disable_gnn']
     self.formulas_dict = {}
     self._name = 'SharpEnv'
 
   @property
   def name(self):
     return self._name
-  
+
   # def load_formula(self, fname):
   #   if fname not in self.formulas_dict.keys():
   #     self.formulas_dict[fname] = CNF(fname)
   #     print('Lazily loaded {} in process {}_{}'.format(fname,self._name,os.getpid()))
   #   return self.formulas_dict[fname]
 
-  def start_solver(self):    
+  def start_solver(self):
     def thunk(row, col, data, vlabels, lit_stack):
       return self.__callback(row, col, data, vlabels, lit_stack)
     if self.solver is None:
@@ -83,7 +83,7 @@ class SharpActiveEnv:
       ind = np.argmax(vlabels[:,1])
       pick = ind + 1 if (vlabels[ind][0] < vlabels[ind + 1][0]) else ind
       return pick
-      
+
     else:
       try:
         rc = self.server.callback(vlabels, None, row, col, data, lit_stack)
@@ -98,7 +98,7 @@ class SharpEnvProxy(EnvBase):
     if not self.settings:
       self.settings = CnfSettings()
     self.state_dim = self.settings['state_dim']
-    self.decode = self.settings['sharp_decode']    
+    self.decode = self.settings['sharp_decode']
     self.observation_space = SharpSpace()
     self.action_space = spaces.Discrete(self.settings['max_variables'])
     self.queue_in = config['queue_in']
@@ -106,9 +106,9 @@ class SharpEnvProxy(EnvBase):
     self.provider = config['provider']
     self.rewards = []
     self.current_step = 0
-    self.finished = False    
+    self.finished = False
     self.completion_reward = self.settings['sharp_completion_reward']
-    self.max_step = self.settings['max_step']    
+    self.max_step = self.settings['max_step']
     self.disable_gnn = self.settings['disable_gnn']
     self.logger = utils.get_logger(self.settings, 'SharpEnvProxy')
 
@@ -120,7 +120,7 @@ class SharpEnvProxy(EnvBase):
     vfeatures = env_obs.vfeatures
     efeatures = env_obs.efeatures
     row = env_obs.row
-    col = env_obs.col    
+    col = env_obs.col
     cmat = csr_matrix((torch.ones(len(efeatures)), (row, col)),shape=(row.max()+1,len(vfeatures)))
     cmat = csr_to_pytorch(cmat)
     ground_embs = torch.from_numpy(vfeatures.to_numpy()[:, 1:]).float()
@@ -131,9 +131,9 @@ class SharpEnvProxy(EnvBase):
     return densify_obs(State(None,cmat, ground_embs, None, vmask, cmask, extra_data))
 
 
-  def step(self, action):    
+  def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))
-    ack, rc = self.queue_in.get()  
+    ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_STEP, 'Expected ACK_STEP'
     env_obs = SharpActiveEnv.EnvObservation(*rc)
     self.finished = env_obs.done
@@ -153,7 +153,7 @@ class SharpEnvProxy(EnvBase):
     self.rewards = []
     self.queue_out.put((EnvCommands.CMD_RESET,fname))
     ack, rc = self.queue_in.get()
-    assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'    
+    assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'
     if rc != None:
       return self.process_observation(None, SharpActiveEnv.EnvObservation(*rc))
 
@@ -164,20 +164,20 @@ class SharpEnvProxy(EnvBase):
 
     # For the gym interface, the env itself decides whether to abort.
 
-  def check_break(self):    
+  def check_break(self):
     return (self.current_step > self.max_step)
 
-  def new_episode(self, fname, **kwargs):    
-    return self.reset(fname)        
+  def new_episode(self, fname, **kwargs):
+    return self.reset(fname)
 
 class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threading.Thread):
   def __init__(self, env, settings=None):
     super(SharpEnvServer, self).__init__()
     self.settings = settings if settings else CnfSettings()
-    self.state_dim = self.settings['state_dim']    
-    self.decode = self.settings['sharp_decode']    
+    self.state_dim = self.settings['state_dim']
+    self.decode = self.settings['sharp_decode']
     self.env = env
-    self.is_process = self.settings['env_as_process']    
+    self.is_process = self.settings['env_as_process']
     self.env.server = self
     self.queue_in = mp.Queue() if self.is_process else queue.Queue()
     self.queue_out = mp.Queue() if self.is_process else queue.Queue()
@@ -190,7 +190,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
     self.total_episodes = 0
     self.def_step_cost = self.settings['def_step_cost']
     self.uncache_after_batch = self.settings['uncache_after_batch']
-    self.logger = utils.get_logger(self.settings, 'SharpEnvServer')    
+    self.logger = utils.get_logger(self.settings, 'SharpEnvServer')
 
   def proxy(self, **kwargs):
     config = kwargs
@@ -203,7 +203,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
     while True:
       if self.cmd == EnvCommands.CMD_RESET:
         # We get here only after a CMD_RESET aborted a running episode and requested a new file.
-        fname = self.current_fname        
+        fname = self.current_fname
       else:
         self.cmd, fname = self.queue_in.get()
         if self.cmd == EnvCommands.CMD_EXIT:
@@ -233,7 +233,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
 
       # print('Solver finished in {}'.format(time.time()-t1))
       if self.cmd == EnvCommands.CMD_STEP:
-        last_step_reward = self.def_step_cost     
+        last_step_reward = self.def_step_cost
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
         msg = self.env.EnvObservation(gss=np.zeros(self.state_dim), reward=self.winning_reward+last_step_reward, done=True)
         # msg = self.env.EnvObservation(None, None, None, None, None, None, self.winning_reward+last_step_reward, True)
@@ -256,7 +256,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
 
 # adj_matrix = csr_matrix((torch.ones(len(data)), (row, col)),shape=(row.max()+1,len(vlabels)))
   def callback(self, vfeatures, cfeatures, row, col, efeatures, lit_stack):
-    # print('clabels shape: {}'.format(cfeatures.shape))    
+    # print('clabels shape: {}'.format(cfeatures.shape))
     # print('reward is {}'.format(self.env.get_reward()))
     partial = None
     if self.decode:
@@ -274,7 +274,7 @@ class SharpEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
       assert True, 'Invalid last command detected'
 
     self.queue_out.put((ack,tuple(msg)))
-    self.cmd, rc = self.queue_in.get()    
+    self.cmd, rc = self.queue_in.get()
     if self.cmd == EnvCommands.CMD_STEP:
       # We got back an action
       return rc

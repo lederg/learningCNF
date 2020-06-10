@@ -3,7 +3,7 @@ from sat_code.capture import *
 from cp_utils import *
 
 
-model_path = '/home/gil/ray_results/counterfact/counterfact_iter2_1/ClausePredictionTrainable_2c735952_2020-03-29_14-06-35r33nf4g2/checkpoint_35/model.pth'
+model_path = '/home/user/ray_results/counterfact/counterfact_iter2_1/ClausePredictionTrainable_2c735952_2020-03-29_14-06-35r33nf4g2/checkpoint_35/model.pth'
 settings_path = './experiments_config/config_counterfact_iter2_1.json'
 
 magic_function = wrap_sat_model(model_path, settings_path)

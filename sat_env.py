@@ -25,7 +25,7 @@ from rl_types import *
 from reduce_base_provider import *
 
 LOG_SIZE = 200
-DEF_STEP_REWARD = -0.01     # Temporary reward until Pash sends something from minisat
+DEF_STEP_REWARD = -0.01
 NUM_ACTIONS = 29
 log = mp.get_logger()
 
@@ -35,12 +35,12 @@ CLABEL_LBD = 3
 CLABEL_LOCKED = 5
 
 class SatActiveEnv:
-  EnvObservation = namedlist('SatEnvObservation', 
+  EnvObservation = namedlist('SatEnvObservation',
                               ['state', 'orig_clauses', 'orig_clause_labels', 'learned_clauses', 'vlabels', 'clabels', 'reward', 'done'],
                               default=None)
 
   def __init__(self, debug=False, server=None, settings=None, oracletype=None, **kwargs):
-    self.settings = settings if settings else CnfSettings()    
+    self.settings = settings if settings else CnfSettings()
     self.debug = debug
     self.tail = deque([],LOG_SIZE)
     self.solver = None
@@ -57,7 +57,7 @@ class SatActiveEnv:
   @property
   def name(self):
     return self._name
-  
+
   # def load_formula(self, fname):
   #   if fname not in self.formulas_dict.keys():
   #     self.formulas_dict[fname] = CNF(fname)
@@ -65,8 +65,8 @@ class SatActiveEnv:
   #   return self.formulas_dict[fname]
 
   def start_solver(self, fname=None):
-    
-    def thunk():      
+
+    def thunk():
       return self.__callback()
 
     gc_oracle = {"callback": thunk, "policy": self.oracletype}
@@ -111,7 +111,7 @@ class SatActiveEnv:
     if self.disable_gnn:
       adj_matrix = None
       vlabels = None
-    else: 
+    else:
       # adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
       # vlabels = self.get_vlabels()
       assert True, "So you want to use a GNN? Lovely. Fix me."
@@ -153,13 +153,13 @@ class SatEnvProxy(EnvBase):
 
   def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))
-    ack, rc = self.queue_in.get()  
+    ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_STEP, 'Expected ACK_STEP'
     env_obs = SatActiveEnv.EnvObservation(*rc)
     self.finished = env_obs.done
-    if env_obs.reward:      
+    if env_obs.reward:
       r = env_obs.reward / self.reward_scale
-      self.rewards.append(r)    
+      self.rewards.append(r)
     # if env_obs.done:
     #   print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
     return env_obs.state, r, env_obs.done or self.check_break(), {}
@@ -171,7 +171,7 @@ class SatEnvProxy(EnvBase):
     self.rewards = []
     self.queue_out.put((EnvCommands.CMD_RESET,fname))
     ack, rc = self.queue_in.get()
-    assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'    
+    assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'
     if rc != None:
       return SatActiveEnv.EnvObservation(*rc).state
 
@@ -183,13 +183,13 @@ class SatEnvProxy(EnvBase):
     # For the gym interface, the env itself decides whether to abort.
 
   def check_break(self):
-    if self.sat_min_reward:        
+    if self.sat_min_reward:
       return (sum(self.rewards) < self.sat_min_reward)
     else:
       return False
 
-  def new_episode(self, fname, **kwargs):    
-    return self.reset(fname)        
+  def new_episode(self, fname, **kwargs):
+    return self.reset(fname)
 
   def process_observation(self, last_obs, env_obs, settings=None):
     if not settings:
@@ -236,7 +236,7 @@ class SatEnvServer(mp.Process if CnfSettings()['env_as_process'] else threading.
   def __init__(self, env, settings=None):
     super(SatEnvServer, self).__init__()
     self.settings = settings if settings else CnfSettings()
-    self.state_dim = self.settings['state_dim']    
+    self.state_dim = self.settings['state_dim']
     self.env = env
     self.is_process = self.settings['env_as_process']
     self.env.server = self
@@ -254,7 +254,7 @@ class SatEnvServer(mp.Process if CnfSettings()['env_as_process'] else threading.
       self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
     self.total_episodes = 0
     self.uncache_after_batch = self.settings['uncache_after_batch']
-    self.logger = utils.get_logger(self.settings, 'SatEnvServer')    
+    self.logger = utils.get_logger(self.settings, 'SatEnvServer')
 
   def proxy(self, **kwargs):
     config = kwargs
@@ -267,22 +267,22 @@ class SatEnvServer(mp.Process if CnfSettings()['env_as_process'] else threading.
     print('Env {} on pid {}'.format(self.env.name, os.getpid()))
     set_proc_name(str.encode('{}_{}'.format(self.env.name,os.getpid())))
     # if self.settings['memory_profiling']:
-    #   tracemalloc.start(25)    
+    #   tracemalloc.start(25)
     while True:
-      # if self.settings['memory_profiling'] and (self.total_episodes % 10 == 1):    
+      # if self.settings['memory_profiling'] and (self.total_episodes % 10 == 1):
       # if self.settings['memory_profiling']:
       #   snapshot = tracemalloc.take_snapshot()
       #   top_stats = snapshot.statistics('lineno')
       #   print("[ Top 20 in {}]".format(self.name))
       #   for stat in top_stats[:20]:
-      #       print(stat)            
+      #       print(stat)
       #   print('Number of cached formulas: {}'.format(len(self.env.formulas_dict.keys())))
       #   print(self.env.formulas_dict.keys())
 
 
       if self.cmd == EnvCommands.CMD_RESET:
         # We get here only after a CMD_RESET aborted a running episode and requested a new file.
-        fname = self.current_fname        
+        fname = self.current_fname
       else:
         self.cmd, fname = self.queue_in.get()
         if self.cmd == EnvCommands.CMD_EXIT:
@@ -303,7 +303,7 @@ class SatEnvServer(mp.Process if CnfSettings()['env_as_process'] else threading.
         print('Skipping {}'.format(fname))
 
       if self.cmd == EnvCommands.CMD_STEP:
-        last_step_reward = -(self.env.get_reward() - self.last_reward)      
+        last_step_reward = -(self.env.get_reward() - self.last_reward)
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
         msg = self.env.EnvObservation(state=np.zeros(self.state_dim), reward=self.winning_reward+last_step_reward, done=True)
         # msg = self.env.EnvObservation(None, None, None, None, None, None, self.winning_reward+last_step_reward, True)
@@ -331,7 +331,7 @@ class SatEnvServer(mp.Process if CnfSettings()['env_as_process'] else threading.
     state = self.env.get_global_state()
     # print('reward is {}'.format(self.env.get_reward()))
     msg = self.env.EnvObservation(state, None, None, adj_matrix, vlabels, cl_label_arr, None, False)
-    if not self.disable_gnn:      
+    if not self.disable_gnn:
       msg.orig_clause_labels = self.env.get_clabels()
       if self.cmd == EnvCommands.CMD_RESET or (self.last_orig_clause_size and len(msg.orig_clause_labels) < self.last_orig_clause_size):
         msg.orig_clauses = self.env.get_orig_clauses()

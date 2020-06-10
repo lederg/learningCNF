@@ -5,7 +5,7 @@ from sacred import Experiment
 ex = Experiment('REINFORCE')
 
 @ex.config
-def cfg():	
+def cfg():
 	name = 'DEF_NAME'
 	mongo=False
 	mongo_host='russell.eecs.berkeley.edu:27017'
@@ -24,22 +24,22 @@ def cfg():
 	ground_dim = 8  # deprecated
 	vlabel_dim = 6
 	clabel_dim = 6
-	max_variables = 200 
+	max_variables = 200
 	max_clauses = 600
 	num_ground_variables = 0  # deprecated
 	data_dir = 'data/'
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
 	base_model = None
-	# base_mode = BaseMode.ITERS 
-	# base_mode = BaseMode.ALL	
+	# base_mode = BaseMode.ITERS
+	# base_mode = BaseMode.ALL
 	base_iters = 1
 	base_stats = None
 	# base_mode = BaseMode.EMBEDDING
 	training_steps = 100000000
 	max_iters = 1
 	max_step = 250			# Maximum steps per formula
-	max_seconds = 0	
+	max_seconds = 0
 	batch_size = 128  # deprecated
 	val_size = 100  # deprecated?
 	threshold = 10  # deprecated
@@ -70,7 +70,7 @@ def cfg():
 	use_ground = False  # deprecated
 	moving_ground = False  # deprecated
 	split = False  # deprecated
-	# cuda = True 
+	# cuda = True
 	cuda = False
 	reset_on_save = False
 	run_task = 'train'
@@ -116,7 +116,7 @@ def cfg():
 	leaky = False  # deprecated
 	cadet_binary = './cadet'
 	solver = 'cadet'
-	# cadet_binary = './old_cadet' 			
+	# cadet_binary = './old_cadet'
 	do_test = False
 	test_iters = 100
 	fresh_seed = False  						# Use a fresh seed in cadet
@@ -143,7 +143,7 @@ def cfg():
 	masked_softmax = True 					# This chooses actions only from allowed actions
 	slim_state=False
 	episode_cutoff = 200
-	use_state_in_vn = False	
+	use_state_in_vn = False
 	rnn_iters = 0
 	learn_from_aborted = True
 	check_allowed_actions = False
@@ -188,14 +188,14 @@ def cfg():
 	fixed_bn = False
 	fixed_bn_mean = 4.
 	fixed_bn_std = 10.
-	hp_normalize_shift = True	
+	hp_normalize_shift = True
 	env_as_process = False
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated
 	EPS_DECAY = 2000  # deprecated
 
 # SAT
-	
+
 	sat_gc_freq = 'fixed'
 	sat_reward_scale = 1e7
 	sat_winning_reward = 10
@@ -204,7 +204,7 @@ def cfg():
 	sat_reduce_base_provider = 'FixedReduceBaseProvider'
 	sat_reduce_base = 2000
 	sat_rb_min = 1000
-	sat_rb_max = 4000	
+	sat_rb_max = 4000
 	sat_discrete_threshold_base = 2				# LBD thresholds start from this in SatDiscreteThresholdPolicy/SatFreeDiscretePolicy
 	sat_num_free_actions = 29 						# Number of lbd thresholds in SatFreeDiscretePolicy
 	minimum_episodes = 2
@@ -231,7 +231,7 @@ def cfg():
 	unit_length = 30 					# number of seconds per "round"
 	weight_decay = 0.
 # ES
-	
+
 	es_save_every = 10
 	es_population = 50
 	es_num_formulas = 5
@@ -289,4 +289,3 @@ def cfg():
 
 	# return vars()
 
-# ex.add_config({'gil': 'moshe'})

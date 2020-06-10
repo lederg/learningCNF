@@ -25,7 +25,7 @@ from rl_types import *
 from reduce_base_provider import *
 
 LOG_SIZE = 200
-DEF_STEP_REWARD = -0.01     # Temporary reward until Pash sends something from minisat
+DEF_STEP_REWARD = -0.01
 NUM_ACTIONS = 29
 log = mp.get_logger()
 
@@ -37,12 +37,12 @@ CLABEL_LOCKED = 5
 
 
 class SatActiveESEnv:
-  EnvObservation = namedlist('SatESEnvObservation', 
+  EnvObservation = namedlist('SatESEnvObservation',
                               ['state', 'vlabels', 'clabels', 'adj_arrays', 'reward', 'done'],
                               default=None)
 
   def __init__(self, debug=False, server=None, settings=None, oracletype=None, **kwargs):
-    self.settings = settings if settings else CnfSettings()    
+    self.settings = settings if settings else CnfSettings()
     self.debug = debug
     self.tail = deque([],LOG_SIZE)
     self.solver = None
@@ -59,7 +59,7 @@ class SatActiveESEnv:
   @property
   def name(self):
     return self._name
-  
+
   # def load_formula(self, fname):
   #   if fname not in self.formulas_dict.keys():
   #     self.formulas_dict[fname] = CNF(fname)
@@ -67,8 +67,8 @@ class SatActiveESEnv:
   #   return self.formulas_dict[fname]
 
   def start_solver(self, fname=None):
-    
-    def thunk():      
+
+    def thunk():
       return self.__callback()
 
     gc_oracle = {"callback": thunk, "policy": self.oracletype}
@@ -144,13 +144,13 @@ class SatESEnvProxy(EnvBase):
 
   def step(self, action):
     self.queue_out.put((EnvCommands.CMD_STEP,action))
-    ack, rc = self.queue_in.get()  
+    ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_STEP, 'Expected ACK_STEP'
     env_obs = SatActiveESEnv.EnvObservation(*rc)
     self.finished = env_obs.done
-    if env_obs.reward:      
+    if env_obs.reward:
       r = env_obs.reward / self.reward_scale
-      self.rewards.append(r)    
+      self.rewards.append(r)
     # if env_obs.done:
     #   print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
     return env_obs, r, env_obs.done or self.check_break(), {}
@@ -163,7 +163,7 @@ class SatESEnvProxy(EnvBase):
     self.rewards = []
     self.queue_out.put((EnvCommands.CMD_RESET,fname))
     ack, rc = self.queue_in.get()
-    assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'    
+    assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'
     if rc != None:
       return SatActiveESEnv.EnvObservation(*rc)
 
@@ -175,13 +175,13 @@ class SatESEnvProxy(EnvBase):
     # For the gym interface, the env itself decides whether to abort.
 
   def check_break(self):
-    if self.sat_min_reward:        
+    if self.sat_min_reward:
       return (sum(self.rewards) < self.sat_min_reward)
     else:
       return (self.current_step > self.max_step)
 
-  def new_episode(self, fname, **kwargs):    
-    return self.reset(fname)        
+  def new_episode(self, fname, **kwargs):
+    return self.reset(fname)
 
   def process_observation(self, last_obs, env_obs, settings=None):
     if not settings:
@@ -228,7 +228,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
   def __init__(self, env, settings=None):
     super(SatESEnvServer, self).__init__()
     self.settings = settings if settings else CnfSettings()
-    self.state_dim = self.settings['state_dim']    
+    self.state_dim = self.settings['state_dim']
     self.env = env
     self.is_process = self.settings['env_as_process']
     self.env.server = self
@@ -246,7 +246,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
       self.winning_reward = self.settings['sat_winning_reward']*self.settings['sat_reward_scale']
     self.total_episodes = 0
     self.uncache_after_batch = self.settings['uncache_after_batch']
-    self.logger = utils.get_logger(self.settings, 'SatEnvServer')    
+    self.logger = utils.get_logger(self.settings, 'SatEnvServer')
 
   def proxy(self, **kwargs):
     config = kwargs
@@ -259,22 +259,22 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
     print('Env {} on pid {}'.format(self.env.name, os.getpid()))
     set_proc_name(str.encode('{}_{}'.format(self.env.name,os.getpid())))
     # if self.settings['memory_profiling']:
-    #   tracemalloc.start(25)    
+    #   tracemalloc.start(25)
     while True:
-      # if self.settings['memory_profiling'] and (self.total_episodes % 10 == 1):    
+      # if self.settings['memory_profiling'] and (self.total_episodes % 10 == 1):
       # if self.settings['memory_profiling']:
       #   snapshot = tracemalloc.take_snapshot()
       #   top_stats = snapshot.statistics('lineno')
       #   print("[ Top 20 in {}]".format(self.name))
       #   for stat in top_stats[:20]:
-      #       print(stat)            
+      #       print(stat)
       #   print('Number of cached formulas: {}'.format(len(self.env.formulas_dict.keys())))
       #   print(self.env.formulas_dict.keys())
 
 
       if self.cmd == EnvCommands.CMD_RESET:
         # We get here only after a CMD_RESET aborted a running episode and requested a new file.
-        fname = self.current_fname        
+        fname = self.current_fname
       else:
         self.cmd, fname = self.queue_in.get()
         if self.cmd == EnvCommands.CMD_EXIT:
@@ -295,7 +295,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
         print('Skipping {}'.format(fname))
 
       if self.cmd == EnvCommands.CMD_STEP:
-        last_step_reward = -(self.env.get_reward() - self.last_reward)      
+        last_step_reward = -(self.env.get_reward() - self.last_reward)
         # We are here because the episode successfuly finished. We need to mark done and return the rewards to the client.
         msg = self.env.EnvObservation(state=np.zeros(self.state_dim), reward=self.winning_reward+last_step_reward, done=True)
         # msg = self.env.EnvObservation(None, None, None, None, None, None, self.winning_reward+last_step_reward, True)
@@ -311,7 +311,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
         else:
           pass
           # We are here because the episode was aborted. We can just move on, the client already has everything.
-      elif self.cmd == EnvCommands.CMD_EXIT:        
+      elif self.cmd == EnvCommands.CMD_EXIT:
         self.queue_out.put((EnvCommands.ACK_EXIT,None))
         break
 

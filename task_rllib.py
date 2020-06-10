@@ -120,9 +120,9 @@ def evaluate(steps, config, weights):
   env_config['formula_dir'] = settings['rl_test_data']
   config["model"]['custom_action_dist'] = 'argmax_dist'
   config["sample_batch_size"]=1
-  config["train_batch_size"]=1  
+  config["train_batch_size"]=1
   config["callbacks"] = {'on_postprocess_traj': eval_postprocess}
-  w = RolloutWorker(env_creator=env_creator, policy=A3CTorchPolicy, batch_steps=1, batch_mode='complete_episodes', 
+  w = RolloutWorker(env_creator=env_creator, policy=A3CTorchPolicy, batch_steps=1, batch_mode='complete_episodes',
     callbacks={'on_postprocess_traj': eval_postprocess}, policy_config=config, env_config=config['env_config'])
   w.set_weights(weights['default_policy'])
   results = []
@@ -139,7 +139,7 @@ def evaluate(steps, config, weights):
 
 class RLLibTrainer():
   def __init__(self):
-    self.settings = CnfSettings()   
+    self.settings = CnfSettings()
     self.clock = GlobalTick()
     self.logger = utils.get_logger(self.settings, 'rllib_trainer', 'logs/{}_rllib_trainer.log'.format(log_name(self.settings)))
     self.settings.formula_cache = FormulaCache()
@@ -153,7 +153,7 @@ class RLLibTrainer():
     ModelCatalog.register_custom_model("sharp_model", SharpModel)
     ModelCatalog.register_custom_action_dist("argmax_dist", TorchCategoricalArgmax)
 
-  def main(self):    
+  def main(self):
     if self.settings['do_not_run']:
       print('Not running. Printing settings instead:')
       print(self.settings.hyperparameters)
@@ -167,7 +167,7 @@ class RLLibTrainer():
                             # 'on_episode_end': on_episode_end}
       config["entropy_coeff"]=settings['entropy_alpha']
       custom_policy = log_logits_policy_wrapper(A3CTorchPolicy)
-      trainer_class = a3c.A3CTrainer.with_updates(default_policy=custom_policy, name='GilTrainer', get_policy_class=lambda x: custom_policy,
+      trainer_class = a3c.A3CTrainer.with_updates(default_policy=custom_policy, name='OurTrainer', get_policy_class=lambda x: custom_policy,
                                                     make_policy_optimizer=make_cnf_optimizer)
       envname = 'sat_env'
     elif self.settings['solver'] == 'cadet':
@@ -181,7 +181,7 @@ class RLLibTrainer():
       config = es.DEFAULT_CONFIG.copy()
       model_name = 'sharp_model'
       config["episodes_per_batch"] = self.settings['episodes_per_batch']
-      config["train_batch_size"] = self.settings['episodes_per_batch']*10      
+      config["train_batch_size"] = self.settings['episodes_per_batch']*10
       trainer_class = es.ESTrainer
       envname = 'sharp_env'
     else:
@@ -213,11 +213,11 @@ class RLLibTrainer():
     print('Running for {} iterations..'.format(self.training_steps))
     eval_results = []
     for i in range(self.training_steps):
-      result = trainer.train()      
-      print(pretty_print(result))     
+      result = trainer.train()
+      print(pretty_print(result))
 
       # Do the uniform style reporting
-      steps_val, reward_val = ray.get(reporter.report_stats.remote())  
+      steps_val, reward_val = ray.get(reporter.report_stats.remote())
       if steps_val and reward_val:
         self.result_logger._file_writer.add_scalar("ray/uniform/mean_steps", steps_val, global_step=result.get(TIMESTEPS_TOTAL))
         self.result_logger._file_writer.add_scalar("ray/uniform/mean_reward", reward_val, global_step=result.get(TIMESTEPS_TOTAL))
@@ -239,7 +239,7 @@ class RLLibTrainer():
         print("checkpoint saved at", checkpoint)
 
 
-def rllib_main(): 
+def rllib_main():
   settings = CnfSettings()
   import ray
   address = settings['ray_address']
@@ -254,8 +254,8 @@ def rllib_main():
 # if __name__=='__main__':
 #   parser = argparse.ArgumentParser(description='Process some params.')
 #   parser.add_argument('params', metavar='N', type=str, nargs='*', help='an integer for the accumulator')
-#   parser.add_argument('-s', '--settings', type=str, help='settings file') 
-#   parser.add_argument('-c', '--cluster', action='store_true', default=False, help='settings file') 
+#   parser.add_argument('-s', '--settings', type=str, help='settings file')
+#   parser.add_argument('-c', '--cluster', action='store_true', default=False, help='settings file')
 #   args = parser.parse_args()
 #   get_settings_from_file(args.settings)
 #   for param in args.params:
@@ -267,7 +267,7 @@ def rllib_main():
 
 # config["num_envs"]=1
 # if settings['preload_formulas']:
-#     settings.formula_cache.load_files(provider.items)  
+#     settings.formula_cache.load_files(provider.items)
 # settings.hyperparameters['loglevel']='logging.INFO'
 # settings.hyperparameters['sat_min_reward']=-100
 # settings.hyperparameters['max_step']=300
@@ -284,7 +284,7 @@ def rllib_main():
 # workers = WorkerSet(
 #     policy=A3CTFPolicy,
 #     env_creator=env_creator,
-#     num_workers=2, 
+#     num_workers=2,
 #     trainer_config=config
 #     )
 

@@ -99,6 +99,7 @@ class SharpEnvProxy(EnvBase):
       self.settings = CnfSettings()
     self.state_dim = self.settings['state_dim']
     self.decode = self.settings['sharp_decode']    
+    self.max_time = self.settings['sharp_max_time']
     self.observation_space = SharpSpace()
     self.action_space = spaces.Discrete(self.settings['max_variables'])
     self.queue_in = config['queue_in']
@@ -107,6 +108,7 @@ class SharpEnvProxy(EnvBase):
     self.rewards = []
     self.current_step = 0
     self.finished = False    
+    self.start_time = None
     self.completion_reward = self.settings['sharp_completion_reward']
     self.max_step = self.settings['max_step']    
     self.disable_gnn = self.settings['disable_gnn']
@@ -151,6 +153,7 @@ class SharpEnvProxy(EnvBase):
     self.finished = False
     self.current_step = 0
     self.rewards = []
+    self.start_time = time.time()
     self.queue_out.put((EnvCommands.CMD_RESET,fname))
     ack, rc = self.queue_in.get()
     assert ack==EnvCommands.ACK_RESET, 'Expected ACK_RESET'    
@@ -165,7 +168,7 @@ class SharpEnvProxy(EnvBase):
     # For the gym interface, the env itself decides whether to abort.
 
   def check_break(self):    
-    return (self.current_step > self.max_step)
+    return (self.current_step > self.max_step) or (time.time() - self.start_time) > self.max_time
 
   def new_episode(self, fname, **kwargs):    
     return self.reset(fname)        

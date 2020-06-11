@@ -280,6 +280,7 @@ def cfg():
 	sharp_vanilla_policy = False
 	sharp_random_policy = False
 	sharp_time_random = False
+	sharp_max_time = 5000
 # Localization
 	max_edges = 20
 

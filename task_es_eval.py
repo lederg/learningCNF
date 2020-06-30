@@ -116,6 +116,7 @@ class ESEval():
     config["num_gpus"] = 0
     config["eager"] = False
     config["sample_async"] = False
+    config["noise_size"]=10
     # config["timesteps_per_iteration"]=10
     config["model"] = {"custom_model": model_name}
     config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['es_train_data'], 'eval': False}
@@ -139,7 +140,7 @@ def es_eval_main():
   address = settings['ray_address']
   if address:
     print('Running in ray cluster mode')
-    ray.init(address=address, redis_password='blabla')
+    ray.init(address=address, redis_password='blabla', include_webui=False)
   else:
     ray.init()
   es_loop = ESEval()

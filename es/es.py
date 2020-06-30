@@ -49,6 +49,7 @@ DEFAULT_CONFIG = with_common_config({
 def create_shared_noise(count):
   """Create a large array of noise to be shared by all workers."""
   seed = 123
+  print("noise size {}".format(count))
   noise = np.random.RandomState(seed).randn(count).astype(np.float32)
   return noise
 

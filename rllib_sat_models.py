@@ -12,7 +12,8 @@ import cadet_utils
 import utils
 from policy_base import *
 from settings import *
-from sat_env import *
+from dgl_encoders import *
+from ray.util.sgd.utils import TimerStat
 
 class SatThresholdModel(RLLibModel):
   def __init__(self, *args, **kwargs):  
@@ -56,3 +57,43 @@ class SatThresholdModel(RLLibModel):
   def value_function(self):
     return self._value_out.view(-1)
 
+class SatActivityModel(PolicyBase):
+  def __init__(self, *args, **kwargs):
+    super(SatActivityModel, self).__init__(*args)
+    encoder_class = eval(self.settings['sat_encoder_type'])
+    self.encoder = encoder_class(self.settings)
+    self.curr_fname = None
+    inp_size = 0
+    if self.settings['sat_add_embedding']:
+      inp_size += self.encoder.output_size()
+    if self.settings['sat_add_labels']:
+      inp_size += self.encoder.vlabel_dim
+    self.score_layer = MLPModel([inp_size,256,64,1])
+    # self.pad = torch.Tensor([torch.finfo().min])
+    self.timers = {k: TimerStat() for k in ["make_graph", "encoder", "score"]}
+
+
+  # cmat_net and cmat_pos are already "batched" into a single matrix
+  def forward(self, input_dict, state, seq_lens, es=True, **kwargs):
+    def obs_from_input_dict(input_dict):
+      z = list(input_dict.items())
+      z1 = list(z[0][1][0])
+      return undensify_obs(DenseState(*z1))
+
+    with self.timers['make_graph']:
+      self.encoder.eval()
+      G = input_dict['graph']      
+      self._value_out = torch.zeros(1).expand(G.number_of_nodes('literal'))
+    with self.timers['encoder']:
+      vembs, cembs = self.encoder(G)    
+    out = []
+    if self.settings['sat_add_embedding']:
+      out.append(vembs)
+    if self.settings['sat_add_labels']:
+      out.append(lit_features)
+    with self.timers['score']:
+      scores = self.score_layer(torch.cat(out,dim=1)).t()
+    return scores, []
+
+  def value_function(self):
+    return self._value_out.view(-1)

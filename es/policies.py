@@ -1,6 +1,6 @@
 # Code in this file is copied and adapted from
 # https://github.com/openai/evolution-strategies-starter.
-
+import ipdb
 import gym
 import numpy as np
 import torch
@@ -12,6 +12,7 @@ from ray.rllib.utils.filter import get_filter
 from ray.util.sgd.utils import TimerStat
 from custom_rllib_utils import *
 from rllib_sharp_models import SharpModel
+from rllib_sat_models import SatActivityModel
 from clause_model import ClausePredictionModel
 from settings import *
 from graph_utils import *
@@ -104,7 +105,7 @@ class SATPolicy(TorchGNNPolicy):
   def __init__(self, preprocessor,
              observation_filter):
 
-    super(SATPolicy, self).__init__(ClausePredictionModel(prediction=False), preprocessor, observation_filter)
+    super(SATPolicy, self).__init__(SatActivityModel(), preprocessor, observation_filter)
     self.settings = CnfSettings()
 
 # Returning logits for learnt clauses
@@ -114,6 +115,5 @@ class SATPolicy(TorchGNNPolicy):
       'gss': observation.state,
       'graph': graph_from_arrays(observation.vlabels,observation.clabels,observation.adj_arrays)
     }
-    logits, _ = self.model(input_dict, state=None, seq_lens=None)
-    
-    return logits
+    scores, _ = self.model(input_dict, state=None, seq_lens=None)
+    return scores.detach().numpy()

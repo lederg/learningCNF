@@ -353,7 +353,7 @@ class ESTrainer(Trainer):
   def _collect_results_dist(self, theta_id, sample_size):
     num_episodes, num_timesteps = 0, 0
     results = []
-    # do_eval = OneTimeSwitch()
+    # do_eval = OneTimeSwitch()    
     fnames = self.provider.sample(size=self.num_to_sample,replace=False)
     # fnames_id = ray.put(fnames)
     all_sample_noise = [self.noise.sample_index(self.policy.num_params) for _ in range(sample_size)]

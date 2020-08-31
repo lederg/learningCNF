@@ -68,13 +68,15 @@ class SatActivityModel(PolicyBase):
       inp_size += self.encoder.output_size()
     if self.settings['sat_add_labels']:
       inp_size += self.encoder.vlabel_dim
-    self.score_layer = MLPModel([inp_size,256,64,1])
+    self.score_layer = MLPModel([inp_size*2,256,64,1])
     # self.pad = torch.Tensor([torch.finfo().min])
     self.timers = {k: TimerStat() for k in ["make_graph", "encoder", "score"]}
 
 
   # cmat_net and cmat_pos are already "batched" into a single matrix
   def forward(self, input_dict, state, seq_lens, es=True, **kwargs):
+    T = 0.25      # temprature from NeuroCore
+    K = 10000     # again from NeuroCore
     def obs_from_input_dict(input_dict):
       z = list(input_dict.items())
       z1 = list(z[0][1][0])
@@ -92,7 +94,10 @@ class SatActivityModel(PolicyBase):
     if self.settings['sat_add_labels']:
       out.append(lit_features)
     with self.timers['score']:
-      scores = self.score_layer(torch.cat(out,dim=1)).t()
+      prescore = torch.cat(out,dim=1)
+      var_prescore = prescore.reshape(-1,2*prescore.shape[1])
+      scores = self.score_layer(var_prescore).t()
+      scores = F.softmax(scores/T,dim=1)*K*scores.shape[1]
     return scores, []
 
   def value_function(self):

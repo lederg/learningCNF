@@ -102,7 +102,7 @@ class ESEval():
     config["episodes_per_batch"] = self.settings['episodes_per_batch']
     config["train_batch_size"] = self.settings['episodes_per_batch']*10      
     trainer_class = es.ESTrainer
-    if self.settings['solver'] == 'minisat':
+    if self.settings['solver'] == 'minisat' or self.settings['solver'] == 'sat_es':
       model_name = 'sat_model'
       envname = 'sat_env'
     elif self.settings['solver'] == 'cadet':

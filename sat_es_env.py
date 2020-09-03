@@ -300,7 +300,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
       else:
         self.cmd, fname = self.queue_in.get()
         if self.cmd == EnvCommands.CMD_EXIT:
-          print('Got CMD_EXIT 1')
+          # print('Got CMD_EXIT 1')
           self.queue_out.put((EnvCommands.ACK_EXIT,None))
           break
         assert self.cmd == EnvCommands.CMD_RESET, 'Unexpected command {}'.format(self.cmd)
@@ -313,7 +313,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
 
       if self.env.start_solver(fname):
         self.env.solver.solve()
-        print('Done with {} in {} steps'.format(fname,self.env.current_step))
+        # print('Done with {} in {} steps'.format(fname,self.env.current_step))
       else:
         print('Skipping {}'.format(fname))
 

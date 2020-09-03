@@ -82,6 +82,7 @@ class Worker:
     self.policy_params = policy_params
     self.noise = SharedNoiseTable(noise) if noise is not None else None
     self.env_creator = env_creator
+    self.recreate_env = self.settings['recreate_env']
     self.env = env_creator(config["env_config"])
     from ray.rllib import models
     self.preprocessor = models.ModelCatalog.get_preprocessor(
@@ -114,11 +115,11 @@ class Worker:
     rews = []
     lens = []
     for fname in fnames:
-      env = self.env_creator(self.config["env_config"])
+      if self.recreate_env:
+        self.env = self.env_creator(self.config["env_config"])
       rollout_rewards, rollout_length = policies.rollout(
         self.policy,
-        env,
-        # self.env,        
+        self.env,        
         fname,
         timestep_limit=timestep_limit,
         add_noise=add_noise)
@@ -126,7 +127,8 @@ class Worker:
       lens.append(rollout_length)
       if params is not None:
         print('Eval finished {} with {} steps'.format(fname,rollout_length))
-      env.exit()
+      if self.recreate_env:
+        self.env.exit()
     return rews, lens
 
   # def evaluate(params, fnames)

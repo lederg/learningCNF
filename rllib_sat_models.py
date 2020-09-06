@@ -77,10 +77,6 @@ class SatActivityModel(PolicyBase):
   def forward(self, input_dict, state, seq_lens, es=True, **kwargs):
     T = 0.25      # temprature from NeuroCore
     K = 10000     # again from NeuroCore
-    def obs_from_input_dict(input_dict):
-      z = list(input_dict.items())
-      z1 = list(z[0][1][0])
-      return undensify_obs(DenseState(*z1))
 
     with self.timers['make_graph']:
       self.encoder.eval()

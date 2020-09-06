@@ -182,13 +182,15 @@ class GINEncoder(DGLEncoder):
       self.L_update.append(MLPModel([2*self.d, self.d, self.d], layernorm=True))
       self.C_update.append(MLPModel([self.d, self.d, self.d], layernorm=True))
 
+# We use torch.Tensor just in case, its idempotent.
+
   def forward(self, G, **kwargs):
     if self.vlabel_dim:
-      literals = self.literal_features_layer(G.nodes['literal'].data['literal_feats']) / np.sqrt(self.d)
+      literals = self.literal_features_layer(torch.Tensor(G.nodes['literal'].data['literal_feats']) / np.sqrt(self.d))
     else:
       literals = self.L_init.expand(G.number_of_nodes('literal'), self.d) / np.sqrt(self.d)
     if self.clabel_dim:
-      clauses = self.clause_features_layer(G.nodes['clause'].data['clause_feats']) / np.sqrt(self.d)
+      clauses = self.clause_features_layer(torch.Tensor(G.nodes['clause'].data['clause_feats']) / np.sqrt(self.d))
     else:
       clauses = self.C_init.expand(G.number_of_nodes('clause'), self.d) / np.sqrt(self.d)
     

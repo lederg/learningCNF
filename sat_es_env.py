@@ -340,7 +340,6 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
 
 
   def callback(self, gss, vlabels, clabels, adj_arrays):
-    self.env.current_step += 1
     msg = self.env.EnvObservation(gss, vlabels, clabels, adj_arrays, None, False)
     if self.cmd == EnvCommands.CMD_RESET:
       # if not self.disable_gnn:

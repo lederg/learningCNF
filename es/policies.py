@@ -34,7 +34,7 @@ def rollout(policy, env, fname, timestep_limit=None, add_noise=False):
     observation = env.reset(fname=fname)
   for _ in range(timestep_limit or 999999):
     with timers['compute']:
-      ac = policy.compute(observation)[0]
+      ac = [-1] if policy.settings['es_vanilla_policy'] else policy.compute(observation)[0]
     with timers['step']:
       observation, rew, done, _ = env.step(ac)
     rews.append(rew)
@@ -87,8 +87,6 @@ class SharpPolicy(TorchGNNPolicy):
     self.time_hack = self.settings['sharp_time_random']
 
   def compute(self, observation):
-    if self.settings['sharp_vanilla_policy']:
-      return [-1]    
     if self.settings['sharp_random_policy']:
       return [np.random.randint(observation.ground.shape[0])]
     logits, _ = self.model(observation, state=None, seq_lens=None)

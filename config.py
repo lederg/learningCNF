@@ -245,6 +245,7 @@ def cfg():
 	es_naive_stepsize = 1.
 	es_train_data = 'data/sat_100'
 	es_validation_data = 'data/sat_100'
+	es_vanilla_policy = False
 
 # Clause prediction
 	cp_cmask_features = [2]		# By default mask lbd
@@ -284,7 +285,6 @@ def cfg():
 	sharp_emb_dim = 32
 	sharp_decoded_emb_dim = 32
 	sharp_log_actions = False
-	sharp_vanilla_policy = False
 	sharp_random_policy = False
 	sharp_time_random = False
 	sharp_max_time = 5000

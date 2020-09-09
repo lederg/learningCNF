@@ -8,7 +8,7 @@ import ray
 import ray.experimental.tf_utils
 from ray.rllib.evaluation.sampler import _unbatch_tuple_actions
 from ray.rllib.models import ModelCatalog
-from ray.rllib.utils.filter import get_filter
+from ray.rllib.utils.filter import get_filter, NoFilter
 from ray.util.sgd.utils import TimerStat
 from custom_rllib_utils import *
 from rllib_sharp_models import SharpModel
@@ -46,13 +46,11 @@ def rollout(policy, env, fname, timestep_limit=None, add_noise=False):
 
 
 class TorchGNNPolicy:
-  def __init__(self, model, preprocessor, observation_filter):
+  def __init__(self, model):
     self.settings = CnfSettings()
     self.model = model
     self.num_params = np.sum([np.prod(x.shape) for x in self.model.parameters()])
-    self.preprocessor = preprocessor
-    self.observation_filter = get_filter(observation_filter,
-                                         self.preprocessor.shape)
+    self.observation_filter = NoFilter()
 
   def get_weights(self):
     return self.get_flat_weights()
@@ -79,11 +77,8 @@ class TorchGNNPolicy:
     self.observation_filter = observation_filter
 
 class SharpPolicy(TorchGNNPolicy):
-  def __init__(self, preprocessor,
-             observation_filter):
-
-    super(SharpPolicy, self).__init__(SharpModel(), preprocessor, observation_filter)
-    self.settings = CnfSettings()
+  def __init__(self):
+    super(SharpPolicy, self).__init__(SharpModel())
     self.time_hack = self.settings['sharp_time_random']
 
   def compute(self, observation):
@@ -100,11 +95,8 @@ class SharpPolicy(TorchGNNPolicy):
     return action
 
 class SATPolicy(TorchGNNPolicy):
-  def __init__(self, preprocessor,
-             observation_filter):
-
-    super(SATPolicy, self).__init__(SatActivityModel(), preprocessor, observation_filter)
-    self.settings = CnfSettings()
+  def __init__(self):
+    super(SATPolicy, self).__init__(SatActivityModel())
 
 # Returning logits for learnt clauses
 

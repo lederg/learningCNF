@@ -73,25 +73,24 @@ class Worker:
                policy_params,
                env_creator,
                noise,
+               is_eval,
                min_task_runtime=0.2):
     self.min_task_runtime = min_task_runtime
     self.config = config
     self.settings = CnfSettings()
     self.settings.hyperparameters = config['env_config']['settings']
+    self.is_eval = is_eval
     # self.train_uniform_items = OnePassProvider(self.settings['es_train_data']).items
     self.policy_params = policy_params
     self.noise = SharedNoiseTable(noise) if noise is not None else None
     self.env_creator = env_creator
     self.recreate_env = self.settings['recreate_env']
-    self.env = env_creator(config["env_config"])
-    from ray.rllib import models
-    self.preprocessor = models.ModelCatalog.get_preprocessor(
-      self.env, config["model"])
-
+    if not self.recreate_env:
+      self.env = env_creator(config["env_config"])    # Created once and for all for this worker
     if self.settings['solver'] == 'sharpsat':
-      self.policy = policies.SharpPolicy(self.preprocessor, config["observation_filter"])
+      self.policy = policies.SharpPolicy()
     elif self.settings['solver'] == 'sat_es':
-      self.policy = policies.SATPolicy(self.preprocessor, config["observation_filter"])
+      self.policy = policies.SATPolicy()
 
   @property
   def filters(self):
@@ -125,7 +124,7 @@ class Worker:
         add_noise=add_noise)
       rews.append(rollout_rewards)
       lens.append(rollout_length)
-      if params is not None:
+      if self.is_eval:
         print('Eval finished {} with {} steps'.format(fname,rollout_length))
       if self.recreate_env:
         self.env.exit()
@@ -201,7 +200,6 @@ class Worker:
 
     return conf, (returns,lengths)
 
-
 class ESTrainer(Trainer):
   """Large-scale implementation of Evolution Strategies in Ray."""
 
@@ -216,14 +214,11 @@ class ESTrainer(Trainer):
     self.provider=pcls(self.settings['es_train_data'])
 
     policy_params = {"action_noise_std": 0.01}    
-    env = env_creator(config["env_config"])
-    from ray.rllib import models
-    preprocessor = models.ModelCatalog.get_preprocessor(env)
 
     if self.settings['solver'] == 'sharpsat':
-      self.policy = policies.SharpPolicy(preprocessor, config["observation_filter"])
+      self.policy = policies.SharpPolicy()
     elif self.settings['solver'] == 'sat_es':
-      self.policy = policies.SATPolicy(preprocessor, config["observation_filter"])
+      self.policy = policies.SATPolicy()
     print('step size is: {}'.format(config["stepsize"]))
     self.optimizer = optimizers.Adam(self.policy, config["stepsize"])
     self.report_length = config["report_length"]
@@ -236,7 +231,7 @@ class ESTrainer(Trainer):
     # Create the actors.
     logger.info("Creating actors.")
     self._workers = [
-      Worker.remote(config, policy_params, env_creator, noise_id)
+      Worker.remote(config, policy_params, env_creator, noise_id, False)
       for _ in range(config["num_workers"])
     ]
 

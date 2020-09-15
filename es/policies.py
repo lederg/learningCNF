@@ -94,16 +94,22 @@ class SharpPolicy(TorchGNNPolicy):
       action = dist.sample().numpy()
     return action
 
+
 class SATPolicy(TorchGNNPolicy):
   def __init__(self):
     super(SATPolicy, self).__init__(SatActivityModel())
 
 # Returning logits for learnt clauses
+  def transform(sample):
+    G = sample['graph']
+    G.nodes['literal'].data['literal_feats'][:,1] = 2*G.nodes['literal'].data['literal_feats'][:,1] / G.nodes['literal'].data['literal_feats'].shape[0]
+    
+    return sample
 
   def compute(self, observation):
     input_dict = {
       'gss': observation.state,
       'graph': graph_from_arrays(observation.vlabels,observation.clabels,observation.adj_arrays)
     }
-    scores, _ = self.model(input_dict, state=None, seq_lens=None)
+    scores, _ = self.model(SATPolicy.transform(input_dict), state=None, seq_lens=None)
     return scores.detach().numpy()

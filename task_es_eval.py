@@ -65,7 +65,7 @@ def evaluate(steps, config, weights):
   settings = CnfSettings()
   settings.hyperparameters = config['env_config']['settings']
   n = settings['test_parallelism']
-  workers = [es.es.Worker.remote(config, {"action_noise_std": 0.01}, env_creator, None) for _ in range(n)]
+  workers = [es.es.Worker.remote(config, {"action_noise_std": 0.01}, env_creator, None, True) for _ in range(n)]
   params = ray.put(weights['default_policy'])
   fnames = OnePassProvider(settings['es_validation_data']).items
   parts_ids = [ray.put(list(x)) for x in np.array_split(np.array(fnames), n)]

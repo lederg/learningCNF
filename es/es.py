@@ -49,6 +49,7 @@ DEFAULT_CONFIG = with_common_config({
 def create_shared_noise(count):
   """Create a large array of noise to be shared by all workers."""
   seed = 123
+  print("noise size {}".format(count))
   noise = np.random.RandomState(seed).randn(count).astype(np.float32)
   return noise
 
@@ -72,24 +73,24 @@ class Worker:
                policy_params,
                env_creator,
                noise,
+               is_eval,
                min_task_runtime=0.2):
     self.min_task_runtime = min_task_runtime
     self.config = config
     self.settings = CnfSettings()
     self.settings.hyperparameters = config['env_config']['settings']
+    self.is_eval = is_eval
     # self.train_uniform_items = OnePassProvider(self.settings['es_train_data']).items
     self.policy_params = policy_params
     self.noise = SharedNoiseTable(noise) if noise is not None else None
     self.env_creator = env_creator
-    self.env = env_creator(config["env_config"])
-    from ray.rllib import models
-    self.preprocessor = models.ModelCatalog.get_preprocessor(
-      self.env, config["model"])
-
+    self.recreate_env = self.settings['recreate_env']
+    if not self.recreate_env:
+      self.env = env_creator(config["env_config"])    # Created once and for all for this worker
     if self.settings['solver'] == 'sharpsat':
-      self.policy = policies.SharpPolicy(self.preprocessor, config["observation_filter"])
+      self.policy = policies.SharpPolicy()
     elif self.settings['solver'] == 'sat_es':
-      self.policy = policies.SATPolicy(self.preprocessor, config["observation_filter"])
+      self.policy = policies.SATPolicy()
 
   @property
   def filters(self):
@@ -113,19 +114,20 @@ class Worker:
     rews = []
     lens = []
     for fname in fnames:
-      env = self.env_creator(self.config["env_config"])
+      if self.recreate_env:
+        self.env = self.env_creator(self.config["env_config"])
       rollout_rewards, rollout_length = policies.rollout(
         self.policy,
-        env,
-        # self.env,        
+        self.env,        
         fname,
         timestep_limit=timestep_limit,
         add_noise=add_noise)
       rews.append(rollout_rewards)
       lens.append(rollout_length)
-      if params is not None:
+      if self.is_eval:
         print('Eval finished {} with {} steps'.format(fname,rollout_length))
-      env.exit()
+      if self.recreate_env:
+        self.env.exit()
     return rews, lens
 
   # def evaluate(params, fnames)
@@ -198,7 +200,6 @@ class Worker:
 
     return conf, (returns,lengths)
 
-
 class ESTrainer(Trainer):
   """Large-scale implementation of Evolution Strategies in Ray."""
 
@@ -213,14 +214,11 @@ class ESTrainer(Trainer):
     self.provider=pcls(self.settings['es_train_data'])
 
     policy_params = {"action_noise_std": 0.01}    
-    env = env_creator(config["env_config"])
-    from ray.rllib import models
-    preprocessor = models.ModelCatalog.get_preprocessor(env)
 
     if self.settings['solver'] == 'sharpsat':
-      self.policy = policies.SharpPolicy(preprocessor, config["observation_filter"])
+      self.policy = policies.SharpPolicy()
     elif self.settings['solver'] == 'sat_es':
-      self.policy = policies.SATPolicy(preprocessor, config["observation_filter"])
+      self.policy = policies.SATPolicy()
     print('step size is: {}'.format(config["stepsize"]))
     self.optimizer = optimizers.Adam(self.policy, config["stepsize"])
     self.report_length = config["report_length"]
@@ -233,7 +231,7 @@ class ESTrainer(Trainer):
     # Create the actors.
     logger.info("Creating actors.")
     self._workers = [
-      Worker.remote(config, policy_params, env_creator, noise_id)
+      Worker.remote(config, policy_params, env_creator, noise_id, False)
       for _ in range(config["num_workers"])
     ]
 
@@ -352,7 +350,7 @@ class ESTrainer(Trainer):
   def _collect_results_dist(self, theta_id, sample_size):
     num_episodes, num_timesteps = 0, 0
     results = []
-    # do_eval = OneTimeSwitch()
+    # do_eval = OneTimeSwitch()    
     fnames = self.provider.sample(size=self.num_to_sample,replace=False)
     # fnames_id = ray.put(fnames)
     all_sample_noise = [self.noise.sample_index(self.policy.num_params) for _ in range(sample_size)]

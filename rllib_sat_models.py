@@ -12,7 +12,8 @@ import cadet_utils
 import utils
 from policy_base import *
 from settings import *
-from sat_env import *
+from dgl_encoders import *
+from ray.util.sgd.utils import TimerStat
 
 class SatThresholdModel(RLLibModel):
   def __init__(self, *args, **kwargs):  
@@ -56,3 +57,44 @@ class SatThresholdModel(RLLibModel):
   def value_function(self):
     return self._value_out.view(-1)
 
+class SatActivityModel(PolicyBase):
+  def __init__(self, *args, **kwargs):
+    super(SatActivityModel, self).__init__(*args)
+    encoder_class = eval(self.settings['sat_encoder_type'])
+    self.encoder = encoder_class(self.settings)
+    self.curr_fname = None
+    inp_size = 0
+    if self.settings['sat_add_embedding']:
+      inp_size += self.encoder.output_size()
+    if self.settings['sat_add_labels']:
+      inp_size += self.encoder.vlabel_dim
+    self.score_layer = MLPModel([inp_size*2,256,64,1])
+    # self.pad = torch.Tensor([torch.finfo().min])
+    self.timers = {k: TimerStat() for k in ["make_graph", "encoder", "score"]}
+
+
+  # cmat_net and cmat_pos are already "batched" into a single matrix
+  def forward(self, input_dict, state, seq_lens, es=True, **kwargs):
+    T = 0.25      # temprature from NeuroCore
+    K = 10000     # again from NeuroCore
+
+    with self.timers['make_graph']:
+      self.encoder.eval()
+      G = input_dict['graph']      
+      self._value_out = torch.zeros(1).expand(G.number_of_nodes('literal'))
+    with self.timers['encoder']:
+      vembs, cembs = self.encoder(G)    
+    out = []
+    if self.settings['sat_add_embedding']:
+      out.append(vembs)
+    if self.settings['sat_add_labels']:
+      out.append(lit_features)
+    with self.timers['score']:
+      prescore = torch.cat(out,dim=1)
+      var_prescore = prescore.reshape(-1,2*prescore.shape[1])
+      scores = self.score_layer(var_prescore).t()
+      scores = F.softmax(scores/T,dim=1)*K*scores.shape[1]
+    return scores, []
+
+  def value_function(self):
+    return self._value_out.view(-1)

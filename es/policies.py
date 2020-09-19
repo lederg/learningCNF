@@ -1,6 +1,6 @@
 # Code in this file is copied and adapted from
 # https://github.com/openai/evolution-strategies-starter.
-
+import ipdb
 import gym
 import numpy as np
 import torch
@@ -8,10 +8,11 @@ import ray
 import ray.experimental.tf_utils
 from ray.rllib.evaluation.sampler import _unbatch_tuple_actions
 from ray.rllib.models import ModelCatalog
-from ray.rllib.utils.filter import get_filter
+from ray.rllib.utils.filter import get_filter, NoFilter
 from ray.util.sgd.utils import TimerStat
 from custom_rllib_utils import *
 from rllib_sharp_models import SharpModel
+from rllib_sat_models import SatActivityModel
 from clause_model import ClausePredictionModel
 from settings import *
 from graph_utils import *
@@ -33,7 +34,7 @@ def rollout(policy, env, fname, timestep_limit=None, add_noise=False):
     observation = env.reset(fname=fname)
   for _ in range(timestep_limit or 999999):
     with timers['compute']:
-      ac = policy.compute(observation)[0]
+      ac = [-1] if policy.settings['es_vanilla_policy'] else policy.compute(observation)[0]
     with timers['step']:
       observation, rew, done, _ = env.step(ac)
     rews.append(rew)
@@ -45,13 +46,11 @@ def rollout(policy, env, fname, timestep_limit=None, add_noise=False):
 
 
 class TorchGNNPolicy:
-  def __init__(self, model, preprocessor, observation_filter):
+  def __init__(self, model):
     self.settings = CnfSettings()
     self.model = model
     self.num_params = np.sum([np.prod(x.shape) for x in self.model.parameters()])
-    self.preprocessor = preprocessor
-    self.observation_filter = get_filter(observation_filter,
-                                         self.preprocessor.shape)
+    self.observation_filter = NoFilter()
 
   def get_weights(self):
     return self.get_flat_weights()
@@ -78,16 +77,11 @@ class TorchGNNPolicy:
     self.observation_filter = observation_filter
 
 class SharpPolicy(TorchGNNPolicy):
-  def __init__(self, preprocessor,
-             observation_filter):
-
-    super(SharpPolicy, self).__init__(SharpModel(), preprocessor, observation_filter)
-    self.settings = CnfSettings()
+  def __init__(self):
+    super(SharpPolicy, self).__init__(SharpModel())
     self.time_hack = self.settings['sharp_time_random']
 
   def compute(self, observation):
-    if self.settings['sharp_vanilla_policy']:
-      return [-1]    
     if self.settings['sharp_random_policy']:
       return [np.random.randint(observation.ground.shape[0])]
     logits, _ = self.model(observation, state=None, seq_lens=None)
@@ -100,20 +94,22 @@ class SharpPolicy(TorchGNNPolicy):
       action = dist.sample().numpy()
     return action
 
-class SATPolicy(TorchGNNPolicy):
-  def __init__(self, preprocessor,
-             observation_filter):
 
-    super(SATPolicy, self).__init__(ClausePredictionModel(prediction=False), preprocessor, observation_filter)
-    self.settings = CnfSettings()
+class SATPolicy(TorchGNNPolicy):
+  def __init__(self):
+    super(SATPolicy, self).__init__(SatActivityModel())
 
 # Returning logits for learnt clauses
+  def transform(sample):
+    G = sample['graph']
+    G.nodes['literal'].data['literal_feats'][:,1] = 2*G.nodes['literal'].data['literal_feats'][:,1] / G.nodes['literal'].data['literal_feats'].shape[0]
+    
+    return sample
 
   def compute(self, observation):
     input_dict = {
       'gss': observation.state,
       'graph': graph_from_arrays(observation.vlabels,observation.clabels,observation.adj_arrays)
     }
-    logits, _ = self.model(input_dict, state=None, seq_lens=None)
-    
-    return logits
+    scores, _ = self.model(SATPolicy.transform(input_dict), state=None, seq_lens=None)
+    return scores.detach().numpy()

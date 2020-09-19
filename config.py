@@ -190,6 +190,7 @@ def cfg():
 	fixed_bn_std = 10.
 	hp_normalize_shift = True	
 	env_as_process = False
+	recreate_env = False
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated
 	EPS_DECAY = 2000  # deprecated
@@ -202,9 +203,15 @@ def cfg():
 	sat_min_reward = None
 	sat_win_scale = 2.
 	sat_reduce_base_provider = 'FixedReduceBaseProvider'
+	sat_add_labels = False
+	sat_add_embedding = True	
+	sat_encoder_type = 'GINEncoder'
 	sat_reduce_base = 2000
 	sat_rb_min = 1000
 	sat_rb_max = 4000	
+	sat_cb_type = 'gc_oracle'							# 'branching_oracle'
+	sat_trigger = 'step_cnt'							# 'op_cnt'
+	sat_trigger_freq = 200
 	sat_discrete_threshold_base = 2				# LBD thresholds start from this in SatDiscreteThresholdPolicy/SatFreeDiscretePolicy
 	sat_num_free_actions = 29 						# Number of lbd thresholds in SatFreeDiscretePolicy
 	minimum_episodes = 2
@@ -238,6 +245,7 @@ def cfg():
 	es_naive_stepsize = 1.
 	es_train_data = 'data/sat_100'
 	es_validation_data = 'data/sat_100'
+	es_vanilla_policy = False
 
 # Clause prediction
 	cp_cmask_features = [2]		# By default mask lbd
@@ -277,7 +285,6 @@ def cfg():
 	sharp_emb_dim = 32
 	sharp_decoded_emb_dim = 32
 	sharp_log_actions = False
-	sharp_vanilla_policy = False
 	sharp_random_policy = False
 	sharp_time_random = False
 	sharp_max_time = 5000

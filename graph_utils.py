@@ -1,12 +1,13 @@
 import dgl
 
+
 def graph_from_arrays(lit_features, clause_features, adj_arrays):
     # print(np.shape(list(zip(adj_arrays["cols_arr"], adj_arrays["rows_arr"]))))
     G = dgl.heterograph(
                 {('literal', 'l2c', 'clause') : list(zip(adj_arrays["cols_arr"], adj_arrays["rows_arr"])),
                  ('clause', 'c2l', 'literal') : list(zip(adj_arrays["rows_arr"], adj_arrays["cols_arr"]))},
                 {'literal': len(lit_features),
-                 'clause': len(clause_features)})
+                 'clause': adj_arrays['rows_arr'].max()+1})
 
     if lit_features is not None:
 	    G.nodes['literal'].data['literal_feats'] = lit_features

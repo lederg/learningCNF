@@ -51,6 +51,9 @@ class SatActiveESEnv:
     self.oracletype = oracletype
     self.gc_freq = self.settings['sat_gc_freq']
     self.disable_gnn = self.settings['disable_gnn']
+    self.cb_type = self.settings['sat_cb_type']
+    self.trigger = self.settings['sat_trigger']
+    self.trigger_freq = self.settings['sat_trigger_freq']
     self.formulas_dict = {}
     ProviderClass = eval(self.settings['sat_reduce_base_provider'])
     self.rb_provider = ProviderClass(self.settings)
@@ -71,14 +74,22 @@ class SatActiveESEnv:
     def thunk():      
       return self.__callback()
 
-    gc_oracle = {"callback": thunk, "policy": self.oracletype}
-    if self.solver is None:
-      # print('reduce_base is {}'.format(self.reduce_base))
-      # self.solver = Minisat22(callback=thunk)
-      self.solver = Glucose3(reduce_base=self.rb_provider.get_reduce_base(), gc_freq=self.gc_freq, gc_oracle=gc_oracle)
-    else:
+
+    if self.solver is not None:
       self.solver.delete()
-      self.solver.new(reduce_base=self.rb_provider.get_reduce_base(), gc_freq=self.gc_freq, gc_oracle=gc_oracle)
+      del self.solver
+
+    kwargs = {}
+    if self.cb_type == 'gc_oracle':
+      sat_oracle = {"callback": thunk, "policy": self.oracletype}
+      kwargs['reduce_base'] = self.rb_provider.get_reduce_base()
+      kwargs['gc_freq'] = self.gc_freq
+    elif self.cb_type == 'branching_oracle':
+      sat_oracle = {"callback": thunk, "trigger": self.trigger, "trigger_freq": self.trigger_freq}
+    else:
+      assert False, 'Bad oracle type {}'.format(self.cb_type)
+    kwargs[self.cb_type] = sat_oracle
+    self.solver = Glucose3(**kwargs)
     self.current_step = 0
     if fname:
       try:
@@ -98,12 +109,21 @@ class SatActiveESEnv:
 
   def get_vlabels(self):
     return self.solver.get_var_labels()
+  
+  def get_lit_labels(self):
+    return self.solver.get_lit_labels()
 
   def get_clabels(self, clause_type='all'):
     return self.solver.get_cl_labels(clause_type)
 
   def get_global_state(self):
-    return self.solver.get_solver_state()
+    if self.cb_type == 'branching_oracle':
+      return None
+    elif self.cb_type == 'gc_oracle':
+      return self.solver.get_solver_state()
+    else:
+      assert False, 'Bad oracle type'
+
 
   def get_reward(self):
     return self.solver.reward()
@@ -112,8 +132,9 @@ class SatActiveESEnv:
     self.current_step += 1
       # adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
     gss = self.get_global_state()
-    clabels = self.get_clabels()
-    vlabels = self.get_vlabels()
+    # clabels = self.get_clabels()
+    clabels = None
+    vlabels = self.get_lit_labels()   # Note, vlabels are actually -literal- labels  
     adj_arrays = self.get_adj_arrays()
     try:
       return self.server.callback(gss, vlabels, clabels, adj_arrays)
@@ -132,14 +153,14 @@ class SatESEnvProxy(EnvBase):
     self.queue_in = config['queue_in']
     self.queue_out = config['queue_out']
     self.provider = config['provider']
-    self.state = torch.zeros(8)
+    self.current_step = 0
     self.orig_clabels = None
     self.rewards = None
     self.finished = False
     self.reward_scale = self.settings['sat_reward_scale']
     self.disable_gnn = self.settings['disable_gnn']
-    self.sat_min_reward = self.settings['sat_min_reward']
-    self.server_pid = config['server_pid']
+    self.sat_min_reward = self.settings['sat_min_reward']    
+    self.max_step = self.settings['max_step']    
     self.logger = utils.get_logger(self.settings, 'SatESEnvProxy')
 
   def step(self, action):
@@ -151,6 +172,7 @@ class SatESEnvProxy(EnvBase):
     if env_obs.reward:      
       r = env_obs.reward / self.reward_scale
       self.rewards.append(r)    
+    self.current_step += 1
     # if env_obs.done:
     #   print('Env returning DONE, number of rewards is {}'.format(len(self.rewards)))
     return env_obs, r, env_obs.done or self.check_break(), {}
@@ -160,6 +182,7 @@ class SatESEnvProxy(EnvBase):
       fname = self.provider.get_next()
     # print('reset: Got formula: {}'.format(fname))
     self.finished = False
+    self.current_step = 0
     self.rewards = []
     self.queue_out.put((EnvCommands.CMD_RESET,fname))
     ack, rc = self.queue_in.get()
@@ -252,7 +275,6 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
     config = kwargs
     config['queue_out'] = self.queue_in
     config['queue_in'] = self.queue_out
-    config['server_pid'] = self.pid
     return SatESEnvProxy(config)
 
   def run(self):
@@ -278,7 +300,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
       else:
         self.cmd, fname = self.queue_in.get()
         if self.cmd == EnvCommands.CMD_EXIT:
-          print('Got CMD_EXIT 1')
+          # print('Got CMD_EXIT 1')
           self.queue_out.put((EnvCommands.ACK_EXIT,None))
           break
         assert self.cmd == EnvCommands.CMD_RESET, 'Unexpected command {}'.format(self.cmd)
@@ -291,6 +313,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
 
       if self.env.start_solver(fname):
         self.env.solver.solve()
+        # print('Done with {} in {} steps'.format(fname,self.env.current_step))
       else:
         print('Skipping {}'.format(fname))
 
@@ -317,7 +340,6 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
 
 
   def callback(self, gss, vlabels, clabels, adj_arrays):
-    self.env.current_step += 1
     msg = self.env.EnvObservation(gss, vlabels, clabels, adj_arrays, None, False)
     if self.cmd == EnvCommands.CMD_RESET:
       # if not self.disable_gnn:

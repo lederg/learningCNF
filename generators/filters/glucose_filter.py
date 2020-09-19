@@ -34,7 +34,7 @@ class GlucoseFilter(FilterBase):
         cnf = CNF()
         cnf.from_file(fname)
 
-        glucose = Glucose3(gc_oracle = {"callback": lambda *args: None, "policy":"glucose"}, gc_freq="fixed", reduce_base=self.reduce_base)
+        glucose = Glucose3(gc_oracle = {"callback": lambda *args: None, "policy":"glucose"}, gc_freq="fixed", reduce_base=self.reduce_base, use_timer=True)
         glucose.append_formula(cnf.clauses)
         glucose.time_budget(self.time_max)
         solver_result = glucose.solve_limited()

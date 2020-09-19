@@ -23,6 +23,7 @@ from samplers.word_sampler import *
 from samplers.grid_sampler import *
 from samplers.ecarev_sampler import *
 from samplers.sudoku_sampler import *
+from samplers.sha_sampler import *
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s')
 log = logging.getLogger(__name__)
@@ -36,6 +37,8 @@ def get_sampler(config):
         return SudokuSampler(**config)
     if config['sampler'] == 'ecarev':
         return EcarevSampler(**config)
+    if config['sampler'] == 'sha':
+        return SHASampler(**config)
     else:
         assert False, 'WHHAAT?'
 
@@ -77,7 +80,7 @@ def generate_from_sampler(config):
         else:
             with suppress(FileNotFoundError):
                 os.remove(candidate)
-                if extra_data is not None:                
+                if extra_data is not None:
 	                os.remove(extra_data)
             stats_dict = {}
 

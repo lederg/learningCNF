@@ -19,7 +19,7 @@ sample usage:
 >>> filter.filter(file_path)
 """
 class SharpSATFilter(FilterBase):
-    def __init__(self, steps_min = 30, time_min = 0.15, time_max = 2, steps_max=1000, count_max=-1, **kwargs):
+    def __init__(self, steps_min = 20, time_min = 0.15, time_max = 10, steps_max=1000, count_max=-1, **kwargs):
         FilterBase.__init__(self, **kwargs)
         self.steps_min = int(steps_min)
         self.steps_max = int(steps_max)
@@ -34,7 +34,6 @@ class SharpSATFilter(FilterBase):
             if z.startswith('p cnf 0 1'):
                 self.log.info('{}: degenerate'.format(fname))
                 return False
-
 
         sharpSAT = SharpSAT(time_budget = self.time_max, use_timer= True)
         count = sharpSAT.solve(fname)

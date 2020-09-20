@@ -24,6 +24,7 @@ from samplers.grid_sampler import *
 from samplers.ecarev_sampler import *
 from samplers.sudoku_sampler import *
 from samplers.sha_sampler import *
+from samplers.queens_sampler import *
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s')
 log = logging.getLogger(__name__)
@@ -31,14 +32,16 @@ log = logging.getLogger(__name__)
 def get_sampler(config):
     if config['sampler'] == 'word':
       return WordSampler(**config)
-    if config['sampler'] == 'grid':
+    elif config['sampler'] == 'grid':
         return GridSampler(**config)
-    if config['sampler'] == 'sudoku':
+    elif config['sampler'] == 'sudoku':
         return SudokuSampler(**config)
-    if config['sampler'] == 'ecarev':
+    elif config['sampler'] == 'ecarev':
         return EcarevSampler(**config)
-    if config['sampler'] == 'sha':
+    elif config['sampler'] == 'sha':
         return SHASampler(**config)
+    elif config['sampler'] == 'queens':
+        return QueensSampler(**config)
     else:
         assert False, 'WHHAAT?'
 

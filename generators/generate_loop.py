@@ -25,6 +25,7 @@ from samplers.ecarev_sampler import *
 from samplers.sudoku_sampler import *
 from samplers.sha_sampler import *
 from samplers.queens_sampler import *
+from samplers.FOND_sampler import *
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s')
 log = logging.getLogger(__name__)
@@ -42,6 +43,8 @@ def get_sampler(config):
         return SHASampler(**config)
     elif config['sampler'] == 'queens':
         return QueensSampler(**config)
+    elif config['sampler'] == 'fond':
+        return FONDSampler(**config)
     else:
         assert False, 'WHHAAT?'
 

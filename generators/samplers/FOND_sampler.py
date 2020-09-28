@@ -12,6 +12,8 @@ from samplers.sampler_base import SamplerBase
 
 from samplers.FOND.pddl_to_cnf import toCNF
 from samplers.FOND.generators.island_gen import *
+from samplers.FOND.generators.miner_gen import *
+from samplers.FOND.generators.blocks_gen import *
 
 class FONDSampler(SamplerBase):
     def __init__(self, domain, state_cnt = 1, seed=None, **kwargs):
@@ -30,6 +32,10 @@ class FONDSampler(SamplerBase):
         self.state_cnt = int(state_cnt)
         if domain == 'island':
             self.generator = IslandGen(**kwargs)
+        elif domain == 'miner':
+            self.generator = MinerGen(**kwargs)
+        elif domain == 'blocks':
+            self.generator = BlocksGen(**kwargs)
         else:
             assert False, 'Wrong FOND_GEN!!!'
 

@@ -69,7 +69,7 @@ class MyTask():
 	def set_atoms(self, atoms, debug = False):
 		"""Set of all atoms"""
 		self.atoms = atoms
-		print('# Atoms: %i' % len(atoms))
+		# print('# Atoms: %i' % len(atoms))
 		if debug:
 			print('Set atoms: %s' % str(self.atoms))
 
@@ -88,10 +88,10 @@ class MyTask():
 	def set_actions_atomic(self, actions, debug = False):
 		"""Actions"""
 		self.actions = actions
-		print('# Actions: %i' % len(actions))
-		print('\tSetting other actions')
+		# print('# Actions: %i' % len(actions))
+		# print('\tSetting other actions')
 		self.generate_other_actions()
-		print('\tSetting action card')
+		# print('\tSetting action card')
 		self.generate_action_cardinality()
 		if debug:
 			for a in self.actions:

@@ -5,6 +5,7 @@ import re
 # from IPython.core.debugger import Tracer
 import numpy as np
 from subprocess import Popen, PIPE, STDOUT
+import io
 
 MAX_CLAUSES_PER_VARIABLE = 30000
 
@@ -21,24 +22,32 @@ def clause_to_string(c):
 def sign(x):
     return x and (1, -1)[x < 0]
 
-def write_to_file(maxvar, clause_list, filename, universals=set()):
-    textfile = open(filename, "w")
-    textfile.write('p cnf {} {}\n'.format(maxvar,len(clause_list)))
+def write_to_string(maxvar, clause_list, universals=set()):
+    output = io.StringIO()
+    output.write('p cnf {} {}\n'.format(maxvar,len(clause_list)))
 
     if len(universals) > 0:
-        textfile.write('a')
+        output.write('a')
         for u in universals:
-            textfile.write(' {}'.format(u))
-        textfile.write(' 0\n')
-        textfile.write('e')
+            output.write(' {}'.format(u))
+        output.write(' 0\n')
+        output.write('e')
         for v in range(1,maxvar+1):
             if v not in universals:
-                textfile.write(' {}'.format(v))
-        textfile.write(' 0\n')
-    # textfile.write('p cnf ' + str(maxvar) + ' ' + str(len(clause_list)) + '\n')
+                output.write(' {}'.format(v))
+        output.write(' 0\n')
+    # output.write('p cnf ' + str(maxvar) + ' ' + str(len(clause_list)) + '\n')
     for c in clause_list:
-        textfile.write(clause_to_string(c))
+        output.write(clause_to_string(c))
+    rc = output.getvalue()
+    output.close()
+    return rc
+
+def write_to_file(maxvar, clause_list, filename, universals=set()):
+    textfile = open(filename, "w")
+    textfile.write(write_to_string(maxvar,clause_list,universals=universals))
     textfile.close()
+
 
 
 def extract_num_conflicts(s):

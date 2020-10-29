@@ -38,7 +38,7 @@ nbconvert==5.2.1
 nbformat==4.3.0
 networkx==2.0
 nevergrad==0.2.2
-notebook==5.0.0
+notebook==5.7.8
 numpy==1.16.2
 olefile==0.44
 pandas==0.24.2

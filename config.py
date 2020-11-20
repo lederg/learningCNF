@@ -206,12 +206,15 @@ def cfg():
 	sat_add_labels = False
 	sat_add_embedding = True	
 	sat_encoder_type = 'GINEncoder'
+	sat_decode_class = 'TimestepModel'
+	sat_decode = False
 	sat_reduce_base = 2000
 	sat_rb_min = 1000
 	sat_rb_max = 4000	
 	sat_cb_type = 'gc_oracle'							# 'branching_oracle'
-	sat_trigger = 'step_cnt'							# 'op_cnt'
+	sat_trigger = 'step_cnt'							# 'op_cnt', 'conflicts'
 	sat_trigger_freq = 200
+	sat_trigger_num = 0
 	sat_discrete_threshold_base = 2				# LBD thresholds start from this in SatDiscreteThresholdPolicy/SatFreeDiscretePolicy
 	sat_num_free_actions = 29 						# Number of lbd thresholds in SatFreeDiscretePolicy
 	minimum_episodes = 2

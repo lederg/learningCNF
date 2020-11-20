@@ -1,7 +1,7 @@
 import os
 import sys
 import argparse
-# import ipdb
+import ipdb
 import functools
 import pickle
 import numpy as np
@@ -14,7 +14,9 @@ from bidict import bidict
 # from gen_utils import random_string
 from cnf_tools import write_to_string, write_to_file
 
-def aiger2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
+def aiger2cnf(circ, horizon, *, truth_strategy='all', fresh=None):
+  if truth_strategy is None:
+    truth_strategy = 'all'
   if fresh is None:
     max_var = 0
 
@@ -23,7 +25,7 @@ def aiger2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
       max_var += 1
       return max_var
   
-  inputs = circ.inputs
+  print('Using truth strategy: {}'.format(truth_strategy))
   step, old2new_lmap = circ.cutlatches()
   init = dict(old2new_lmap.values())
   states = set(init.keys())    
@@ -43,7 +45,7 @@ def aiger2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
   for time in range(horizon):
     # Only remember states.        
     gate2lit = ACNF.cnf.SymbolTable(fresh,fn.project(gate2lit, state_inputs))
-    start_len = len(gate2lit)
+    # start_len = len(gate2lit)
     for gate in cmn.eval_order(step.aig):
       if isinstance(gate, A.aig.Inverter):
         gate2lit[gate] = -gate2lit[gate.input]                
@@ -60,14 +62,19 @@ def aiger2cnf(circ, horizon, *, fresh=None, truth_strategy='last'):
     outlits.extend([gate2lit[step.aig.node_map[o]] for o in circ.aig.outputs])
     for s in states:
         assert step.aig.node_map[s] in gate2lit.keys()
-        gate2lit[A.aig.Input(s)] = gate2lit[step.aig.node_map[s]]
-    for v in gate2lit.values():          
-      timestep_mapping[abs(v)] = time
+        gate2lit[A.aig.Input(s)] = gate2lit[step.aig.node_map[s]]        
+    for k,v in gate2lit.items():
+      if abs(v) not in timestep_mapping.keys():
+        timestep_mapping[abs(v)] = time
+      # elif timestep_mapping[abs(v)]!=time:
+      #   print('Not reassigning {} from {} to {}'.format(abs(v),timestep_mapping[abs(v)],time))
   if truth_strategy == 'all':
     for lit in outlits:
       clauses.append((lit,))
   elif truth_strategy == 'last':
     clauses.append((outlits[-1],))
+  elif truth_strategy == 'any':
+    clauses.append(tuple(outlits))
   else:
     raise "Help!"
 
@@ -78,12 +85,17 @@ def main(args):
   print('Parsing...')
   circuit = A.to_aig(args.file if args.file else sys.stdin.read())  
   print('\nUnrolling {} steps...\n'.format(args.timestep))
-  cnf, step_mapping = aiger2cnf(circuit,args.timestep)
+  cnf, step_mapping = aiger2cnf(circuit,args.timestep,truth_strategy=args.truth_strategy)
   maxvar = max([max([abs(y) for y in x]) for x in cnf.clauses])
   if args.out:
     write_to_file(maxvar, cnf.clauses,args.out)
+    if args.annotate_step:
+      annotation_fname = '{}.annt'.format(os.path.splitext(args.out)[0])
+      with open(annotation_fname,'wb') as f:
+        pickle.dump(step_mapping, f)
   else:
     print(write_to_string(maxvar, cnf.clauses))
+
 
 
 
@@ -91,6 +103,7 @@ if __name__=='__main__':
     sys.setrecursionlimit(5000)
     parser = argparse.ArgumentParser(description='Convert AIGER ascii format to CNF and annotate')    
     parser.add_argument('-d', '--destination_dir', type=str, default=os.curdir, help='destination directory')
+    parser.add_argument('-s', '--truth_strategy', type=str, default=None, help='destination directory')
     parser.add_argument('-f', '--file', type=str, default=None, help='Read input from file')
     parser.add_argument('-o', '--out', type=str, default=None, help='Output to file')
     parser.add_argument('-t', '--timestep', type=int, default=1, help='Unroll horizon')

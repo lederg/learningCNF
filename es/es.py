@@ -405,6 +405,6 @@ class ESTrainer(Trainer):
     self.episodes_so_far = state["episodes_so_far"]
     self.policy.set_weights(state["weights"])
     self.policy.set_filter(state["filter"])
-    FilterManager.synchronize({
-      DEFAULT_POLICY_ID: self.policy.get_filter()
-    }, self._workers)
+    # FilterManager.synchronize({
+    #   DEFAULT_POLICY_ID: self.policy.get_filter()
+    # }, self._workers)

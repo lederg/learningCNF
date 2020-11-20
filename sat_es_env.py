@@ -50,6 +50,7 @@ class SatActiveESEnv:
     self.current_step = 0
     self.oracletype = oracletype
     self.gc_freq = self.settings['sat_gc_freq']
+    self.trigger_num = self.settings['sat_trigger_num']
     self.disable_gnn = self.settings['disable_gnn']
     self.cb_type = self.settings['sat_cb_type']
     self.trigger = self.settings['sat_trigger']
@@ -85,7 +86,7 @@ class SatActiveESEnv:
       kwargs['reduce_base'] = self.rb_provider.get_reduce_base()
       kwargs['gc_freq'] = self.gc_freq
     elif self.cb_type == 'branching_oracle':
-      sat_oracle = {"callback": thunk, "trigger": self.trigger, "trigger_freq": self.trigger_freq}
+      sat_oracle = {"callback": thunk, "trigger": self.trigger, "trigger_freq": self.trigger_freq, "trigger_count": self.trigger_num}
     else:
       assert False, 'Bad oracle type {}'.format(self.cb_type)
     kwargs[self.cb_type] = sat_oracle

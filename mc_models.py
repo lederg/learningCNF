@@ -119,7 +119,6 @@ class GridModel3(GridModelBase):
     grid = torch.from_numpy(world_to_features(self.world, self.start_pos)).float()
     global_grid = self(grid)
     s1, s2 = vembs.shape
-    ipdb.set_trace()
     K = global_grid[:,:,:self.vemb_dim]
     V = global_grid[:,:,self.vemb_dim:]
     z = vembs.reshape(s1,1,1,s2).expand(s1,self.size,self.size,s2)

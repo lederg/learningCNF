@@ -186,18 +186,17 @@ class GINEncoder(DGLEncoder):
 
   def forward(self, G, **kwargs):
     if self.vlabel_dim:
-      literals = self.literal_features_layer(torch.Tensor(G.nodes['literal'].data['literal_feats']) / np.sqrt(self.d))
+      literals = self.literal_features_layer(torch.Tensor(G.nodes['literal'].data['literal_feats'])) / np.sqrt(self.d)
     else:
       literals = self.L_init.expand(G.number_of_nodes('literal'), self.d) / np.sqrt(self.d)
     if self.clabel_dim:
-      clauses = self.clause_features_layer(torch.Tensor(G.nodes['clause'].data['clause_feats']) / np.sqrt(self.d))
+      clauses = self.clause_features_layer(torch.Tensor(G.nodes['clause'].data['clause_feats'])) / np.sqrt(self.d)
     else:
       clauses = self.C_init.expand(G.number_of_nodes('clause'), self.d) / np.sqrt(self.d)
     
     G.nodes['literal'].data['literal_embs'] = literals
     G.nodes['clause'].data['clause_embs'] = clauses
 
-    # ipdb.set_trace()
     for i in range(self.max_iters):        
       G['l2c'].update_all(fn.copy_src('literal_embs', 'm'), self.aggregate('m', 'h'))
       pre_cembs = (self.epsilon+1)*G.nodes['clause'].data['clause_embs'] + G.nodes['clause'].data['h']      

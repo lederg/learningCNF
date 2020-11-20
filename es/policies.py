@@ -30,11 +30,13 @@ def rollout(policy, env, fname, timestep_limit=None, add_noise=False):
     timestep_limit, env_timestep_limit))
   rews = []
   t = 0
+  print('starting with {}'.format(fname))
   with timers['reset']:
     observation = env.reset(fname=fname)
   for _ in range(timestep_limit or 999999):
+    # ipdb.set_trace()
     with timers['compute']:
-      ac = [-1] if policy.settings['es_vanilla_policy'] else policy.compute(observation)[0]
+      ac = -1.0 if policy.settings['es_vanilla_policy'] else policy.compute(observation)[0]
     with timers['step']:
       observation, rew, done, _ = env.step(ac)
     rews.append(rew)
@@ -42,6 +44,8 @@ def rollout(policy, env, fname, timestep_limit=None, add_noise=False):
     if done:
       break
   rews = np.array(rews, dtype=np.float32)  
+  print('finished with {}, reward is {}'.format(fname,rews))
+
   return rews, t
 
 

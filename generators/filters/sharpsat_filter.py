@@ -40,7 +40,7 @@ class SharpSATFilter(FilterBase):
 
         message = ""
         res = True
-        if (count == 0):
+        if (count == None or count == 0):
             message = f"{fname}: UNSAT"
             res = False
         if (sharpSAT.reward() < self.steps_min):

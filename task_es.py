@@ -127,7 +127,7 @@ class ESMainLoop():
     config['gamma'] = float(self.settings['gamma'])
     config["model"] = {"custom_model": model_name}
     # config['use_pytorch'] = True
-    config['lr'] = float(self.settings['init_lr'])
+    config['stepsize'] = float(self.settings['init_lr'])
     config["env_config"]={'settings': settings.hyperparameters.copy(), 'formula_dir': self.settings['rl_train_data'], 'eval': False}
     if settings['use_seed']:
       config['seed'] = int(settings['use_seed'])

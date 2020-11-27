@@ -34,9 +34,10 @@ DEFAULT_CONFIG = with_common_config({
   "episodes_per_batch": 1000,
   "train_batch_size": 10000,
   "eval_prob": 0.003,
-  "return_proc_mode": "centered_rank",
+  # "return_proc_mode": "centered_rank",
+  "return_proc_mode": "centered",
   "num_workers": 10,
-  "stepsize": 0.01,             # NOTE: This overrides settings['init_lr'] !!!
+  "stepsize": 0.01,             # NOTE: settings['init_lr'] overrides this
   "observation_filter": "MeanStdFilter",
   "noise_size": 250000000,
   "report_length": 10,
@@ -276,6 +277,9 @@ class ESTrainer(Trainer):
     # Process the returns.    
     if config["return_proc_mode"] == "centered_rank":
       proc_noisy_returns = es_utils.compute_centered_ranks(noisy_returns)
+    elif config["return_proc_mode"] == "centered":
+      noisy_returns -= noisy_returns.mean()
+      proc_noisy_returns = noisy_returns / noisy_returns.std()
     else:
       raise NotImplementedError(config["return_proc_mode"])
 

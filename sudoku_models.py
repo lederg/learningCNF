@@ -1,10 +1,11 @@
+import os
 import sys
 import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init as nn_init
-sys.path.append('./generators')
+sys.path.append(os.getcwd()+'/generators')
 from samplers.sudoku_sampler import var2rcn, rcn2var
 from utils import *
 from settings import *

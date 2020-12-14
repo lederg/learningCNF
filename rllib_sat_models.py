@@ -69,6 +69,7 @@ class AnnotationModelBase(nn.Module):
     self.settings = CnfSettings()
     self.curr_fname = None
     self.time_mapping = None
+    self.max_time = 0
     self._size = 0
 
   @property
@@ -80,6 +81,7 @@ class AnnotationModelBase(nn.Module):
     with open(fname,'rb') as f:
       a = pickle.load(f)
       self.time_mapping = [y[1] for y in sorted(list(a.items()), key=lambda x:x[0])]
+      self.max_time = max(self.time_mapping)
 
 
 class TimestepModel(AnnotationModelBase):
@@ -87,6 +89,7 @@ class TimestepModel(AnnotationModelBase):
     super(TimestepModel, self).__init__()
     self.MAX_TIMESTEP = 20
     self._size = 1
+    self.invert = self.settings['sat_decode_invert']
   # data is numpy array
   # literal_mapping is Tensor.
   # I know.
@@ -95,7 +98,11 @@ class TimestepModel(AnnotationModelBase):
     if fname != self.curr_fname:
       self.curr_fname = fname
       self.update_from_file()  
-    decoded_vembs = torch.Tensor(self.time_mapping).reshape(-1,1) / self.MAX_TIMESTEP
+
+    decoded_vembs = torch.Tensor(self.time_mapping).reshape(-1,1)
+    if self.invert:
+      decoded_vembs = self.max_time - decoded_vembs
+    decoded_vembs = decoded_vembs / self.MAX_TIMESTEP     
     return decoded_vembs
 
   @property

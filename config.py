@@ -207,6 +207,7 @@ def cfg():
 	sat_add_embedding = True	
 	sat_encoder_type = 'GINEncoder'
 	sat_decode_class = 'TimestepModel'
+	sat_decode_invert = False
 	sat_decode = False
 	sat_reduce_base = 2000
 	sat_rb_min = 1000

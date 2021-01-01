@@ -56,6 +56,7 @@ class SatActiveESEnv:
     self.trigger = self.settings['sat_trigger']
     self.trigger_freq = self.settings['sat_trigger_freq']
     self.formulas_dict = {}
+    self.exp_freq = self.trigger_num == 0
     ProviderClass = eval(self.settings['sat_reduce_base_provider'])
     self.rb_provider = ProviderClass(self.settings)
     self._name = 'SatEnv'
@@ -86,7 +87,7 @@ class SatActiveESEnv:
       kwargs['reduce_base'] = self.rb_provider.get_reduce_base()
       kwargs['gc_freq'] = self.gc_freq
     elif self.cb_type == 'branching_oracle':
-      sat_oracle = {"callback": thunk, "trigger": self.trigger, "trigger_freq": self.trigger_freq, "trigger_count": self.trigger_num}
+      sat_oracle = {"callback": thunk, "trigger": self.trigger, "next_trigger": self.trigger_freq}
     else:
       assert False, 'Bad oracle type {}'.format(self.cb_type)
     kwargs[self.cb_type] = sat_oracle
@@ -131,6 +132,13 @@ class SatActiveESEnv:
 
   def __callback(self):
     self.current_step += 1
+    if self.exp_freq:
+      self.trigger_freq *= 2
+    else:
+      self.trigger_num -= 1
+      if self.trigger_num <= 0:
+        self.trigger_freq = -1        # No more callbacks
+    self.solver.set_next_trigger(self.trigger_freq)
       # adj_matrix = csr_matrix((data_arr, (rows_arr, cols_arr)))
     gss = self.get_global_state()
     # clabels = self.get_clabels()

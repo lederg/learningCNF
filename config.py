@@ -190,7 +190,7 @@ def cfg():
 	fixed_bn_std = 10.
 	hp_normalize_shift = True	
 	env_as_process = False
-	recreate_env = False
+	recreate_env = True
 	EPS_START = 0.9  # deprecated
 	EPS_END = 0.03  # deprecated
 	EPS_DECAY = 2000  # deprecated
@@ -215,7 +215,7 @@ def cfg():
 	sat_cb_type = 'gc_oracle'							# 'branching_oracle'
 	sat_trigger = 'step_cnt'							# 'op_cnt', 'conflicts'
 	sat_trigger_freq = 200
-	sat_trigger_num = 0
+	sat_trigger_num = 0									# 0 means exponential, where sat_trigger_freq is the initial value
 	sat_discrete_threshold_base = 2				# LBD thresholds start from this in SatDiscreteThresholdPolicy/SatFreeDiscretePolicy
 	sat_num_free_actions = 29 						# Number of lbd thresholds in SatFreeDiscretePolicy
 	minimum_episodes = 2

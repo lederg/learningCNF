@@ -54,6 +54,7 @@ class SatActiveESEnv:
     self.disable_gnn = self.settings['disable_gnn']
     self.cb_type = self.settings['sat_cb_type']
     self.trigger = self.settings['sat_trigger']
+    self.initial_trigger_freq = self.settings['sat_trigger_freq']
     self.trigger_freq = self.settings['sat_trigger_freq']
     self.formulas_dict = {}
     self.exp_freq = self.trigger_num == 0
@@ -319,7 +320,7 @@ class SatESEnvServer(mp.Process if CnfSettings()['env_as_process'] else threadin
 
       # This call does not return until the episodes is done. Messages are going to be exchanged until then through
       # the __callback method
-
+      self.env.trigger_freq = self.env.initial_trigger_freq
       if self.env.start_solver(fname):
         self.env.solver.solve()
         # print('Done with {} in {} steps'.format(fname,self.env.current_step))

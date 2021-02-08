@@ -7,6 +7,8 @@ import numpy as np
 import time
 import itertools
 import ray
+import tracemalloc
+import gc
 from ray.rllib.agents import Trainer, with_common_config
 
 from ray.rllib.agents.es import optimizers
@@ -81,6 +83,7 @@ class Worker:
     self.settings = CnfSettings()
     self.settings.hyperparameters = config['env_config']['settings']
     self.is_eval = is_eval
+    self.total_episodes = 0
     # self.train_uniform_items = OnePassProvider(self.settings['es_train_data']).items
     self.policy_params = policy_params
     self.noise = SharedNoiseTable(noise) if noise is not None else None
@@ -92,6 +95,8 @@ class Worker:
       self.policy = policies.SharpPolicy()
     elif self.settings['solver'] == 'sat_es':
       self.policy = policies.SATPolicy()
+    if self.settings['memory_profiling']:
+      tracemalloc.start(25)          
 
   @property
   def filters(self):
@@ -198,6 +203,17 @@ class Worker:
 
     returns = [np.sum(rewards_pos), np.sum(rewards_neg)]
     lengths = [lengths_pos, lengths_neg]
+
+
+    self.total_episodes += 1
+    if self.settings['memory_profiling'] and (self.total_episodes % 5 == 1):    
+      snapshot = tracemalloc.take_snapshot()
+      top_stats = snapshot.statistics('lineno')
+      print("[ Top 20 in {}]")
+      for stat in top_stats[:20]:
+          print(stat)
+      # objects = gc.get_objects()
+      # print('Number of objects is {}'.format(len(objects)))
 
     return conf, (returns,lengths)
 

@@ -30,17 +30,17 @@ def cfg():
 	max_variables = 200 
 	max_clauses = 600
 	num_ground_variables = 3 
-	data_mode = DataMode.SAT
+	data_mode = DataMode.NORMAL
 	data_dir = 'data/'
 	dataset = 'boolean8'
 	model_dir = 'saved_models'
 	# 'base_model = 'saved_models/run_bigsat_50_4_nc2_bs40_ed4_iters8__1508199570_epoch200.model'
 	base_model = None
 	base_mode = BaseMode.ALL
-	max_iters = 12
+	max_iters = 4
 	batch_size = 64
 	val_size = 100 
-	threshold = 10
+	threshold = 30
 	init_lr = 0.001
 	# 'init_lr = 0.0004
 	decay_lr = 0.055
@@ -65,9 +65,10 @@ def cfg():
 	split = False
 	# 'cuda = True 
 	cuda = False
+	use_gru = False
 	reset_on_save = False
 
-
+	non_linearity = 'torch.tanh'
 	run_task='train'
 
 	max_edges = 20
@@ -89,11 +90,11 @@ def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):
 		exit()
 
 
-	# pdb.set_trace()
-	# ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
-	# ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=0, ref_dataset=ds1, mode=data_mode)
-	ns1 = CnfDataset.from_dimacs('data/train_big_10/sat/', 'data/train_big_10/unsat/', max_size=100, sparse=settings['sparse'])
-	ns2 = CnfDataset.from_dimacs('data/validation_10/sat/', 'data/validation_10/unsat/', max_size=100, sparse=settings['sparse'])
+	# ipdb.set_trace()
+	ds1 = CnfDataset.from_eqparser(DS_TRAIN_FILE,mode=data_mode, threshold=threshold)
+	ds2 = CnfDataset.from_eqparser(DS_VALIDATION_FILE, threshold=0, ref_dataset=ds1, mode=data_mode)
+	# ns1 = CnfDataset.from_dimacs('data/train_big_10/sat/', 'data/train_big_10/unsat/', max_size=100, sparse=settings['sparse'])
+	# ns2 = CnfDataset.from_dimacs('data/validation_10/sat/', 'data/validation_10/unsat/', max_size=100, sparse=settings['sparse'])
 	# ds1 = CnfDataset(DS_TRAIN_FILE,threshold,mode=data_mode, num_max_clauses=12)
 	# ds2 = CnfDataset(DS_VALIDATION_FILE, threshold, ref_dataset=ds1, mode=data_mode, num_max_clauses=12)
 	# ds3 = CnfDataset(DS_TEST_FILE, threshold, ref_dataset=ds1, mode=data_mode)
@@ -101,5 +102,6 @@ def main(DS_TRAIN_FILE, DS_VALIDATION_FILE, DS_TEST_FILE, data_mode, threshold):
 	# print(ds2.labels)
 	# train(ds1,ds2)
 
-	print('max_variables, clauses: %d, %d' % (ns1.max_variables, ns1.max_clauses))
-	train(ns1,ns2)
+	print('max_variables, clauses: %d, %d' % (ds1.max_variables, ds1.max_clauses))
+	train(ds1,ds2)
+	# train(ns1,ns2)

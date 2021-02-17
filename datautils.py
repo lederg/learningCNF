@@ -126,7 +126,8 @@ class CnfDataset(Dataset):
         if 'num_max_clauses' in kwargs:
             self.num_max_clauses = kwargs['num_max_clauses']
 
-        self.sparse = kwargs['sparse'] if 'sparse' in kwargs else False
+        # self.sparse = kwargs['sparse'] if 'sparse' in kwargs else False
+        self.sparse = True
         time1 = time.time()
         self.eq_classes = filter_fn(classes, threshold, **kwargs)
         time2 = time.time()

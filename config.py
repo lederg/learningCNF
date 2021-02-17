@@ -251,6 +251,9 @@ def cfg():
 	es_validation_data = 'data/sat_100'
 	es_vanilla_policy = False
 
+	eq_encoder_type='GINEncoder'
+
+
 # Clause prediction
 	cp_cmask_features = [2]		# By default mask lbd
 	cp_vmask_features = []

@@ -41,7 +41,7 @@ DS_TEST_TEMPLATE = 'expressions-synthetic/split/%s-testset.json'
 
 PRINT_LOSS_EVERY = 100
 # PRINT_LOSS_EVERY = 20
-VALIDATE_EVERY = 1000
+VALIDATE_EVERY = 5
 NUM_EPOCHS = 400
 # NUM_EPOCHS = 150
 LOG_EVERY = 10
@@ -90,6 +90,7 @@ def log_name(settings):
 # @ex.capture
 def train(ds, ds_validate=None, net=None):
     settings = CnfSettings()
+
     sampler = torch.utils.data.sampler.WeightedRandomSampler(ds.weights_vector, len(ds))
     # trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, pin_memory=settings['cuda'], collate_fn = cnf_collate)
     trainloader = torch.utils.data.DataLoader(ds, batch_size=settings['batch_size'], sampler = sampler, collate_fn = cnf_collate)
@@ -144,11 +145,12 @@ def train(ds, ds_validate=None, net=None):
             if  effective_bs != settings['batch_size']:
                 print('Trainer gave us shorter batch!!')
                 # continue
+
             topvar = torch.abs(Variable(data['topvar'], requires_grad=False))
             labels = Variable(data['label'], requires_grad=False)
             cmat_pos = Variable(data['sp_v2c_pos'], requires_grad=False)
             cmat_neg = Variable(data['sp_v2c_neg'], requires_grad=False)
-            ipdb.set_trace()
+            # ipdb.set_trace()
             ind = data['idx_in_dataset']
             if settings.hyperparameters['cuda']:
                 topvar, labels = topvar.cuda(), labels.cuda()
@@ -159,6 +161,7 @@ def train(ds, ds_validate=None, net=None):
             optimizer.zero_grad()
             # print('iteration %d beginning...' % i)
             # forward + backward + optimize
+            # ipdb.set_trace()
             outputs, aux_losses = net(inputs, output_ind=topvar, cmat_pos=cmat_pos, cmat_neg=cmat_neg, batch_size=effective_bs)
             loss = criterion(outputs, labels)   # + torch.sum(aux_losses)
             try:
@@ -176,14 +179,14 @@ def train(ds, ds_validate=None, net=None):
             optimizer.step()
 
             # print statistics
-            running_loss += loss.data[0]
+            running_loss += loss.detach()
 
             correct = outputs.max(dim=1)[1]==labels
             num_correct = torch.nonzero(correct.data).size()
             if len(num_correct):
                 total_correct += num_correct[0]
             if get_step(epoch,i) % LOG_EVERY == 0:
-                log_value('loss',loss.data[0],get_step(epoch,i))
+                log_value('loss',loss.item(),get_step(epoch,i))
             if i % PRINT_LOSS_EVERY == PRINT_LOSS_EVERY-1:                
                 new_time = time.time()                
                 print('Average time per mini-batch, %f' % ((new_time-current_time) / PRINT_LOSS_EVERY))
@@ -198,7 +201,7 @@ def train(ds, ds_validate=None, net=None):
             # if ds_validate and i>0 and i % VALIDATE_EVERY == 0:
 
         # Validate and recompute learning rate
-        if ds_validate is not None:
+        if ds_validate is not None and epoch % VALIDATE_EVERY == 0:
             v_loss, v_acc = test(net, ds_validate, weighted_test=True)
             v_loss = v_loss.data.numpy() if not settings['cuda'] else v_loss.cpu().data.numpy()
             print('Validation loss %f, accuracy %f' % (v_loss,v_acc))

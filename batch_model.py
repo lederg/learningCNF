@@ -8,6 +8,7 @@ import utils
 import numpy as np
 from IPython.core.debugger import Tracer
 import pdb
+import ipdb
 from settings import *
 
 class GroundCombinator(nn.Module):
@@ -172,7 +173,8 @@ class FactoredInnerIteration(nn.Module):
 				pos_cmat = kwargs['cmat_pos']
 				neg_cmat = kwargs['cmat_neg']
 				# c = torch.mm(pos_cmat,pos_vars) + torch.mm(neg_cmat,neg_vars)
-				c = torch.mm(pos_cmat,pos_vars) + torch.matmul(neg_cmat,neg_vars)
+				# ipdb.set_trace()
+				c = torch.mm(pos_cmat,pos_vars) + torch.mm(neg_cmat,neg_vars)
 				c = c.view(bsize,-1,self.embedding_dim)				
 			else:				
 				pos_cmat = c_mat.clamp(0,1).float()
@@ -192,7 +194,7 @@ class FactoredInnerIteration(nn.Module):
 			if self.settings['sparse'] and 'cmat_pos' in kwargs and 'cmat_neg' in kwargs:
 				pos_vmat = kwargs['cmat_pos'].t()
 				neg_vmat = kwargs['cmat_neg'].t()
-				nv = torch.mm(pos_vmat,pos_cvars) + torch.mm(neg_vmat,neg_cvars)
+				nv = torch.sparse.mm(pos_vmat,pos_cvars) + torch.sparse.mm(neg_vmat,neg_cvars)
 				nv = nv.view(bsize,-1,self.embedding_dim)
 			else:	
 				pos_vmat = v_mat.clamp(0,1).float()
@@ -258,7 +260,6 @@ class BatchEncoder(nn.Module):
 		self.moving_ground = self.settings['moving_ground']
 
 		# 'moving_ground' will make num_ground_variables embeddings, plus only one for all the non-ground variables.
-
 		if self.moving_ground:
 			self.embedding = nn.Embedding(num_ground_variables+1, self.ground_dim, max_norm=1., norm_type=2)
 		else:

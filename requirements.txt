@@ -31,7 +31,7 @@ macropy3==1.1.0b2
 MarkupSafe==1.0
 matplotlib==2.1.1
 memory-profiler==0.55.0
-mistune==0.7.4
+mistune==2.0.3
 munch==2.2.0
 namedlist==1.7
 nbconvert==5.2.1
